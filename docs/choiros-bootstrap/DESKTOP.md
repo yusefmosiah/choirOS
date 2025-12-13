@@ -4,6 +4,33 @@
 
 ---
 
+## Design Philosophy: The "Windows 95" Stack
+
+The Desktop Shell bridges the gap between "Raw Intelligence" (Model) and "Human Intent" (User). It implements the "Agentic OS" layer of the Kernel Analogy.
+
+### Core Paradigm Concepts
+
+| Component | Old Paradigm | New Paradigm |
+|-----------|--------------|--------------|
+| **Start Menu** | Launches Applications | **Intent Menu ("?")** – Launches Intents (Jobs) |
+| **File Browser** | Shows Files | **Artifact Explorer** – Stream View (Log) + Artifact View (Desktop) |
+| **Static UI** | Pre-built interfaces | **GenUI** – Just-in-time generated interfaces |
+
+### The "?" Intent Menu
+
+Replaces the traditional Start Menu. Users type natural language prompts ("Find me a winter coat under $250").
+
+**Vibecoding**: The OS compiles the prompt into a temporary script/GUI.
+
+**Confirmation Contract**: Before execution, the OS presents a confirmation showing:
+- Budget/resource limits
+- Tools that will be used
+- Expected output format
+
+This is the safety layer that gives users control before agent execution.
+
+---
+
 ## Core Components
 
 ```
@@ -468,6 +495,40 @@ export function Desktop() {
 
 .taskbar-input::placeholder {
   color: var(--text-secondary);
+}
+```
+
+---
+
+## Generative UI (GenUI)
+
+**Concept**: The interface is a just-in-time asset, not a pre-built template.
+
+When a user opens a dataset or requests a complex view, the Agent "vibecodes" a custom interface to visualize it instantly. This enables:
+
+- **Customization via prompt**: "Make my desktop look like a cyberpunk terminal" is a valid OS command
+- **Context-adaptive interfaces**: Different data types get appropriate visualizations automatically
+- **Zero-install experiences**: New capabilities don't require app installation—they're generated on demand
+
+### Implementation Pattern
+
+```tsx
+// When agent completes a task requiring custom UI
+interface GenUIResult {
+  component: string;     // Generated React component code
+  props: Record<string, unknown>;
+  styles: string;        // Scoped CSS
+}
+
+// Runtime renders the generated component in a window
+function renderGenUI(result: GenUIResult) {
+  const Component = compileComponent(result.component);
+  return (
+    <Window title="Generated View">
+      <style>{result.styles}</style>
+      <Component {...result.props} />
+    </Window>
+  );
 }
 ```
 

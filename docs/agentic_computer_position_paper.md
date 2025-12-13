@@ -4,6 +4,16 @@
 
 ---
 
+## The Central Thesis: The Kernel Analogy
+
+> **"The Model is the Kernel. The Chatbot is the CLI. The Agentic Computer is the GUI."**
+
+- **The Kernel (LLM)**: Raw, powerful, probabilistic processing. Handles the "compute" of intelligence. Like a kernel, it is hostile to direct human interaction (requires perfect syntax/prompting).
+- **The Shell (Chatbot)**: A text-based command line interface to the kernel. Synchronous, stateless, unscalable. Represents a regression in affordance ("Blank Screen Paralysis").
+- **The User Space (Agentic OS)**: The missing layer. A persistence engine, window manager, and process scheduler that protects the user from the raw kernel and manages long-running tasks.
+
+---
+
 ## Abstract
 
 The dominant AI interface paradigm—the chatbot—is wrong. Chatbots are synchronous: user speaks, AI responds, user waits. But useful AI work is asynchronous: research takes time, synthesis requires iteration, complex tasks unfold over hours or days.
@@ -66,7 +76,7 @@ This is the failure mode of explicit invocation: accidental triggers, unwanted t
 
 An **agentic computer** is a computational environment that:
 1. Observes user actions as an event stream
-2. Processes in background without explicit invocation  
+2. Processes in background without explicit invocation
 3. Responds through existing channels (files, notifications, emails)
 4. Maintains persistent state across sessions
 5. Operates at all time scales (instant to indefinite)
@@ -212,7 +222,7 @@ The "device" is not hardware. The device is the workspace, accessed from anywher
 
 Your agentic computer contains everything:
 - Medical records
-- Financial documents  
+- Financial documents
 - Work projects
 - Personal notes
 - Communication history
@@ -262,7 +272,7 @@ Your agentic computer becomes your online identity:
 
 ```
 alice.computer
-drsmith.health  
+drsmith.health
 acme.internal
 ```
 
@@ -377,6 +387,35 @@ No new technology required. Just assembly.
 AI-generated content floods the internet. Provenance is lost. Attribution is broken. "Who said this?" becomes unanswerable.
 
 The agentic computer, built on citation graph and attribution, arrives as the solution becomes necessary.
+
+---
+
+## Part VIII: Strategic Position
+
+### "Short AGI, Long Agency"
+
+The bet that underlies this project:
+
+- **Hard Domains (Code, Logic, Math)**: Fall inside the "Convex Hull" of training data. AI progress here will be super-exponential.
+- **Soft Domains (Bio, Novelty, High Art)**: Fall outside the hull. Progress flattens due to lack of training data or systemic complexity.
+
+We don't need AGI (Digital God) to build the Agentic Computer. We only need Reliable Reasoning (Digital Labor).
+
+### The Industrial Frame
+
+To cut through AGI hype/fear, we reject the **Biological Metaphor** and embrace the **Industrial Metaphor**:
+
+| Feature | AGI Narrative | Agentic Narrative |
+|:--------|:--------------|:------------------|
+| **Metaphor** | Biology (Brain/Neuron) | Industry (Factory/Loom) |
+| **Role** | Rival / Replacement | Infrastructure / Staff |
+| **Dynamic** | Dialogue (Chatting) | Delegation (Dispatching) |
+| **Promise** | "It knows everything." | "It does the work." |
+
+**Key Copy:**
+- *"The Model is the Kernel; the Chatbot is the Shell."*
+- *"From software you operate to software that operates."*
+- *"Don't rent a brain. Build a mind."*
 
 ---
 

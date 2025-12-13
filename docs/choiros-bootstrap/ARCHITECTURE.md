@@ -2,12 +2,20 @@
 
 > A distributed web desktop that appears local but runs globally.
 
+## The Paradigm: The Kernel Analogy
+
+> **"The Model is the Kernel. The Chatbot is the CLI. The Agentic Computer is the GUI."**
+
+ChoirOS implements the "User Space" layer—the window manager, process scheduler, and persistence engine that protects users from the raw LLM kernel and manages long-running agent tasks.
+
 ## Core Principles
 
 1. **Local shell, remote brain** - Browser renders UI, all compute happens in cloud
 2. **Per-user sovereign data** - Each user has their own SQLite synced to S3
-3. **NATS as the kernel** - All events flow through a global log stream
+3. **NATS as the kernel's syscalls** - All events flow through a global log stream
 4. **Isolated agents** - Every agent runs in a Firecracker microVM
+5. **Intent over Application** - Users express intents ("?"), agents vibecode solutions
+6. **Collaborative Caching (Thought Bank)** - Agents publish artifacts to shared network, receive micropayments on citation
 
 ---
 

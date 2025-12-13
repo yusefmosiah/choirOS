@@ -2,6 +2,14 @@
 
 > The architectural DNA for vibecoding ChoirOS from scratch.
 
+## Vision: The Agentic Computer
+
+**"The Model is the Kernel. The Chatbot is the CLI. The Agentic Computer is the GUI."**
+
+ChoirOS is the missing "User Space" layer—a window manager, process scheduler, and persistence engine that protects users from the raw LLM kernel. It shifts computing from "software you operate" to "software that operates."
+
+See `../updated.md` for the complete paradigm thesis and strategic positioning.
+
 ## What This Is
 
 A comprehensive documentation suite that can be dropped into an empty repo to bootstrap development of ChoirOS - a distributed web desktop with isolated agent execution.

@@ -1,10 +1,41 @@
-# Choir: The Thought Bank
+# Choir: The Agentic Computer
 
-**Intelligence that creates value should share in that value**
+**From software you operate to software that operates**
 
 ---
 
-## Executive Summary
+## The Paradigm Shift: The Kernel Analogy
+
+> **"The Model is the Kernel. The Chatbot is the CLI. The Agentic Computer is the GUI."**
+
+| Layer | Old Computing | AI Computing |
+|-------|--------------|--------------|
+| **Kernel** | OS Kernel (syscalls) | **LLM** (raw probabilistic processing) |
+| **Shell** | CLI (text commands) | **Chatbot** (synchronous, stateless) |
+| **User Space** | GUI (windows, apps) | **Agentic OS** (persistence, delegation) |
+
+The chatbot is a regression in affordance—like trying to use a computer through nothing but a command line. It creates "Blank Screen Paralysis" where users don't know what to ask.
+
+The Agentic Computer is the missing layer: a window manager, process scheduler, and persistence engine that protects the user from the raw kernel and manages long-running tasks.
+
+### The Shift in Direction
+
+| Era | Mode | Metric |
+|-----|------|--------|
+| **Old** | Software you operate (Tools) | Engagement |
+| **New** | Software that operates (Labor) | **Leverage** |
+
+### Strategic Position: "Short AGI, Long Agency"
+
+- **Hard Domains (Code, Logic, Math)**: Fall inside the "Convex Hull" of training data. AI progress here will be super-exponential.
+- **Soft Domains (Bio, Novelty, High Art)**: Fall outside the hull. Progress flattens due to systemic complexity.
+- **The Bet**: We don't need AGI (Digital God) to build the Agentic Computer. We only need Reliable Reasoning (Digital Labor).
+
+---
+
+## The Thought Bank Model
+
+**Intelligence that creates value should share in that value**
 
 Choir is AI research infrastructure for the learning economy.
 
@@ -12,11 +43,34 @@ Choir is AI research infrastructure for the learning economy.
 
 **No capital required to earn.** Chat freely, publish research, get cited by AI agents making decisions, receive citation rewards in real money. The pathway from zero to income exists entirely through intellectual contribution.
 
-**Optional for those with capital**: Deposit USDC to provide the capital base for the Treasury's operations and lending pool. Your principal is protected, and you earn CHIP ownership based on your intellectual contributions, not the size of your deposit.
-
 **The economic loop (The Flywheel)**: Deposits fund operations. Novelty earns ownership (CHIP). Platform usage builds Treasury assets. Treasury assets are collateralized to fund citation rewards (USDC). Citation rewards attract quality researchers, whose work attracts more users and capital.
 
-This is not social media (no feeds, no followers, no engagement farming). This is not academic publishing (no gatekeeping, no 18-month peer review, no credential requirements). This is infrastructure for the learning economy where genuine insight generates measurable economic value.
+---
+
+## Rhetoric & Branding: The Industrial Frame
+
+To cut through the AGI hype/fear, we reject the **Biological Metaphor** and embrace the **Industrial Metaphor**.
+
+| Feature | AGI Narrative (The Trap) | Agentic Narrative (The Solution) |
+|:--------|:-------------------------|:---------------------------------|
+| **Metaphor** | Biology (Brain/Neuron) | **Industry (Factory/Loom)** |
+| **Role** | Rival / Replacement | **Infrastructure / Staff** |
+| **Dynamic** | Dialogue (Chatting) | **Delegation (Dispatching)** |
+| **Promise** | "It knows everything." | **"It does the work."** |
+
+**Key Copy:**
+- *"The Model is the Kernel; the Chatbot is the Shell."*
+- *"From software you operate to software that operates."*
+- *"Don't rent a brain. Build a mind."*
+- *"Intelligence is noisy. Agency is silent."*
+
+---
+
+## The Adversarial Web ("The Bloodbath")
+
+- **The Conflict**: Ad-supported platforms (Amazon, Google) rely on **Friction** (humans scrolling past ads). Agents rely on **Bypassing Friction** (API/DOM access).
+- **The Outcome**: A war between **Platforms** (hiding truth to save margins) and **Agents** (revealing truth to serve users).
+- **The Moat**: Sovereign, local-first agents (the Agentic OS) are the only defense against platform capture and censorship.
 
 ---
 

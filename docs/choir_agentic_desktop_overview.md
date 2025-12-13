@@ -1,8 +1,8 @@
 
 # Choir Agentic Desktop – Architecture, UX, and Wedge Use Case
-**Date:** December 11, 2025  
+**Date:** December 11, 2025
 
-This document synthesizes the current thinking around Choir as an *agentic computer* with a desktop UX, citation-based economics, and a practical wedge use case in second-hand clothing research.
+This document synthesizes the current thinking around Choir as an *agentic computer* with a desktop UX and citation-based economics.
 
 ---
 
@@ -22,7 +22,7 @@ In an AI-native world:
 
 So:
 - Web3 social (Farcaster, Lens, etc.) = *Twitter clones on-chain*, no 10x UX, no deep new primitive.
-- Web3 without AI is a mis-specified future.  
+- Web3 without AI is a mis-specified future.
 - The real story is: **AI + crypto + media + governance** fusing into a single operating layer for the 21st century.
 
 ### 1.2 Finance, media, and narrative power
@@ -120,7 +120,7 @@ Design:
 - Agent reads/writes artifacts via API, not by touching the user’s local disk.
 - If the agent is misused, injected, or misaligned, it can only damage its VM.
 
-Your laptop = sacred.  
+Your laptop = sacred.
 Remote VM = disposable body for agents.
 
 ### 3.3 Log streaming middleware as the kernel bus
@@ -236,7 +236,7 @@ Example:
   - Logs `UserAction.ChatUtterance` with focused artifact ID.
   - Agent reads the artifact + relevant logs.
   - Writes a new version of the artifact and emits `Artifact.Updated` + `Agent.CitedPrior`.
-  - The desktop shows the updated artifact and a short inline message:  
+  - The desktop shows the updated artifact and a short inline message:
     “Updated ‘Acme Bio Trial Plan’ with new timeline and safety notes.”
 
 The “conversation” is ephemeral; the artifact and log are the memory.
@@ -288,41 +288,6 @@ For bioinformatics and similar fields, users need:
 Agentic desktop is non-negotiable here:
 - Chatbots with stale threads and no filesystem simply cannot handle the workload.
 
-### 6.2 Normie wedge: second-hand clothing research
-
-To scale down from scientific to widely relatable usage, “shopping research” is a natural domain. Within that, **second-hand clothing** is especially potent:
-
-- New clothes are often priced on brand sentiment → perversely efficient; little alpha in saying “this is overpriced polyester.”
-- Second-hand markets (Grailed, eBay, Vinted, etc.) are:
-  - messy,
-  - mispriced,
-  - and **highly sensitive to knowledge** (fabrics, brands, cuts, seasons, fit).
-
-A normal user-friendly agentic desktop could focus on:
-- Projects like:
-  - “Winter coat hunt under $250”
-  - “Tailored trousers that actually fit”
-  - “Work wardrobe refresh on a budget”
-- Artifacts:
-  - “My measurements + fit profile”
-  - “Brand fit bible” (how different labels fit vs actual measurements)
-  - “Today’s finds” from multiple marketplaces
-  - “Shortlist” and “Wins / Regrets” logs
-
-The agent in the sandbox:
-- Scrapes/queries marketplaces.
-- Normalizes sizes & measurements.
-- Filters and ranks listings according to user prefs and fit data.
-- Updates artifacts and surfaces the best candidates via the desktop.
-
-This is structurally the same as scientific research:
-- complex data sources,
-- pipelines in a sandbox,
-- persistent artifacts,
-- iterative refinement.
-
-But the surface story is extremely accessible: “help me buy better clothes second-hand and stop wasting money on mid stuff.”
-
 ---
 
 ## 7. Moats and Ecosystem Dynamics
@@ -338,8 +303,8 @@ Most crypto VCs and B2B-focused investors:
 - Dismiss “social + tokens + OS-like agent layers” as messy, too consumer, or too early.
 
 They’re structurally blind to:
-- a consumer-grade **agentic OS**,  
-- with an embedded **citation economy**,  
+- a consumer-grade **agentic OS**,
+- with an embedded **citation economy**,
 - forming a new medium for public and semi-public thought.
 
 ### 7.2 Why labs will rediscover parts of this but can’t clone it fully
@@ -366,20 +331,20 @@ They can copy the **UX and some of the plumbing**, but not the full **economic &
 ### 7.3 Realistic moat for Choir
 
 The defensible pieces are:
-1. **Mechanism design from genesis**  
+1. **Mechanism design from genesis**
    - Transparent, dominant-strategy-friendly citation rewards.
    - Token flows tied directly to the log and artifacts.
    - Fair splits between authors, editors, and citers.
 
-2. **Neutral substrate and credible commitments**  
+2. **Neutral substrate and credible commitments**
    - Not owned by a single AI lab.
    - Designed so users see their work as **permanent capital**, not exhaust.
 
-3. **Data gravity + habit**  
+3. **Data gravity + habit**
    - Once users’ thoughts, research, and economic claims live in this OS, the cost of leaving is not purely technical, it’s cognitive and financial.
    - Export must be easy, but the *ecosystem value* is hard to replicate.
 
-4. **Culture and selection effects**  
+4. **Culture and selection effects**
    - Attract people who care about:
      - better discourse,
      - ownership of their cognition,
@@ -406,6 +371,5 @@ The defensible pieces are:
 - Choir’s twist is to make:
   - the **global cache of thought** a user‑owned, rewarded substrate, and
   - the **desktop UX** the natural way to inhabit that substrate.
-- A practical consumer wedge is second-hand clothing research, which showcases the full stack (agents, artifacts, economics) in a normie-friendly domain with real information arbitrage.
 
 This is the current snapshot of the Choir agentic desktop vision and its surrounding strategy.
