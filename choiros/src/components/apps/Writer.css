@@ -7,10 +7,34 @@
     overflow: hidden;
 }
 
+.writer-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.loading-spinner {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.writer-title-bar {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.writer-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
 /* BlockNote container */
 .writer .bn-container {
-    height: 100%;
+    flex: 1;
     background: var(--bg-primary);
+    overflow-y: auto;
 }
 
 /* Editor area */

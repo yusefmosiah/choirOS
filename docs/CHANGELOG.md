@@ -1,5 +1,48 @@
 # Changelog
 
+## [2025-12-17] - choirOS Desktop v0 (Phase 2: Sources Workflow)
+
+### Added
+
+- **FastAPI Backend** (`/api`):
+  - YouTube transcript parser (youtube-transcript-api, yt-dlp)
+  - Web page parser (Trafilatura)
+  - Document parser (MarkItDown - PDF, DOCX, PPTX, images, audio)
+  - In-memory artifact store
+  - CORS configured for local dev (ports 5173, 5174)
+
+- **Files App:** Unified file browser for `/sources` folder
+  - Lists parsed artifacts with icons by type (🎬 YouTube, 🌐 Web, 📄 Upload)
+  - Double-click to open in Writer with full content
+  - Delete and external link actions
+
+- **Taskbar Enhancements:**
+  - URL detection in ? bar — paste URL to parse
+  - ? menu → "Upload Files" button for document parsing
+  - Toast notifications with click-to-open
+  - Duplicate URL detection with Cancel/Overwrite/Keep Both dialog
+
+- **Writer App:**
+  - Loads artifact content when opened with `artifactId` prop
+  - Scroll support fixed for long documents
+  - Title bar shows source name
+
+- **API Client & Store:**
+  - `lib/api.ts` — typed fetch wrappers for all endpoints
+  - `stores/sources.ts` — Zustand store for artifacts
+
+### Changed
+
+- Removed separate "Sources" app — unified into Files
+- Desktop icons: Files, Writer, Terminal
+
+### Technical Details
+
+- **New Dependencies:** FastAPI, Uvicorn, Pydantic, youtube-transcript-api, yt-dlp, trafilatura, markitdown, python-multipart, httpx
+- **Dev Script:** `./dev.sh` runs frontend + backend concurrently
+
+---
+
 ## [2025-12-16] - choirOS Desktop v0 (Phase 1.1: BlockNote Migration)
 
 ### Changed
@@ -14,7 +57,7 @@
 
 - `WriterToolbar.tsx` and `WriterToolbar.css` (no longer needed)
 
-——
+---
 
 ## [2025-12-16] - choirOS Desktop v0 (Phase 1: Static Shell)
 

@@ -7,8 +7,8 @@ import { WindowManager } from '../window/WindowManager';
 import './Desktop.css';
 
 const DESKTOP_ICONS = [
-    { appId: 'writer', label: 'Writer' },
     { appId: 'files', label: 'Files' },
+    { appId: 'writer', label: 'Writer' },
     { appId: 'terminal', label: 'Terminal' },
 ];
 

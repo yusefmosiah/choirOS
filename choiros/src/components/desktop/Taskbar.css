@@ -16,6 +16,10 @@
     z-index: 10000;
 }
 
+.taskbar-menu-container {
+    position: relative;
+}
+
 .taskbar-menu-btn {
     width: 40px;
     height: 40px;
@@ -30,14 +34,85 @@
     transition: all 0.15s ease;
 }
 
-.taskbar-menu-btn:hover {
+.taskbar-menu-btn:hover,
+.taskbar-menu-btn.active {
     background: var(--accent-gold);
     color: var(--bg-primary);
+}
+
+.taskbar-menu {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    min-width: 220px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-xs);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    animation: menuSlideUp 0.15s ease;
+}
+
+@keyframes menuSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.taskbar-menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.taskbar-menu-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.taskbar-menu-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: var(--spacing-xs) 0;
+}
+
+.taskbar-menu-hint {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.taskbar-menu-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+}
+
+.hidden-file-input {
+    display: none;
 }
 
 .taskbar-input-form {
     flex: 1;
     min-width: 0;
+    position: relative;
 }
 
 .taskbar-input {
@@ -59,6 +134,32 @@
 
 .taskbar-input::placeholder {
     color: var(--text-secondary);
+}
+
+.taskbar-input:disabled {
+    opacity: 0.7;
+}
+
+.taskbar-input-loader {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent-gold);
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .taskbar-tray {
@@ -98,4 +199,171 @@
 
 .taskbar-app.minimized:hover {
     opacity: 1;
+}
+
+/* Toast notifications */
+.taskbar-toast {
+    position: fixed;
+    bottom: calc(var(--taskbar-height) + 16px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 14px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    animation: toastSlideUp 0.2s ease;
+    z-index: 10001;
+}
+
+@keyframes toastSlideUp {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+.taskbar-toast.success {
+    border-color: #2ecc71;
+}
+
+.taskbar-toast.error {
+    border-color: #e74c3c;
+}
+
+.toast-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.toast-close:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.taskbar-toast.clickable {
+    cursor: pointer;
+}
+
+.taskbar-toast.clickable:hover {
+    border-color: var(--accent-gold);
+}
+
+.toast-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-left: var(--spacing-xs);
+}
+
+/* Duplicate confirmation dialog */
+.taskbar-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10002;
+}
+
+.taskbar-dialog {
+    position: fixed;
+    bottom: calc(var(--taskbar-height) + 60px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    min-width: 320px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    z-index: 10003;
+    animation: toastSlideUp 0.2s ease;
+}
+
+.dialog-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-sm);
+}
+
+.dialog-icon {
+    color: var(--accent-gold);
+}
+
+.dialog-message {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-md);
+    line-height: 1.4;
+}
+
+.dialog-message strong {
+    color: var(--text-primary);
+}
+
+.dialog-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: flex-end;
+}
+
+.dialog-btn {
+    padding: var(--spacing-xs) var(--spacing-md);
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.dialog-btn.cancel {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.dialog-btn.cancel:hover {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.dialog-btn.overwrite {
+    background: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+}
+
+.dialog-btn.overwrite:hover {
+    background: rgba(231, 76, 60, 0.3);
+}
+
+.dialog-btn.keep-both {
+    background: var(--accent-gold);
+    color: var(--bg-primary);
+    font-weight: 500;
+}
+
+.dialog-btn.keep-both:hover {
+    filter: brightness(1.1);
 }
