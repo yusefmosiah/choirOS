@@ -1,5 +1,21 @@
 # Changelog
 
+## [2025-12-16] - choirOS Desktop v0 (Phase 1.1: BlockNote Migration)
+
+### Changed
+
+- **Writer App:** Migrated from TipTap to BlockNote rich text editor
+  - Block-based editing with drag/drop reordering
+  - Custom `?` command trigger (instead of `/`) for brand consistency
+  - Removed formatting toolbar (relying on `?` menu and keyboard shortcuts)
+  - Localized placeholder text to show `?` hint
+
+### Removed
+
+- `WriterToolbar.tsx` and `WriterToolbar.css` (no longer needed)
+
+——
+
 ## [2025-12-16] - choirOS Desktop v0 (Phase 1: Static Shell)
 
 ### Added
