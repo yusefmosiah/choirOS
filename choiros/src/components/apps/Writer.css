@@ -1,4 +1,4 @@
-/* Writer App Styles */
+/* Writer App Styles - BlockNote */
 .writer {
     display: flex;
     flex-direction: column;
@@ -7,172 +7,107 @@
     overflow: hidden;
 }
 
-/* Toolbar */
-.writer-toolbar {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-sm);
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-secondary);
-    flex-shrink: 0;
-    overflow: hidden;
+/* BlockNote container */
+.writer .bn-container {
+    height: 100%;
+    background: var(--bg-primary);
 }
 
-.toolbar-group {
-    display: flex;
-    gap: 2px;
-}
-
-.toolbar-button {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.toolbar-button:hover {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-}
-
-.toolbar-button.active {
-    background: var(--bg-tertiary);
-    color: var(--accent-gold);
-}
-
-.toolbar-divider {
-    width: 1px;
-    height: 24px;
-    background: var(--border-color);
-    margin: 0 var(--spacing-xs);
-}
-
-.toolbar-spacer {
-    flex: 1;
-}
-
-/* Content */
-.writer-content {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
+/* Editor area */
+.writer .bn-editor {
     padding: var(--spacing-md);
-}
-
-/* TipTap Editor */
-.writer-editor {
-    min-height: 100%;
-    outline: none;
-    font-size: 16px;
-    line-height: 1.7;
     color: var(--text-primary);
 }
 
-.writer-editor:focus {
-    outline: none;
+/* Override BlockNote theme colors to match ChoirOS theme */
+.writer [data-theming-css-variables-demo] {
+    --bn-colors-editor-background: var(--bg-primary);
+    --bn-colors-editor-text: var(--text-primary);
+    --bn-colors-menu-background: var(--bg-secondary);
+    --bn-colors-menu-text: var(--text-primary);
+    --bn-colors-tooltip-background: var(--bg-tertiary);
+    --bn-colors-tooltip-text: var(--text-primary);
+    --bn-colors-hovered-background: var(--bg-tertiary);
+    --bn-colors-selected-background: var(--accent-gold-dim);
+    --bn-colors-side-menu: var(--text-secondary);
 }
 
-/* Placeholder */
-.writer-editor p.is-editor-empty:first-child::before {
-    color: var(--text-secondary);
-    content: attr(data-placeholder);
-    float: left;
-    height: 0;
-    pointer-events: none;
+/* Suggestion menu (? commands) */
+.writer .bn-suggestion-menu {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.writer .bn-suggestion-menu-item {
+    color: var(--text-primary);
+}
+
+.writer .bn-suggestion-menu-item:hover,
+.writer .bn-suggestion-menu-item[data-highlighted] {
+    background: var(--bg-tertiary);
+}
+
+/* Block styling */
+.writer .bn-block {
+    margin: 0.5em 0;
 }
 
 /* Headings */
-.writer-editor h1 {
+.writer h1 {
     font-size: 2em;
     font-weight: 700;
-    margin: 1em 0 0.5em;
     color: var(--text-primary);
 }
 
-.writer-editor h2 {
+.writer h2 {
     font-size: 1.5em;
     font-weight: 600;
-    margin: 1em 0 0.5em;
     color: var(--text-primary);
 }
 
-.writer-editor h3 {
+.writer h3 {
     font-size: 1.25em;
     font-weight: 600;
-    margin: 1em 0 0.5em;
     color: var(--text-primary);
 }
 
-/* Paragraphs */
-.writer-editor p {
-    margin: 0.5em 0;
-}
-
-/* Lists */
-.writer-editor ul,
-.writer-editor ol {
-    padding-left: 1.5em;
-    margin: 0.5em 0;
-}
-
-.writer-editor li {
-    margin: 0.25em 0;
-}
-
-/* Blockquote */
-.writer-editor blockquote {
-    border-left: 3px solid var(--accent-gold-dim);
-    padding-left: var(--spacing-md);
-    margin: 1em 0;
+/* Placeholder text */
+.writer [data-placeholder]::before {
     color: var(--text-secondary);
-    font-style: italic;
 }
 
-/* Code */
-.writer-editor code {
+/* Selection */
+.writer ::selection {
+    background: var(--accent-gold);
+    color: var(--bg-primary);
+}
+
+/* Code blocks */
+.writer pre {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+}
+
+.writer code {
     background: var(--bg-tertiary);
     border-radius: var(--radius-sm);
     padding: 0.1em 0.4em;
     font-family: var(--font-mono);
-    font-size: 0.9em;
     color: var(--accent-gold);
 }
 
-.writer-editor pre {
-    background: var(--bg-tertiary);
-    border-radius: var(--radius-md);
-    padding: var(--spacing-md);
-    margin: 1em 0;
-    overflow-x: auto;
-}
-
-.writer-editor pre code {
-    background: none;
-    padding: 0;
-    color: var(--text-primary);
-}
-
-/* Strikethrough */
-.writer-editor s {
+/* Blockquote */
+.writer blockquote {
+    border-left: 3px solid var(--accent-gold-dim);
+    padding-left: var(--spacing-md);
     color: var(--text-secondary);
+    font-style: italic;
 }
 
-/* Strong/Bold */
-.writer-editor strong {
-    font-weight: 600;
-}
-
-/* Selection */
-.writer-editor ::selection {
-    background: var(--accent-gold);
-    color: var(--bg-primary);
+/* Hide default toolbar (we're using ? commands only) */
+.writer .bn-formatting-toolbar {
+    display: none;
 }
