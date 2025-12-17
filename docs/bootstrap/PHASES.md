@@ -1,10 +1,10 @@
 # ChoirOS: Build Phases
 
-> Outside-in. Interface → Workflow → Publishing → Persistence → Platform.
+> Outside-in. Interface → Sources → Platform → Publishing → Collective.
 
 ---
 
-## Phase 0: Bootstrap (Current)
+## Phase 0: Bootstrap ✓
 
 **Goal:** Crystallize decisions without writing code that buries them.
 
@@ -13,157 +13,154 @@
 - [x] UNKNOWNS.md — What we're explicitly deferring
 - [x] PHASES.md — This document
 
-**Exit criteria:** Someone else (human or agent) can read these docs and build Phase 1 without asking "but why?"
+**Exit criteria:** Someone else (human or agent) can read these docs and build Phase 1.
 
 ---
 
-## Phase 1: Static Shell
+## Phase 1: Static Shell ✓
 
 **Goal:** A working desktop in the browser. No backend. No persistence. Just the shape.
 
 **Deliverables:**
-- [ ] Vite + React + TypeScript project scaffold
-- [ ] Desktop component (wallpaper, icon grid)
-- [ ] Window component (drag, resize, minimize, maximize, close, focus/z-index)
-- [ ] Taskbar component (? bar input, app tray, clock)
-- [ ] One builtin app: Writer (TipTap, minimal)
-- [ ] Theme loading from `theme.json` artifact (can be hardcoded initially)
-- [ ] App registry loading from `apps.json` artifact
+- [x] Vite + React + TypeScript project scaffold
+- [x] Desktop component (wallpaper, icon grid)
+- [x] Window component (drag, resize, minimize, maximize, close, focus)
+- [x] Taskbar component (? bar input, app tray)
+- [x] Writer app (BlockNote editor)
+- [x] Files app
+- [x] Mobile-responsive windows with touch support
 
-**Entry criteria:** DECISIONS.md and UNKNOWNS.md are stable enough to build against.
-
-**Exit criteria:** 
+**Exit criteria:**
 - Can open Writer window from desktop icon
 - Can drag/resize window
-- Can type in ? bar (input captured, no response yet)
-- Can type in Writer (content captured, no save yet)
-- Theme colors come from artifact, not hardcoded CSS
-
-**Not in scope:**
-- Persistence
-- Agent responses
-- File browser
-- Multiple apps
+- ? bar captures input
+- Writer accepts content
 
 ---
 
-## Phase 2: Workflow Loop
+## Phase 2: Sources Workflow ✓
 
-**Goal:** ? bar input produces artifacts. The core interaction works.
+**Goal:** Users can ingest external content as artifacts.
 
 **Deliverables:**
-- [ ] ? bar command parsing (distinguish `?command` from natural language)
-- [ ] Simple agent stub (receive input, write artifact, return)
-- [ ] Artifact creation → window spawning
-- [ ] Notification/toast for agent responses
-- [ ] Action log (in-memory, not persisted yet)
-
-**Entry criteria:** Phase 1 complete. Shell renders and accepts input.
+- [x] FastAPI backend with parsers
+- [x] YouTube transcript extraction
+- [x] Web page content extraction
+- [x] Document parsing (PDF, DOCX, PPTX, etc.)
+- [x] ? bar URL detection and parsing
+- [x] File upload via ? menu
+- [x] Artifacts appear in Files app
+- [x] Open artifacts in Writer
 
 **Exit criteria:**
-- Type "create a note called today.md" in ? bar
-- Agent creates artifact
-- Writer window opens with new artifact
-- Action log contains COMMAND and ARTIFACT_CREATE events
+- Paste URL in ? bar → content extracted → artifact created
+- Upload file via ? menu → parsed → artifact created
+- View and edit artifacts in Writer
 
-**Not in scope:**
-- Real agent intelligence (stub can be simple pattern matching + Claude call)
-- Persistence across page refresh
-- File browser
+**Note:** The ? bar at this phase is a **utility bar**, not a prompt box. Users don't need to "prompt engineer" — just paste a URL. Power users can explore the ? menu for more features.
 
 ---
 
-## Phase 3: Publishing (Artifact System)
+## Phase 3: Agent Platform 🔜
 
-**Goal:** Artifacts are first-class. Can create, browse, open, export.
+**Goal:** The agentic infrastructure. MicroVM sandbox where the shell itself runs, modifiable at runtime.
 
-**Deliverables:**
-- [ ] Artifact model (full schema from DECISIONS.md)
-- [ ] Files app (browse artifacts, grid/list view)
-- [ ] Artifact CRUD operations
-- [ ] Export artifact (download as file)
-- [ ] Open artifact in appropriate app
-- [ ] Citation stub (artifacts can reference other artifacts via metadata)
+### Why Sandbox-First?
 
-**Entry criteria:** Phase 2 complete. Artifacts are being created.
+The key insight: **everything built so far should run inside the agent sandbox**. This means:
+- The desktop shell is served from a microVM
+- Agents can modify the shell files (CSS, components, layout)
+- Vibecoding works: user prompts → agent edits → Vite HMR → live update
+
+### Subtasks
+
+**3.1: MicroVM Base Image**
+- [ ] Firecracker VM with Alpine + Node + Vite
+- [ ] Choir shell source in `/app`
+- [ ] Artifacts directory at `/artifacts`
+- [ ] Vite dev server running
+
+**3.2: VM Orchestration**
+- [ ] Spawn VM on user connect
+- [ ] WebSocket bridge (browser ↔ VM)
+- [ ] Destroy on disconnect (or idle timeout)
+
+**3.3: S3 State Sync**
+- [ ] Artifacts sync to S3
+- [ ] Restore on VM spawn
+- [ ] Per-user namespacing
+
+**3.4: NATS Event Bus**
+- [ ] JetStream setup
+- [ ] Action log streaming
+- [ ] Agent subscriptions
+
+**3.5: Agent Harness**
+- [ ] Agent receives ? bar input
+- [ ] Agent can read/write files
+- [ ] Agent actions visible (opens windows, edits files)
+
+### Launch Feature: Vibecoding
+
+The proof point for Phase 3: **type in ? bar → agent modifies theme/layout → UI updates live**.
+
+This demonstrates:
+- Agent can modify the shell
+- Changes are visible and immediate
+- Users can "vibe" the system into their preferred state
 
 **Exit criteria:**
-- Can browse artifacts in Files app
-- Can open artifact in Writer
-- Can download artifact
-- Can see citation links (even if not yet functional)
-
-**Not in scope:**
-- Persistence across sessions
-- SQLite
-- Vector search
+- Browser connects to microVM (not local dev server)
+- ? bar input reaches agent
+- Agent can write files, UI updates via HMR
+- "Change the background to dark blue" works
 
 ---
 
 ## Phase 4: Persistence
 
-**Goal:** State survives page refresh. Local-first with sync-ready architecture.
+**Goal:** State survives sessions. Local-first with cloud sync.
 
 **Deliverables:**
-- [ ] sql.js integration (SQLite in browser)
-- [ ] Zustand stores ↔ SQLite sync
-- [ ] Schema from DECISIONS.md implemented
+- [ ] SQLite in VM (`/state/db.sqlite`)
+- [ ] Artifacts stored in SQLite + synced to S3
 - [ ] Action log persisted
-- [ ] Artifacts persisted
-- [ ] Window state persisted (optional, see UNKNOWNS.md U7)
-- [ ] Export database (download workspace.sqlite)
-
-**Entry criteria:** Phase 3 complete. Artifact system works in-memory.
+- [ ] Export workspace (download db + artifacts)
+- [ ] Import workspace
 
 **Exit criteria:**
-- Refresh page → state restored
-- Can download workspace.sqlite
-- Can import workspace.sqlite (replaces state)
-
-**Not in scope:**
-- S3 sync
-- Multi-device
-- MicroVM
+- Close browser, reopen → artifacts restored
+- Can download workspace as backup
+- Can import workspace on new session
 
 ---
 
-## Phase 5: Platform (MicroVM)
+## Phase 5: Publishing
 
-**Goal:** The browser connects to a microVM. Live vibecoding works.
+**Goal:** Artifacts become shareable. Citation graph emerges.
 
 **Deliverables:**
-- [ ] Firecracker VM base image (Alpine + Node + Vite + Choir shell)
-- [ ] VM orchestrator (spawn on connect, destroy on disconnect)
-- [ ] S3 artifact sync (VM ↔ S3)
-- [ ] Browser ↔ VM WebSocket connection
-- [ ] Agent runtime in VM (receives ? bar, writes files)
-- [ ] Vite HMR through WebSocket (user sees changes live)
-
-**Entry criteria:** Phase 4 complete. Single-user local version works.
+- [ ] Public artifact publishing
+- [ ] Citation metadata (artifact A cites artifact B)
+- [ ] Citation graph queries
+- [ ] Export as standalone document (with citations)
 
 **Exit criteria:**
-- User connects → VM spawns
-- User types in ? bar → agent writes file → Vite rebuilds → browser updates
-- User disconnects → VM destroys → artifacts persist in S3
-- User reconnects → new VM → artifacts restored
-
-**Not in scope:**
-- Multi-user
-- NATS global bus
-- Citation economy
+- Can publish artifact to public URL
+- Citations tracked and queryable
+- Export includes provenance
 
 ---
 
 ## Phase 6+: Collective Intelligence
 
-Beyond the core product. Requires Phase 5 to be stable.
+Beyond core product. Requires Phase 5 stable.
 
-- Global NATS event bus
-- Cross-user citation
-- Citation rewards
-- Public artifact publishing
-- Identity and ownership
-- Custom domains
+- Global NATS mesh
+- Cross-user citation and discovery
+- Citation rewards (USDC micropayments)
+- CHIP token governance
+- Custom domains as identity
 
 ---
 
@@ -172,26 +169,37 @@ Beyond the core product. Requires Phase 5 to be stable.
 ```
 Phase 0 (decisions)
     ↓
-Phase 1 (shell)
+Phase 1 (shell) ✓
     ↓
-Phase 2 (workflow)
+Phase 2 (sources) ✓
     ↓
-Phase 3 (artifacts)
+Phase 3 (platform) ← YOU ARE HERE
     ↓
 Phase 4 (persistence)
     ↓
-Phase 5 (platform)
+Phase 5 (publishing)
     ↓
 Phase 6+ (collective)
 ```
 
-No phase can skip. Each is foundation for the next.
+---
+
+## The ? Bar Philosophy
+
+The ? bar is the **utility bar**, not a chatbot input.
+
+| User Type | Experience |
+|-----------|------------|
+| **Casual** | Paste URL → get parsed content. Click ? → see menu. |
+| **Power** | Type natural language commands. NL CLI for everything. |
+
+**Key UX constraint:** Users should NOT need to know the right prompt. The point of ChoirOS is to move beyond prompt engineering. Simple actions are discoverable via GUI; complex actions are accessible via natural language.
 
 ---
 
 ## Velocity Check
 
-Each phase should take **1-2 weeks** of focused work for a single developer (or agent).
+Each phase should take **1-2 weeks** of focused work.
 
 If a phase takes longer:
 - Scope was too big → split it
@@ -200,16 +208,5 @@ If a phase takes longer:
 
 ---
 
-## How to Use This Document
-
-**For coding agents:**
-1. Read DECISIONS.md for constraints and rationale
-2. Read UNKNOWNS.md for what NOT to decide
-3. Read this document for scope
-4. Build one phase at a time
-5. Update all three docs as you learn
-
-**For human review:**
-- Check phase exit criteria before moving on
-- If exit criteria feel wrong, revise them first
-- If something was harder than expected, add to UNKNOWNS.md
+*Last updated: 2025-12-17*
+*Status: Phase 3 in planning*

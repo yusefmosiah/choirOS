@@ -106,11 +106,22 @@ Global Infrastructure (S3, Qdrant, JetStream)
 
 ---
 
-### D8: The ? Bar Is the Intent Interface
+### D8: The ? Bar Is the Utility Bar
 
-**Decision:** Single input at bottom of screen. No chat history in the bar itself. Responses appear as artifacts/windows/notifications.
+**Decision:** Single input at bottom of screen. No chat history. Responses appear as artifacts/windows/notifications.
 
-**Rationale:** This is NOT a chatbot. The ? bar captures intent. The system responds through existing channels (files, windows). The response channel must not be the ? bar, or we've rebuilt chat.
+**What it is:**
+- A utility bar, not a prompt box
+- Simple actions for everyone (paste URL → parse)
+- Natural language CLI for power users
+- Menu access via ? button
+
+**What it is NOT:**
+- A chatbot
+- A place where users need to "prompt engineer"
+- A response channel (responses go to windows/files/toasts)
+
+**Rationale:** The point of ChoirOS is to move beyond prompt engineering. Users shouldn't need to know the right commands. Simple features are discoverable via GUI; complex actions are accessible via natural language, and through the ? menu for everyone; the ? menu fills out the ? bar teaching users the right commands.
 
 ---
 
@@ -174,6 +185,31 @@ Global Infrastructure (S3, Qdrant, JetStream)
 - Problem has one clear path
 - Latency matters more than quality
 - Cost of N agents exceeds value of exploration
+
+---
+
+### D13: Sandbox-First Architecture
+
+**Decision:** The shell itself runs inside the agent sandbox (microVM). The browser is a thin client.
+
+**Rationale:**
+- Vibecoding becomes literal: agent writes CSS/JSX → Vite HMR → browser updates
+- The shell is modifiable at runtime—users can "vibe" their environment
+- Security: arbitrary code runs in VM, not browser
+- Composability: building Choir in Choir is possible
+
+**Architecture:**
+```
+Browser (thin client, WebSocket only)
+    ↓
+MicroVM (/app contains Choir source)
+    ├── Vite dev server
+    ├── Agent runtime
+    ├── /artifacts (user content)
+    └── /state (SQLite)
+```
+
+**Launch Feature:** The proof that this works is vibecoding. User types "make the background dark blue" → agent edits theme.json → HMR fires → UI updates. This demonstrates the architecture enables live modification.
 
 ---
 

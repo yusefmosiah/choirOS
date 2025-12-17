@@ -1,43 +1,61 @@
 # ChoirOS Architecture
 
-> A distributed web desktop that appears local but runs globally.
+> A distributed web desktop that appears local but runs in a sandbox.
 
-## The Paradigm: The Kernel Analogy
+## The Paradigm: Sandbox-First
 
-> **"The Model is the Kernel. The Chatbot is the CLI. The Agentic Computer is the GUI."**
+> **"The shell runs inside the agent sandbox."**
 
-ChoirOS implements the "User Space" layer—the window manager, process scheduler, and persistence engine that protects users from the raw LLM kernel and manages long-running agent tasks.
+The browser is a **thin client**. The Choir desktop (Vite + React app) runs inside a microVM, not in the browser. This enables:
+- Vibecoding: agents modify shell files → Vite HMR → browser updates live
+- Security: arbitrary code runs in VM, not browser
+- Composability: building Choir in Choir is possible
 
 ## Core Principles
 
-1. **Local shell, remote brain** - Browser renders UI, all compute happens in cloud
+1. **Thin client, smart sandbox** - Browser renders, VM computes
 2. **Per-user sovereign data** - Each user has their own SQLite synced to S3
-3. **NATS as the kernel's syscalls** - All events flow through a global log stream
+3. **NATS as the nervous system** - All events flow through a global log stream
 4. **Isolated agents** - Every agent runs in a Firecracker microVM
-5. **Intent over Application** - Users express intents ("?"), agents vibecode solutions
-6. **Collaborative Caching (Thought Bank)** - Agents publish artifacts to shared network, receive micropayments on citation
+5. **UX over prompts** - Users shouldn't need to prompt engineer
+6. **Collaborative Caching (Thought Bank)** - Agents publish artifacts, receive micropayments on citation
 
 ---
 
 ## System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Browser (ChoirOS Shell)                   │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────────────────┐ │
-│  │ Writer  │ │  Files  │ │Terminal │ │    ? Command Bar    │ │
-│  └────┬────┘ └────┬────┘ └────┬────┘ └──────────┬──────────┘ │
-│       └───────────┴───────────┴─────────────────┘            │
-│                              │                                │
-│              ┌───────────────┼───────────────┐                │
-│              │     Zustand State Stores      │                │
-│              │  ┌─────────┐ ┌─────────────┐  │                │
-│              │  │ sql.js  │ │  nats.ws    │  │                │
-│              │  │ (cache) │ │  (events)   │  │                │
-│              │  └─────────┘ └─────────────┘  │                │
-│              └───────────────┬───────────────┘                │
-└──────────────────────────────┼────────────────────────────────┘
-                               │ WebSocket
+┌─────────────────────────────────────────────┐
+│           Browser (Thin Client)                  │
+│     WebSocket only — no app logic here           │
+└──────────────────────┬──────────────────────┘
+                       │ WebSocket
+                       ▼
+┌─────────────────────────────────────────────┐
+│      User’s MicroVM (Firecracker)                 │
+│  ┌─────────────────────────────────────────┐  │
+│  │ /app (Choir shell source, Vite project)  │  │
+│  │    ├── Vite dev server (serves UI)        │  │
+│  │    ├── HMR WebSocket (live updates)       │  │
+│  │    └── Agent can modify any file here     │  │
+│  ├─────────────────────────────────────────┤  │
+│  │ /artifacts (user content, theme, config)│  │
+│  ├─────────────────────────────────────────┤  │
+│  │ /state (SQLite, action log)             │  │
+│  ├─────────────────────────────────────────┤  │
+│  │ Agent runtime (→ receives ? bar input)   │  │
+│  └─────────────────────────────────────────┘  │
+└──────────────────────┬──────────────────────┘
+                       │ NATS
+                       ▼
+┌─────────────────────────────────────────────┐
+│           Global Infrastructure                  │
+│  ┌───────────┐ ┌───────────┐ ┌─────────────┐  │
+│  │    NATS   │ │     S3    │ │   Qdrant    │  │
+│  │ JetStream │ │ (per-user)│ │  (vectors)  │  │
+│  └───────────┘ └───────────┘ └─────────────┘  │
+└─────────────────────────────────────────────┘
+```
           ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─│─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
                                ▼
 ┌──────────────────────────────────────────────────────────────┐
@@ -113,15 +131,23 @@ Remote Change (from agent):
 
 ## Component Responsibilities
 
-### Browser (Frontend)
+### MicroVM (where the shell runs)
 
 | Component | Responsibility |
 |-----------|----------------|
-| **Window Manager** | z-index, focus, drag/resize, minimize/maximize |
-| **Desktop Shell** | Icons, wallpaper, layout |
-| **Taskbar** | Running apps, `?` command bar, system tray |
-| **Apps** | Writer (TipTap), Files, Terminal (xterm.js) |
-| **State Layer** | Zustand stores, sql.js cache, NATS client |
+| **Vite dev server** | Serves UI to browser, HMR for live updates |
+| **Agent runtime** | Receives ? bar input, reads/writes files |
+| **Shell source** | Full Choir React app, modifiable by agent |
+| **Artifacts** | User content, theme, app configs |
+| **SQLite** | Local state, action log |
+
+### Browser (thin client)
+
+| Component | Responsibility |
+|-----------|----------------|
+| **WebSocket** | Connects to VM's Vite server |
+| **Rendering** | Displays whatever Vite serves |
+| **Input** | Captures user actions, sends to VM |
 
 ### AWS (Backend)
 

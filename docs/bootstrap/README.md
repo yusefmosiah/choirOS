@@ -70,4 +70,6 @@ npm run dev
 
 ---
 
-*Build order: Interface → Workflow → Publishing → Persistence → Platform*
+*Build order: Interface → Sources → Platform → Persistence → Publishing*
+
+*Current phase: 3 (Agent Platform)*
