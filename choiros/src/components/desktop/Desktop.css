@@ -1,0 +1,52 @@
+/* Desktop Styles */
+.desktop {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.desktop-wallpaper {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg,
+            var(--bg-primary) 0%,
+            #141414 50%,
+            var(--bg-primary) 100%);
+    /* Subtle pattern overlay */
+    background-image:
+        linear-gradient(135deg, var(--bg-primary) 0%, #141414 50%, var(--bg-primary) 100%),
+        radial-gradient(circle at 25% 25%, rgba(212, 175, 55, 0.03) 0%, transparent 50%),
+        radial-gradient(circle at 75% 75%, rgba(212, 175, 55, 0.02) 0%, transparent 50%);
+    z-index: 0;
+}
+
+.desktop-icons {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-lg);
+    height: calc(100% - var(--taskbar-height));
+}
+
+/* Icon positioning for vertical flow */
+.desktop-icons {
+    max-height: calc(100% - var(--taskbar-height) - var(--spacing-lg) * 2);
+}
+
+/* Window layer - sits above icons, below taskbar */
+.desktop-windows {
+    position: absolute;
+    inset: 0;
+    bottom: var(--taskbar-height);
+    z-index: 100;
+    pointer-events: none;
+}
+
+.desktop-windows>* {
+    pointer-events: auto;
+}

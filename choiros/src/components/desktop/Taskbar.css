@@ -1,0 +1,101 @@
+/* Taskbar Styles */
+.taskbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--taskbar-height);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 0 var(--spacing-md);
+    background: var(--taskbar-bg);
+    backdrop-filter: blur(var(--taskbar-blur));
+    -webkit-backdrop-filter: blur(var(--taskbar-blur));
+    border-top: 1px solid var(--border-color);
+    z-index: 10000;
+}
+
+.taskbar-menu-btn {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border: 1px solid var(--accent-gold-dim);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--accent-gold);
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.taskbar-menu-btn:hover {
+    background: var(--accent-gold);
+    color: var(--bg-primary);
+}
+
+.taskbar-input-form {
+    flex: 1;
+    min-width: 0;
+}
+
+.taskbar-input {
+    width: 100%;
+    height: 36px;
+    padding: 0 var(--spacing-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: border-color 0.15s ease;
+}
+
+.taskbar-input:focus {
+    outline: none;
+    border-color: var(--accent-gold-dim);
+}
+
+.taskbar-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.taskbar-tray {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-shrink: 0;
+}
+
+.taskbar-app {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.taskbar-app:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.taskbar-app.focused {
+    background: rgba(212, 175, 55, 0.15);
+    color: var(--accent-gold);
+}
+
+.taskbar-app.minimized {
+    opacity: 0.5;
+}
+
+.taskbar-app.minimized:hover {
+    opacity: 1;
+}

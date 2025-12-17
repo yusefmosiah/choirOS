@@ -1,0 +1,34 @@
+{
+    "apps": [
+        {
+            "id": "writer",
+            "title": "Writer",
+            "icon": "file-text",
+            "entry": "builtin:writer",
+            "defaultSize": {
+                "width": 800,
+                "height": 600
+            }
+        },
+        {
+            "id": "files",
+            "title": "Files",
+            "icon": "folder",
+            "entry": "builtin:files",
+            "defaultSize": {
+                "width": 700,
+                "height": 500
+            }
+        },
+        {
+            "id": "terminal",
+            "title": "Terminal",
+            "icon": "terminal",
+            "entry": "builtin:terminal",
+            "defaultSize": {
+                "width": 700,
+                "height": 450
+            }
+        }
+    ]
+}

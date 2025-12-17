@@ -1,0 +1,228 @@
+/* Window Styles */
+.window {
+    position: absolute;
+    background: var(--window-bg);
+    border: 1px solid var(--window-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--window-shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 300px;
+    min-height: 200px;
+}
+
+.window.focused {
+    border-color: var(--accent-gold-dim);
+    box-shadow:
+        var(--window-shadow),
+        0 0 0 1px var(--accent-gold-dim);
+}
+
+.window.dragging,
+.window.resizing {
+    user-select: none;
+}
+
+.window.dragging .window-content,
+.window.resizing .window-content {
+    pointer-events: none;
+}
+
+/* Title bar */
+.window-titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 36px;
+    padding: 0 var(--spacing-sm) 0 var(--spacing-md);
+    background: var(--window-titlebar-bg);
+    cursor: grab;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.window-titlebar:active {
+    cursor: grabbing;
+}
+
+.window-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.window-controls {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.window-control {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.window-control:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.window-control.close:hover {
+    background: #e81123;
+    color: white;
+}
+
+/* Content */
+.window-content {
+    flex: 1;
+    overflow: auto;
+    background: var(--bg-primary);
+}
+
+/* Resize handles */
+.window-resize-handle {
+    position: absolute;
+    z-index: 10;
+}
+
+.window-resize-handle.n {
+    top: -3px;
+    left: 10px;
+    right: 10px;
+    height: 6px;
+    cursor: n-resize;
+}
+
+.window-resize-handle.s {
+    bottom: -3px;
+    left: 10px;
+    right: 10px;
+    height: 6px;
+    cursor: s-resize;
+}
+
+.window-resize-handle.e {
+    top: 10px;
+    bottom: 10px;
+    right: -3px;
+    width: 6px;
+    cursor: e-resize;
+}
+
+.window-resize-handle.w {
+    top: 10px;
+    bottom: 10px;
+    left: -3px;
+    width: 6px;
+    cursor: w-resize;
+}
+
+.window-resize-handle.ne {
+    top: -3px;
+    right: -3px;
+    width: 14px;
+    height: 14px;
+    cursor: ne-resize;
+}
+
+.window-resize-handle.nw {
+    top: -3px;
+    left: -3px;
+    width: 14px;
+    height: 14px;
+    cursor: nw-resize;
+}
+
+.window-resize-handle.se {
+    bottom: -3px;
+    right: -3px;
+    width: 14px;
+    height: 14px;
+    cursor: se-resize;
+}
+
+/* Visible resize grip in bottom-right corner */
+.window-resize-handle.resize-grip {
+    bottom: 0;
+    right: 0;
+    width: 16px;
+    height: 16px;
+    background: linear-gradient(135deg,
+            transparent 0%,
+            transparent 30%,
+            var(--border-color) 30%,
+            var(--border-color) 40%,
+            transparent 40%,
+            transparent 50%,
+            var(--border-color) 50%,
+            var(--border-color) 60%,
+            transparent 60%,
+            transparent 70%,
+            var(--border-color) 70%,
+            var(--border-color) 80%,
+            transparent 80%);
+    opacity: 0.6;
+    transition: opacity 0.15s;
+}
+
+.window-resize-handle.resize-grip:hover {
+    opacity: 1;
+}
+
+.window-resize-handle.sw {
+    bottom: -3px;
+    left: -3px;
+    width: 14px;
+    height: 14px;
+    cursor: sw-resize;
+}
+
+/* Mobile: Maintain real windows, just sized appropriately */
+@media (max-width: 768px) {
+    .window {
+        min-width: 280px;
+        min-height: 200px;
+    }
+
+    /* Larger touch targets for controls */
+    .window-control {
+        width: 36px;
+        height: 36px;
+    }
+
+    .window-titlebar {
+        height: 44px;
+        padding: 0 var(--spacing-sm) 0 var(--spacing-md);
+    }
+
+    /* Larger resize handles for touch */
+    .window-resize-handle.n,
+    .window-resize-handle.s {
+        height: 12px;
+    }
+
+    .window-resize-handle.e,
+    .window-resize-handle.w {
+        width: 12px;
+    }
+
+    .window-resize-handle.ne,
+    .window-resize-handle.nw,
+    .window-resize-handle.se,
+    .window-resize-handle.sw {
+        width: 20px;
+        height: 20px;
+    }
+}

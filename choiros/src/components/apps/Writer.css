@@ -1,0 +1,178 @@
+/* Writer App Styles */
+.writer {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg-primary);
+    overflow: hidden;
+}
+
+/* Toolbar */
+.writer-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.toolbar-group {
+    display: flex;
+    gap: 2px;
+}
+
+.toolbar-button {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.toolbar-button:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.toolbar-button.active {
+    background: var(--bg-tertiary);
+    color: var(--accent-gold);
+}
+
+.toolbar-divider {
+    width: 1px;
+    height: 24px;
+    background: var(--border-color);
+    margin: 0 var(--spacing-xs);
+}
+
+.toolbar-spacer {
+    flex: 1;
+}
+
+/* Content */
+.writer-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: var(--spacing-md);
+}
+
+/* TipTap Editor */
+.writer-editor {
+    min-height: 100%;
+    outline: none;
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text-primary);
+}
+
+.writer-editor:focus {
+    outline: none;
+}
+
+/* Placeholder */
+.writer-editor p.is-editor-empty:first-child::before {
+    color: var(--text-secondary);
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+}
+
+/* Headings */
+.writer-editor h1 {
+    font-size: 2em;
+    font-weight: 700;
+    margin: 1em 0 0.5em;
+    color: var(--text-primary);
+}
+
+.writer-editor h2 {
+    font-size: 1.5em;
+    font-weight: 600;
+    margin: 1em 0 0.5em;
+    color: var(--text-primary);
+}
+
+.writer-editor h3 {
+    font-size: 1.25em;
+    font-weight: 600;
+    margin: 1em 0 0.5em;
+    color: var(--text-primary);
+}
+
+/* Paragraphs */
+.writer-editor p {
+    margin: 0.5em 0;
+}
+
+/* Lists */
+.writer-editor ul,
+.writer-editor ol {
+    padding-left: 1.5em;
+    margin: 0.5em 0;
+}
+
+.writer-editor li {
+    margin: 0.25em 0;
+}
+
+/* Blockquote */
+.writer-editor blockquote {
+    border-left: 3px solid var(--accent-gold-dim);
+    padding-left: var(--spacing-md);
+    margin: 1em 0;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Code */
+.writer-editor code {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    padding: 0.1em 0.4em;
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    color: var(--accent-gold);
+}
+
+.writer-editor pre {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    margin: 1em 0;
+    overflow-x: auto;
+}
+
+.writer-editor pre code {
+    background: none;
+    padding: 0;
+    color: var(--text-primary);
+}
+
+/* Strikethrough */
+.writer-editor s {
+    color: var(--text-secondary);
+}
+
+/* Strong/Bold */
+.writer-editor strong {
+    font-weight: 600;
+}
+
+/* Selection */
+.writer-editor ::selection {
+    background: var(--accent-gold);
+    color: var(--bg-primary);
+}

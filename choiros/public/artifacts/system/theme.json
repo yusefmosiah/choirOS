@@ -1,0 +1,21 @@
+{
+    "colors": {
+        "bg-primary": "#0d0d0d",
+        "bg-secondary": "#1a1a1a",
+        "bg-tertiary": "#252525",
+        "border-color": "#333",
+        "text-primary": "#e0e0e0",
+        "text-secondary": "#888",
+        "accent-gold": "#d4af37",
+        "accent-gold-dim": "#8b7355"
+    },
+    "fonts": {
+        "sans": "Inter, system-ui, sans-serif",
+        "mono": "JetBrains Mono, monospace"
+    },
+    "radii": {
+        "sm": "4px",
+        "md": "8px",
+        "lg": "12px"
+    }
+}
