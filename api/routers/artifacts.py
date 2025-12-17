@@ -1,17 +1,43 @@
 """Artifacts router - CRUD for artifacts."""
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from typing import Optional
 
-from models.artifact import ArtifactResponse, ArtifactListResponse
-from services.artifact_store import (
+from api.models.artifact import ArtifactResponse, ArtifactListResponse
+from api.services.artifact_store import (
     get_artifact,
     list_artifacts,
     delete_artifact,
+    create_artifact,
     to_response,
 )
 
+
+class CreateArtifactRequest(BaseModel):
+    name: str
+    content: str
+    source_type: str = "agent"
+    mime_type: str = "text/markdown"
+
+
 router = APIRouter()
+
+
+@router.post("")
+async def create_new_artifact(request: CreateArtifactRequest):
+    """Create a new artifact (used for saving agent responses)."""
+    artifact = create_artifact(
+        name=request.name,
+        content=request.content,
+        source_type=request.source_type,
+        mime_type=request.mime_type,
+    )
+    return {
+        "artifact_id": artifact.id,
+        "name": artifact.name,
+        "path": artifact.path,
+    }
 
 
 @router.get("", response_model=ArtifactListResponse)

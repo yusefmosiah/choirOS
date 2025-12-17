@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import parse, artifacts
+from api.routers import parse, artifacts
 
 app = FastAPI(
     title="ChoirOS API",

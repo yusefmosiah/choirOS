@@ -5,17 +5,17 @@ from urllib.parse import urlparse
 from typing import Optional
 from pydantic import BaseModel
 
-from models.parse import ParseUrlRequest, ParseUploadResponse, ParseError
-from services.artifact_store import (
+from api.models.parse import ParseUrlRequest, ParseUploadResponse, ParseError
+from api.services.artifact_store import (
     create_artifact,
     find_by_source_url,
     update_artifact,
     generate_unique_name,
     to_response,
 )
-from services.youtube_parser import parse_youtube, is_youtube_url
-from services.web_parser import parse_web_page
-from services.document_parser import parse_document, get_supported_extensions
+from api.services.youtube_parser import parse_youtube, is_youtube_url
+from api.services.web_parser import parse_web_page
+from api.services.document_parser import parse_document, get_supported_extensions
 
 router = APIRouter()
 

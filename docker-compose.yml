@@ -1,0 +1,27 @@
+services:
+  choiros:
+    build: .
+    ports:
+      - "5173:5173"
+      - "8000:8000"
+      - "8001:8001"
+    volumes:
+      # Mount source for live reloading during development
+      - ./choiros/src:/app/choiros/src:rw
+      - ./choiros/public:/app/choiros/public:rw
+      - ./api:/app/api:rw
+      - ./supervisor:/app/supervisor:rw
+      # Persist artifacts
+      - ./artifacts:/app/artifacts:rw
+      # Persist logs
+      - ./logs:/app/logs:rw
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:8000
+      # AWS Bedrock credentials (from .env file)
+      - AWS_BEARER_TOKEN_BEDROCK
+      - AWS_REGION
+    env_file:
+      - api/.env
+    # Restart on failure
+    restart: unless-stopped

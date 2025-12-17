@@ -3,8 +3,9 @@ import { useState, useRef, type FormEvent } from 'react';
 import { useWindowStore } from '../../stores/windows';
 import { useSourcesStore } from '../../stores/sources';
 import { APP_REGISTRY } from '../../lib/apps';
-import { isUrl, type ParseMode } from '../../lib/api';
-import { Upload, Link, Loader2, X, AlertCircle } from 'lucide-react';
+import { isUrl, createArtifact, type ParseMode } from '../../lib/api';
+import { useAgent, type AgentMessage } from '../../hooks/useAgent';
+import { Upload, Link, Loader2, X, AlertCircle, Wifi, WifiOff } from 'lucide-react';
 import './Taskbar.css';
 
 // Duplicate confirmation state
@@ -21,6 +22,9 @@ export function Taskbar() {
     const [duplicateConfirm, setDuplicateConfirm] = useState<DuplicateConfirm | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Track agent response for saving as artifact
+    const agentResponseRef = useRef<{ prompt: string; messages: string[] }>({ prompt: '', messages: [] });
+
     const windows = useWindowStore((s) => s.windows);
     const focusWindow = useWindowStore((s) => s.focusWindow);
     const restoreWindow = useWindowStore((s) => s.restoreWindow);
@@ -33,11 +37,47 @@ export function Taskbar() {
     const isUploading = useSourcesStore((s) => s.isUploading);
     const error = useSourcesStore((s) => s.error);
     const clearError = useSourcesStore((s) => s.clearError);
+    const fetchArtifacts = useSourcesStore((s) => s.fetchArtifacts);
+
+    // Agent WebSocket connection
+    const { sendPrompt, isProcessing: isAgentProcessing, isConnected: isAgentConnected } = useAgent({
+        onMessage: async (message: AgentMessage) => {
+            if (message.type === 'text' && typeof message.content === 'string') {
+                // Accumulate text messages
+                agentResponseRef.current.messages.push(message.content);
+                showToast(message.content.slice(0, 80) + '...', 'info');
+            } else if (message.type === 'tool_use' && typeof message.content === 'object') {
+                const tool = (message.content as { tool?: string })?.tool || 'tool';
+                showToast(`Using ${tool}...`, 'info');
+            } else if (message.type === 'error') {
+                showToast(String(message.content), 'error');
+            } else if (message.type === 'done') {
+                // Save accumulated response as artifact
+                const { prompt, messages } = agentResponseRef.current;
+                if (messages.length > 0) {
+                    try {
+                        const name = `Agent: ${prompt.slice(0, 40)}${prompt.length > 40 ? '...' : ''}`;
+                        const content = `# ${prompt}\n\n${messages.join('\n\n')}`;
+                        const result = await createArtifact({ name, content, source_type: 'agent' });
+                        await fetchArtifacts(); // Refresh artifact list
+                        showToast(`Saved: ${result.name}`, 'success', result.artifact_id);
+                    } catch (e) {
+                        showToast('Agent done (failed to save)', 'error');
+                    }
+                } else {
+                    showToast('Agent completed', 'success');
+                }
+                // Reset for next prompt
+                agentResponseRef.current = { prompt: '', messages: [] };
+            }
+        },
+    });
 
     const showToast = (message: string, type: 'info' | 'success' | 'error' = 'info', artifactId?: string) => {
         setToast({ message, type, artifactId });
         setTimeout(() => setToast(null), 4000);
     };
+
 
     const parseWithMode = async (url: string, mode: ParseMode) => {
         showToast('Parsing URL...', 'info');
@@ -95,9 +135,16 @@ export function Taskbar() {
             return;
         }
 
-        // For now, just log other commands - agent integration comes in Phase 4
-        console.log('[? Bar]', input.startsWith('?') ? 'Command:' : 'Intent:', input);
-        setInput('');
+        // Send to agent
+        if (isAgentConnected) {
+            // Capture prompt for artifact naming
+            agentResponseRef.current = { prompt: trimmedInput, messages: [] };
+            sendPrompt(trimmedInput);
+            setInput('');
+            showToast('Sending to agent...', 'info');
+        } else {
+            showToast('Agent not connected', 'error');
+        }
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,7 +169,7 @@ export function Taskbar() {
     };
 
     const runningWindows = Array.from(windows.values());
-    const isLoading = isParsingUrl || isUploading;
+    const isLoading = isParsingUrl || isUploading || isAgentProcessing;
 
     return (
         <div className="taskbar">
@@ -177,6 +224,14 @@ export function Taskbar() {
                     </div>
                 )}
             </form>
+
+            {/* Agent connection indicator */}
+            <div
+                className={`taskbar-agent-status ${isAgentConnected ? 'connected' : 'disconnected'}`}
+                title={isAgentConnected ? 'Agent connected' : 'Agent disconnected'}
+            >
+                {isAgentConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
+            </div>
 
             <div className="taskbar-tray">
                 {runningWindows.map((win) => {

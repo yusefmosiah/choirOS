@@ -5,7 +5,7 @@ from typing import Optional
 import uuid
 import re
 
-from models.artifact import Artifact, ArtifactResponse
+from api.models.artifact import Artifact, ArtifactResponse
 
 
 # In-memory storage (replaced by SQLite in Phase 3)

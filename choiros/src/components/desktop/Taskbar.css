@@ -162,6 +162,27 @@
     }
 }
 
+/* Agent connection status indicator */
+.taskbar-agent-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+}
+
+.taskbar-agent-status.connected {
+    color: #2ecc71;
+}
+
+.taskbar-agent-status.disconnected {
+    color: var(--text-secondary);
+    opacity: 0.5;
+}
+
 .taskbar-tray {
     display: flex;
     align-items: center;

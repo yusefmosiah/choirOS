@@ -146,6 +146,38 @@ export async function getArtifact(id: string): Promise<Artifact> {
     return response.json();
 }
 
+export interface CreateArtifactRequest {
+    name: string;
+    content: string;
+    source_type?: string;
+    mime_type?: string;
+}
+
+export interface CreateArtifactResponse {
+    artifact_id: string;
+    name: string;
+    path: string;
+}
+
+/**
+ * Create a new artifact (used for saving agent responses)
+ */
+export async function createArtifact(request: CreateArtifactRequest): Promise<CreateArtifactResponse> {
+    const response = await fetch(`${API_BASE}/artifacts`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to create artifact');
+    }
+
+    return response.json();
+}
+
 /**
  * Delete an artifact
  */

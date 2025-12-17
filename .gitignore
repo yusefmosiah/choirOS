@@ -25,3 +25,14 @@ dist-ssr
 
 api/.env
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+*.egg-info/
+
+# Supervisor
+logs/
+artifacts/

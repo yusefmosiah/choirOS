@@ -23,7 +23,7 @@ fi
 cleanup() {
     echo ""
     echo -e "${YELLOW}Shutting down...${NC}"
-    kill $FRONTEND_PID $BACKEND_PID 2>/dev/null
+    kill $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID 2>/dev/null
     exit 0
 }
 
@@ -36,18 +36,24 @@ if [ ! -d "api/venv" ]; then
     python3 -m venv venv
     source venv/bin/activate
     pip install -r requirements.txt
+    pip install -r ../supervisor/requirements.txt
     cd ..
 else
     source api/venv/bin/activate
 fi
 
-echo -e "${GREEN}Starting Backend (FastAPI)...${NC}"
-cd api
-uvicorn main:app --reload --port 8000 &
-BACKEND_PID=$!
-cd ..
+# Set PYTHONPATH to project root for absolute imports
+export PYTHONPATH="${PWD}"
 
-echo -e "${GREEN}Starting Frontend (Vite)...${NC}"
+echo -e "${GREEN}Starting Backend (FastAPI on port 8000)...${NC}"
+uvicorn api.main:app --reload --port 8000 &
+BACKEND_PID=$!
+
+echo -e "${GREEN}Starting Supervisor (port 8001)...${NC}"
+SUPERVISOR_STANDALONE=1 python -m supervisor.main &
+SUPERVISOR_PID=$!
+
+echo -e "${GREEN}Starting Frontend (Vite on port 5173)...${NC}"
 cd choiros
 npm run dev &
 FRONTEND_PID=$!
@@ -55,12 +61,13 @@ cd ..
 
 echo ""
 echo -e "${GREEN}✅ ChoirOS is running!${NC}"
-echo -e "   Frontend: ${YELLOW}http://localhost:5173${NC}"
-echo -e "   Backend:  ${YELLOW}http://localhost:8000${NC}"
-echo -e "   API Docs: ${YELLOW}http://localhost:8000/docs${NC}"
+echo -e "   Frontend:   ${YELLOW}http://localhost:5173${NC}"
+echo -e "   Backend:    ${YELLOW}http://localhost:8000${NC}"
+echo -e "   Supervisor: ${YELLOW}http://localhost:8001${NC}"
+echo -e "   API Docs:   ${YELLOW}http://localhost:8000/docs${NC}"
 echo ""
 echo -e "Press ${RED}Ctrl+C${NC} to stop"
 echo ""
 
-# Wait for either process to exit
-wait $FRONTEND_PID $BACKEND_PID
+# Wait for any process to exit
+wait $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID
