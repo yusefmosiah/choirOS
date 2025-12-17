@@ -1,5 +1,48 @@
 # Changelog
 
+## [2025-12-16] - choirOS Desktop v0 (Phase 1: Static Shell)
+
+### Added
+
+- **Desktop Shell:** Built complete web desktop environment from scratch using Vite + React + TypeScript
+  - Desktop surface with gradient wallpaper and icon grid
+  - Taskbar with ? command input, running apps tray, and menu button
+  - Desktop icons for Writer, Files, and Terminal apps
+
+- **Window Manager:** Zustand-based window state management
+  - Open, close, focus, minimize, maximize windows
+  - Drag and resize windows (mouse and touch)
+  - Cascading window positions with z-index management
+  - Viewport-responsive sizing (phone/tablet/desktop breakpoints)
+
+- **Writer App:** TipTap-based rich text editor
+  - Formatting toolbar (bold, italic, headings, lists, blockquote, code)
+  - Placeholder text and content change logging
+  - Wrapping toolbar for mobile viewports
+
+- **Mobile Feature Parity:**
+  - Touch drag support for window title bars
+  - Touch resize support via visible grip in bottom-right corner
+  - Double-tap to open apps on touch devices
+  - Responsive window sizing: 95% width / 92% height on phones, 70%/65% on tablets
+
+- **CSS Architecture:**
+  - CSS custom properties for theming ("Carbon Fiber Kintsugi" theme)
+  - Minimal CSS reset and global styles
+  - App and component-scoped stylesheets
+
+- **Static Artifacts:**
+  - `public/artifacts/system/theme.json` - Theme configuration
+  - `public/artifacts/system/apps.json` - App registry
+
+### Technical Details
+
+- **Stack:** Vite 7, React 18, TypeScript, Zustand, TipTap, Lucide React, dnd-kit
+- **Project Structure:** Following `docs/bootstrap/STACK.md` conventions
+- **Exit Criteria Met:** Per `docs/bootstrap/PHASES.md` Phase 1
+
+---
+
 ## [2025-12-11] - 2025-12-11
 
 ### Sunset: Tuxedo → choirOS Transition
