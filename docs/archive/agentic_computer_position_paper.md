@@ -1,4 +1,4 @@
-# The Agentic Computer: A Position Paper
+# The Automatic Computer: A Position Paper
 
 *Beyond chatbots, beyond apps, toward pansynchronous computing*
 
@@ -6,7 +6,7 @@
 
 ## The Central Thesis: The Kernel Analogy
 
-> **"The Model is the Kernel. The Chatbot is the CLI. The Agentic Computer is the GUI."**
+> **"The Model is the Kernel. The Chatbot is the CLI. The Automatic Computer is the GUI."**
 
 - **The Kernel (LLM)**: Raw, powerful, probabilistic processing. Handles the "compute" of intelligence. Like a kernel, it is hostile to direct human interaction (requires perfect syntax/prompting).
 - **The Shell (Chatbot)**: A text-based command line interface to the kernel. Synchronous, stateless, unscalable. Represents a regression in affordance ("Blank Screen Paralysis").
@@ -18,9 +18,9 @@
 
 The dominant AI interface paradigm—the chatbot—is wrong. Chatbots are synchronous: user speaks, AI responds, user waits. But useful AI work is asynchronous: research takes time, synthesis requires iteration, complex tasks unfold over hours or days.
 
-We propose a different paradigm: the **agentic computer**. Not a chatbot you talk to. Not an app you use. A computational environment that observes your work, processes in the background, and responds through the same channels you already use—files, emails, notifications.
+We propose a different paradigm: the **automatic computer**. Not a chatbot you talk to. Not an app you use. A computational environment that observes your work, processes in the background, and responds through the same channels you already use—files, emails, notifications.
 
-The agentic computer is **pansynchronous**: it operates across all time scales simultaneously. It responds instantly when appropriate, works in background when needed, and maintains persistent state across sessions. This is awkward to conceive abstractly but natural to experience: you write a note, later you find a response.
+The automatic computer is **pansynchronous**: it operates across all time scales simultaneously. It responds instantly when appropriate, works in background when needed, and maintains persistent state across sessions. This is awkward to conceive abstractly but natural to experience: you write a note, later you find a response.
 
 This paper outlines the paradigm, its technical architecture, and its business model.
 
@@ -70,11 +70,11 @@ This is the failure mode of explicit invocation: accidental triggers, unwanted t
 
 ---
 
-## Part II: The Agentic Computer Paradigm
+## Part II: The Automatic Computer Paradigm
 
 ### Definition
 
-An **agentic computer** is a computational environment that:
+An **automatic computer** is a computational environment that:
 1. Observes user actions as an event stream
 2. Processes in background without explicit invocation
 3. Responds through existing channels (files, notifications, emails)
@@ -83,7 +83,7 @@ An **agentic computer** is a computational environment that:
 
 ### Pansynchronous Computing
 
-The agentic computer is **pansynchronous**—operating across all synchronicity modes:
+The automatic computer is **pansynchronous**—operating across all synchronicity modes:
 
 | Mode | Time scale | Example |
 |------|------------|---------|
@@ -101,7 +101,7 @@ This is conceptually awkward. A Turing machine that operates at all time scales 
 
 ### The Action Stream
 
-Instead of explicit invocation, the agentic computer observes:
+Instead of explicit invocation, the automatic computer observes:
 
 ```
 ActionEvent {
@@ -112,13 +112,13 @@ ActionEvent {
 }
 ```
 
-Every user action emits an event. The agentic computer subscribes to this stream. It decides what's relevant. It processes in background. It responds when ready.
+Every user action emits an event. The automatic computer subscribes to this stream. It decides what's relevant. It processes in background. It responds when ready.
 
 The user never "talks to AI." The user just uses their computer. The AI is infrastructure, not interface.
 
 ### The Response Channels
 
-The agentic computer responds through channels the user already uses:
+The automatic computer responds through channels the user already uses:
 
 | Channel | Response type |
 |---------|---------------|
@@ -138,10 +138,10 @@ No new interface to learn. No chat window to monitor. The computer just becomes 
 We don't run agents locally (resource constraints, capability limits).
 We don't run agents in full isolation (no access to user context).
 
-We **entangle** the user's machine with an agentic computer:
+We **entangle** the user's machine with an automatic computer:
 
 ```
-User's Local Machine          Cloud Agentic Computer
+User's Local Machine          Cloud Automatic Computer
 ├── Cloud storage sync   ←→   ├── SQLite workspace
 ├── File system              ├── Action stream processor
 ├── Email client         ←→   ├── Background agents
@@ -149,7 +149,7 @@ User's Local Machine          Cloud Agentic Computer
 └── Native apps              └── State persistence
 ```
 
-The cloud storage drive is the entanglement point. User writes file locally → syncs to cloud → agentic computer sees event → processes → writes response → syncs back to user.
+The cloud storage drive is the entanglement point. User writes file locally → syncs to cloud → automatic computer sees event → processes → writes response → syncs back to user.
 
 From user's perspective: the cloud folder became intelligent.
 
@@ -220,7 +220,7 @@ The "device" is not hardware. The device is the workspace, accessed from anywher
 
 ### Relationship-Based Access
 
-Your agentic computer contains everything:
+Your automatic computer contains everything:
 - Medical records
 - Financial documents
 - Work projects
@@ -244,7 +244,7 @@ Same workspace. Same data. Permissioned views.
 
 ### The Agent as Gatekeeper
 
-When someone visits your agentic computer:
+When someone visits your automatic computer:
 
 1. Agent identifies visitor (auth, stated relationship)
 2. Agent determines access level
@@ -268,7 +268,7 @@ Your agent represents you. It decides what to share, what to withhold, what to a
 
 ### Custom Domains as Identity
 
-Your agentic computer becomes your online identity:
+Your automatic computer becomes your online identity:
 
 ```
 alice.computer
@@ -291,7 +291,7 @@ The workspace *is* the presence. Not a profile. Not a portfolio. A living enviro
 
 ### White-Label Distribution
 
-Businesses want their own agentic computer:
+Businesses want their own automatic computer:
 
 ```
 smithlaw.legal
@@ -368,7 +368,7 @@ Current models can do far more than current interfaces expose. The constraint is
 - Integration architecture
 - UX paradigm
 
-The chatbot interface wastes model capability on synchronous Q&A. The agentic computer unlocks capability for real work.
+The chatbot interface wastes model capability on synchronous Q&A. The automatic computer unlocks capability for real work.
 
 ### The Infrastructure Convergence
 
@@ -386,7 +386,7 @@ No new technology required. Just assembly.
 
 AI-generated content floods the internet. Provenance is lost. Attribution is broken. "Who said this?" becomes unanswerable.
 
-The agentic computer, built on citation graph and attribution, arrives as the solution becomes necessary.
+The automatic computer, built on citation graph and attribution, arrives as the solution becomes necessary.
 
 ---
 
@@ -399,7 +399,7 @@ The bet that underlies this project:
 - **Hard Domains (Code, Logic, Math)**: Fall inside the "Convex Hull" of training data. AI progress here will be super-exponential.
 - **Soft Domains (Bio, Novelty, High Art)**: Fall outside the hull. Progress flattens due to lack of training data or systemic complexity.
 
-We don't need AGI (Digital God) to build the Agentic Computer. We only need Reliable Reasoning (Digital Labor).
+We don't need AGI (Digital God) to build the Automatic Computer. We only need Reliable Reasoning (Digital Labor).
 
 ### The Industrial Frame
 
@@ -423,7 +423,7 @@ To cut through AGI hype/fear, we reject the **Biological Metaphor** and embrace 
 
 The chatbot was a detour. A way to interact with AI that fit existing mental models (conversation) but missed the actual value (work done in background, over time, without attention).
 
-The agentic computer corrects this. It is:
+The automatic computer corrects this. It is:
 
 - **Pansynchronous**: Operates at all time scales
 - **Observable**: Watches user actions, not demands
@@ -435,7 +435,7 @@ The agentic computer corrects this. It is:
 
 The interface is not conversation. The interface is the environment itself—files, notifications, apps, the desktop. The AI is not a participant in your work. The AI is the infrastructure your work runs on.
 
-This is the agentic computer. This is Choir.
+This is the automatic computer. This is Choir.
 
 ---
 

@@ -6,13 +6,13 @@
 
 ## One-Sentence Summary
 
-Choir is an **Agentic Computer**—an operating system layer that transforms raw AI capability into useful labor through persistent state, citation economics, and a desktop metaphor.
+Choir is an **Automatic Computer**—an operating system layer that transforms raw AI capability into useful labor through persistent state, citation economics, and a desktop metaphor.
 
 ---
 
 ## The Core Thesis: The Kernel Analogy
 
-> **"The Model is the Kernel. The Chatbot is the CLI. The Agentic Computer is the GUI."**
+> **"The Model is the Kernel. The Chatbot is the CLI. The Automatic Computer is the GUI."**
 
 | Layer | Computing Analogy | AI Equivalent |
 |-------|------------------|---------------|
@@ -42,13 +42,13 @@ Choir is the missing **User Space layer**: a window manager, process scheduler, 
 
 - **Hard Domains** (Code, Logic, Math): Inside the "Convex Hull" of training data. AI progress is super-exponential.
 - **Soft Domains** (Bio, Novelty, High Art): Outside the hull. Progress flattens due to systemic complexity.
-- **The Bet**: We don't need AGI (Digital God) to build the Agentic Computer. We only need **Reliable Reasoning** (Digital Labor).
+- **The Bet**: We don't need AGI (Digital God) to build the Automatic Computer. We only need **Reliable Reasoning** (Digital Labor).
 
 ---
 
 ## What Choir Is Building
 
-### The Agentic Computer
+### The Automatic Computer
 
 A computational environment that:
 1. **Observes** user actions as an event stream
@@ -113,7 +113,7 @@ Choir rejects the **Biological Metaphor** (Brain/Neuron/AGI fear) and embraces t
 | **Promise** | "It knows everything." | **"It does the work."** |
 
 ### Key Taglines
-- *"The Model is the Kernel; the Chatbot is the Shell; the human needs a desktop — Choir, the Agentic Computer."*
+- *"The Model is the Kernel; the Chatbot is the Shell; the human needs a desktop — Choir, the Automatic Computer."*
 - *"From software you operate to software that operates."*
 - *"Intelligence is chatty. Agency is silent."*
 

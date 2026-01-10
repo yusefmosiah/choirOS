@@ -7,7 +7,7 @@
 
 ## The Thesis
 
-**Chat is CLI. Desktop is GUI. The agentic computer is the next platform.**
+**Chat is CLI. Desktop is GUI. The automatic computer is the next platform.**
 
 ChoirOS is a web desktop where:
 - AI operates across your workspace, not in a chat silo

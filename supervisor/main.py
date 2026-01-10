@@ -4,6 +4,7 @@ ChoirOS Supervisor - Main entry point.
 Manages:
 - File history for undo
 - Agent WebSocket endpoint
+- NATS JetStream connection for event sourcing
 - (In Docker only) Vite dev server subprocess
 - (In Docker only) FastAPI backend subprocess
 """
@@ -21,6 +22,8 @@ from dotenv import load_dotenv
 from .vite_manager import ViteManager
 from .file_history import FileHistory
 from .agent.harness import AgentHarness
+from .nats_client import get_nats_client, close_nats_client
+from .db import get_store
 
 
 def _get_project_root() -> Path:
@@ -40,6 +43,9 @@ if env_file.exists():
 # Check if running standalone (local dev) vs Docker (manages subprocesses)
 STANDALONE = os.environ.get("SUPERVISOR_STANDALONE", "0") == "1"
 
+# NATS enabled flag
+NATS_ENABLED = os.environ.get("NATS_ENABLED", "1") == "1"
+
 # Global instances
 vite_manager = ViteManager()
 file_history = FileHistory()
@@ -50,6 +56,19 @@ agent_harness: AgentHarness | None = None
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
     global agent_harness
+
+    # Initialize NATS connection (if enabled)
+    nats_connected = False
+    if NATS_ENABLED:
+        try:
+            nats = await get_nats_client()
+            nats_connected = True
+            print("✓ NATS JetStream connected")
+        except Exception as e:
+            print(f"⚠ NATS connection failed (running without event sourcing): {e}")
+
+    # Initialize event store (will use NATS if connected)
+    store = get_store()
 
     # Initialize agent harness
     agent_harness = AgentHarness(file_history=file_history)
@@ -77,11 +96,16 @@ async def lifespan(app: FastAPI):
             api_process.terminate()
             await api_process.wait()
 
+    # Close NATS connection
+    if nats_connected:
+        await close_nats_client()
+        print("✓ NATS connection closed")
+
 
 app = FastAPI(
     title="ChoirOS Supervisor",
-    description="Manages file history and agent communication",
-    version="0.1.0",
+    description="Manages file history, agent communication, and NATS event sourcing",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -98,11 +122,23 @@ app.add_middleware(
 @app.get("/health")
 async def health():
     """Health check endpoint."""
+    store = get_store()
+    nats_status = "disabled"
+
+    if NATS_ENABLED:
+        try:
+            nats = await get_nats_client()
+            nats_status = "connected"
+        except:
+            nats_status = "disconnected"
+
     return {
         "status": "ok",
         "standalone": STANDALONE,
+        "nats": nats_status,
         "vite_running": vite_manager.is_running() if not STANDALONE else "n/a",
         "file_history_size": file_history.size(),
+        "event_seq": store.get_latest_seq(),
     }
 
 

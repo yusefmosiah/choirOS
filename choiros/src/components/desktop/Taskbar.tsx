@@ -5,7 +5,8 @@ import { useSourcesStore } from '../../stores/sources';
 import { APP_REGISTRY } from '../../lib/apps';
 import { isUrl, createArtifact, type ParseMode } from '../../lib/api';
 import { useAgent, type AgentMessage } from '../../hooks/useAgent';
-import { Upload, Link, Loader2, X, AlertCircle, Wifi, WifiOff } from 'lucide-react';
+import { Upload, Link, Loader2, AlertCircle, Wifi, WifiOff } from 'lucide-react';
+import { useEventStore } from '../../stores/events';
 import './Taskbar.css';
 
 // Duplicate confirmation state
@@ -18,8 +19,10 @@ interface DuplicateConfirm {
 export function Taskbar() {
     const [input, setInput] = useState('');
     const [showMenu, setShowMenu] = useState(false);
-    const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'error'; artifactId?: string } | null>(null);
     const [duplicateConfirm, setDuplicateConfirm] = useState<DuplicateConfirm | null>(null);
+    
+    // Use centralized event store
+    const addEvent = useEventStore((s) => s.addEvent);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Track agent response for saving as artifact
@@ -73,9 +76,8 @@ export function Taskbar() {
         },
     });
 
-    const showToast = (message: string, type: 'info' | 'success' | 'error' = 'info', artifactId?: string) => {
-        setToast({ message, type, artifactId });
-        setTimeout(() => setToast(null), 4000);
+    const showToast = (message: string, type: 'info' | 'success' | 'error' | 'thinking' = 'info', artifactId?: string) => {
+        addEvent(message, type, artifactId);
     };
 
 
@@ -251,25 +253,6 @@ export function Taskbar() {
                     );
                 })}
             </div>
-
-            {/* Toast notification */}
-            {toast && (
-                <div
-                    className={`taskbar-toast ${toast.type} ${toast.artifactId ? 'clickable' : ''}`}
-                    onClick={() => {
-                        if (toast.artifactId) {
-                            openWindow('writer', { artifactId: toast.artifactId });
-                            setToast(null);
-                        }
-                    }}
-                >
-                    <span>{toast.message}</span>
-                    {toast.artifactId && <span className="toast-hint">Click to open</span>}
-                    <button onClick={(e) => { e.stopPropagation(); setToast(null); }} className="toast-close">
-                        <X size={14} />
-                    </button>
-                </div>
-            )}
 
             {/* Duplicate confirmation dialog */}
             {duplicateConfirm && (

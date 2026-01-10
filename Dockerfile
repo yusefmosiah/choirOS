@@ -25,8 +25,8 @@ RUN pip install --no-cache-dir -r /app/api/requirements.txt \
     && pip install --no-cache-dir -r /app/supervisor/requirements.txt
 
 # Copy and install Node dependencies
-COPY choiros/package*.json /app/choiros/
-RUN cd /app/choiros && npm ci
+COPY choiros/package.json choiros/yarn.lock* /app/choiros/
+RUN cd /app/choiros && yarn install --frozen-lockfile || yarn install
 
 # Copy source code
 COPY api/ /app/api/

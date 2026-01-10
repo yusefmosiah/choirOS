@@ -2,15 +2,17 @@
 Agent Harness - Main agent loop with Claude via AWS Bedrock.
 
 Receives prompts via WebSocket, calls Claude with tools, executes tool calls.
+Logs all events to the SQLite event store.
 """
 
 import json
 import os
-from typing import AsyncGenerator, Any
+from typing import AsyncGenerator, Any, Optional
 
 import anthropic
 
 from .tools import AgentTools
+from ..db import get_store, EventStore
 
 
 # Model to use - Cross-region inference profile required for newer models
@@ -45,14 +47,17 @@ Be concise in your responses. Focus on taking action."""
 class AgentHarness:
     """Main agent harness that processes prompts and executes tools."""
 
-    def __init__(self, file_history=None):
+    def __init__(self, file_history=None, event_store: Optional[EventStore] = None):
         """
         Initialize the agent harness.
 
         Args:
             file_history: Optional FileHistory instance for undo support
+            event_store: Optional EventStore for persistence (uses global if not provided)
         """
         self.tools = AgentTools(file_history=file_history)
+        self.store = event_store or get_store()
+        self.conversation_id: Optional[int] = None
 
         # Initialize Anthropic client for AWS Bedrock
         self.client = anthropic.AnthropicBedrock(
@@ -68,6 +73,13 @@ class AgentHarness:
         - content: The actual content
         """
         try:
+            # Ensure we have a conversation
+            if self.conversation_id is None:
+                self.conversation_id = self.store.get_or_create_conversation()
+            
+            # Log user message
+            self.store.add_message(self.conversation_id, "user", prompt)
+            
             messages = [{"role": "user", "content": prompt}]
 
             yield {"type": "thinking", "content": "Processing your request..."}
@@ -86,10 +98,13 @@ class AgentHarness:
                 assistant_content = []
                 has_tool_use = False
 
+                assistant_text_parts = []  # Collect text for logging
+                
                 for block in response.content:
                     if block.type == "text":
                         yield {"type": "text", "content": block.text}
                         assistant_content.append({"type": "text", "text": block.text})
+                        assistant_text_parts.append(block.text)
 
                     elif block.type == "tool_use":
                         has_tool_use = True
@@ -114,6 +129,14 @@ class AgentHarness:
 
                         # Execute the tool
                         result = await self.tools.execute_tool(tool_name, tool_input)
+                        
+                        # Log tool call to event store
+                        self.store.log_tool_call(
+                            self.conversation_id,
+                            tool_name,
+                            tool_input,
+                            result
+                        )
 
                         yield {
                             "type": "tool_result",
@@ -137,12 +160,26 @@ class AgentHarness:
                         # Reset for potential next tool call
                         assistant_content = []
 
-                # If no tool use, we're done
+                # If no tool use, we're done - log the final assistant response
                 if not has_tool_use:
+                    if assistant_text_parts:
+                        full_response = "\n".join(assistant_text_parts)
+                        self.store.add_message(
+                            self.conversation_id, 
+                            "assistant", 
+                            full_response
+                        )
                     break
 
                 # Check stop reason
                 if response.stop_reason == "end_turn":
+                    if assistant_text_parts:
+                        full_response = "\n".join(assistant_text_parts)
+                        self.store.add_message(
+                            self.conversation_id,
+                            "assistant",
+                            full_response
+                        )
                     break
 
             yield {"type": "done", "content": None}

@@ -1,6 +1,6 @@
 // App Registry
-import { FileText, Folder, Terminal } from 'lucide-react';
 import type { ComponentType } from 'react';
+import { FileText, Folder, Terminal, Mail } from 'lucide-react';
 
 export interface AppDefinition {
     id: string;
@@ -29,6 +29,12 @@ export const APP_REGISTRY: Record<string, AppDefinition> = {
         title: 'Terminal',
         icon: Terminal,
         defaultSize: { width: 700, height: 450 },
+    },
+    mail: {
+        id: 'mail',
+        title: 'Mail',
+        icon: Mail,
+        defaultSize: { width: 1000, height: 600 },
     },
 };
 

@@ -6,7 +6,7 @@
 
 ## The Paradigm Shift
 
-> **"The Model is the Kernel. The Chatbot is the CLI. The Agentic Computer is the GUI."**
+> **"The Model is the Kernel. The Chatbot is the CLI. The Automatic Computer is the GUI."**
 
 We are not building an AI application. We are building the **User Space layer** of the AI computing stack—the window manager, process scheduler, and persistence engine that transforms raw LLM capability into useful labor.
 
@@ -20,7 +20,7 @@ We are not building an AI application. We are building the **User Space layer** 
 
 ## What We're Building
 
-### The Agentic Computer
+### The Automatic Computer
 
 A computational environment that:
 
@@ -56,7 +56,7 @@ Chatbots are a **regression in affordance**—like using a computer with only a 
 
 ### The Agentic Solution
 
-The Agentic Computer transforms AI from *dialogue* to *delegation*:
+The Automatic Computer transforms AI from *dialogue* to *delegation*:
 
 - **Pansynchronous**: Operates at all time scales simultaneously
 - **Persistent**: State survives sessions, builds over time
@@ -69,7 +69,7 @@ The Agentic Computer transforms AI from *dialogue* to *delegation*:
 
 ### The Bet
 
-We don't need AGI (Digital God) to build the Agentic Computer. We only need **Reliable Reasoning** (Digital Labor).
+We don't need AGI (Digital God) to build the Automatic Computer. We only need **Reliable Reasoning** (Digital Labor).
 
 - **Hard Domains** (Code, Logic, Math): Inside the "Convex Hull" of training data. AI progress here is super-exponential.
 - **Soft Domains** (Bio, Novelty, High Art): Outside the hull. Progress flattens.

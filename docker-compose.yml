@@ -1,4 +1,14 @@
 services:
+  nats:
+    image: nats:2.10-alpine
+    command: --jetstream --store_dir /data
+    ports:
+      - "4222:4222"   # Client connections
+      - "8222:8222"   # Monitoring UI
+    volumes:
+      - nats-data:/data
+    restart: unless-stopped
+
   choiros:
     build: .
     ports:
@@ -18,10 +28,16 @@ services:
     environment:
       - NODE_ENV=development
       - VITE_API_URL=http://localhost:8000
+      - NATS_URL=nats://nats:4222
       # AWS Bedrock credentials (from .env file)
       - AWS_BEARER_TOKEN_BEDROCK
       - AWS_REGION
     env_file:
       - api/.env
+    depends_on:
+      - nats
     # Restart on failure
     restart: unless-stopped
+
+volumes:
+  nats-data:

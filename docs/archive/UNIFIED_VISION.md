@@ -1,4 +1,4 @@
-# Choir: The Agentic Computer
+# Choir: The Automatic Computer
 
 **From software you operate to software that operates**
 
@@ -6,7 +6,7 @@
 
 ## The Paradigm Shift: The Kernel Analogy
 
-> **"The Model is the Kernel. The Chatbot is the CLI. The Agentic Computer is the GUI."**
+> **"The Model is the Kernel. The Chatbot is the CLI. The Automatic Computer is the GUI."**
 
 | Layer | Old Computing | AI Computing |
 |-------|--------------|--------------|
@@ -16,7 +16,7 @@
 
 The chatbot is a regression in affordance—like trying to use a computer through nothing but a command line. It creates "Blank Screen Paralysis" where users don't know what to ask.
 
-The Agentic Computer is the missing layer: a window manager, process scheduler, and persistence engine that protects the user from the raw kernel and manages long-running tasks.
+The Automatic Computer is the missing layer: a window manager, process scheduler, and persistence engine that protects the user from the raw kernel and manages long-running tasks.
 
 ### The Shift in Direction
 
@@ -29,7 +29,7 @@ The Agentic Computer is the missing layer: a window manager, process scheduler, 
 
 - **Hard Domains (Code, Logic, Math)**: Fall inside the "Convex Hull" of training data. AI progress here will be super-exponential.
 - **Soft Domains (Bio, Novelty, High Art)**: Fall outside the hull. Progress flattens due to systemic complexity.
-- **The Bet**: We don't need AGI (Digital God) to build the Agentic Computer. We only need Reliable Reasoning (Digital Labor).
+- **The Bet**: We don't need AGI (Digital God) to build the Automatic Computer. We only need Reliable Reasoning (Digital Labor).
 
 ---
 

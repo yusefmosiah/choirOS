@@ -2,11 +2,11 @@
 # Choir Agentic Desktop – Architecture, UX, and Wedge Use Case
 **Date:** December 11, 2025
 
-This document synthesizes the current thinking around Choir as an *agentic computer* with a desktop UX and citation-based economics.
+This document synthesizes the current thinking around Choir as an *automatic computer* with a desktop UX and citation-based economics.
 
 ---
 
-## 1. Big Picture: From Web3 and Chatbots to an Agentic Computer
+## 1. Big Picture: From Web3 and Chatbots to an Automatic Computer
 
 ### 1.1 Web3 is dead without AI
 
@@ -82,11 +82,11 @@ So:
   - simple import/export (e.g. SQLite/zip)
   - attribution and economics (citation rewards).
 
-For an **agentic computer**, JSON dumps are obviously hostile; the OS must treat user state as a portable, legible dataset.
+For an **automatic computer**, JSON dumps are obviously hostile; the OS must treat user state as a portable, legible dataset.
 
 ---
 
-## 3. Agentic Computer Architecture
+## 3. Automatic Computer Architecture
 
 ### 3.1 Local shell, remote brain
 
@@ -252,7 +252,7 @@ Today’s lab assistants:
 - Allow export only as giant JSON chat dumps.
 - Treat memory as a **lock-in moat**, not a user asset.
 
-In an **agentic computer**, the logical design is:
+In an **automatic computer**, the logical design is:
 - Memory = artifacts + event log + preferences, with clear schemas.
 - Import/export = **simple, structured bundles** (e.g. SQLite DB + zip of attachments).
 - Users can:
@@ -315,7 +315,7 @@ Labs (OpenAI, Google, Anthropic, xAI, Perplexity, etc.) are on a collision cours
 - **Citations / provenance** (due to training-data and IP pressures).
 
 They will almost inevitably implement:
-- some form of agentic computer,
+- some form of automatic computer,
 - some form of global workspace,
 - some form of attribution / citation UI.
 
@@ -362,7 +362,7 @@ The defensible pieces are:
   - media/artifacts,
   - and governance/economics.
 - Chatbots are useful interfaces but terrible foundations for serious, persistent work.
-- The right foundation is an **agentic computer**:
+- The right foundation is an **automatic computer**:
   - local desktop UX,
   - remote sandboxed agents,
   - log streaming middleware,

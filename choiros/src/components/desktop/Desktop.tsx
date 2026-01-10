@@ -3,6 +3,7 @@ import { useWindowStore } from '../../stores/windows';
 import { APP_REGISTRY } from '../../lib/apps';
 import { Icon } from './Icon';
 import { Taskbar } from './Taskbar';
+import { EventStream } from './EventStream';
 import { WindowManager } from '../window/WindowManager';
 import './Desktop.css';
 
@@ -10,6 +11,7 @@ const DESKTOP_ICONS = [
     { appId: 'files', label: 'Files' },
     { appId: 'writer', label: 'Writer' },
     { appId: 'terminal', label: 'Terminal' },
+    { appId: 'mail', label: 'Mail' },
 ];
 
 export function Desktop() {
@@ -42,6 +44,7 @@ export function Desktop() {
             <div className="desktop-windows">
                 <WindowManager />
             </div>
+            <EventStream />
             <Taskbar />
         </div>
     );

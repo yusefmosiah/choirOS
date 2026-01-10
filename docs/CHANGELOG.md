@@ -138,7 +138,7 @@ This entry marks the sunsetting of the Tuxedo codebase as development moves to c
 - Qdrant-Sui MVP: Vector search + blockchain primitives (right blocks, unclear agent-environment relationship)
 - Conductor + Agents: Client-side orchestration with server-side specialized agents (getting closer)
 
-**The Agentic Computer Thesis Emerges:**
+**The Automatic Computer Thesis Emerges:**
 
 - The computer itself should be the agent's environment
 - Not a chatbot to talk to, but an intelligent computational substrate
@@ -175,7 +175,7 @@ This entry marks the sunsetting of the Tuxedo codebase as development moves to c
 - Developed Ghostwriter pipeline with citation verification
 - Explored MCP, LangGraph, and conductor architectures
 - Identified the gap between narrow agents and general-purpose agent environments
-- Crystallized the agentic computer thesis through iterative architecture exploration
+- Crystallized the automatic computer thesis through iterative architecture exploration
 
 ### References
 

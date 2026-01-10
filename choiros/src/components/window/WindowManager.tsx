@@ -3,11 +3,13 @@ import { useWindowStore } from '../../stores/windows';
 import { Window } from './Window';
 import { Writer } from '../apps/Writer';
 import { Files } from '../apps/Files';
+import { MailApp } from '../apps/Mail';
 
 // App component mapping
 const APP_COMPONENTS: Record<string, React.ComponentType<{ artifactId?: string }>> = {
     writer: Writer,
     files: Files,
+    mail: MailApp,
     // terminal will be added in later phases
 };
 

@@ -2,7 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
 body {
-    background: var(--bg-primary);
+    background: #0d0d0d;
     color: var(--text-primary);
 }
 
@@ -25,13 +25,7 @@ body {
     background: var(--text-secondary);
 }
 
-/* Focus styles */
-:focus-visible {
-    outline: 2px solid var(--accent-gold-dim);
-    outline-offset: 2px;
-}
-
-/* Selection styles */
+/* Selection */
 ::selection {
     background: var(--accent-gold);
     color: var(--bg-primary);

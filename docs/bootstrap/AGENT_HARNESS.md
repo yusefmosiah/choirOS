@@ -164,7 +164,7 @@ Decision: **SQLite** over persistent FS volumes.
 
 | Benefit | Why |
 |---------|-----|
-| Single-file export | Matches "portable agentic computer" vision |
+| Single-file export | Matches "portable automatic computer" vision |
 | Lower cost | No EBS volumes, just S3 + memory |
 | Queryable state | Find artifacts by content, metadata |
 | Simpler VM lifecycle | No mount/unmount choreography |

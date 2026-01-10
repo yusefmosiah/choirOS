@@ -1,4 +1,4 @@
-# The Evolution of Choir: From Yield Farming to the Agentic Computer
+# The Evolution of Choir: From Yield Farming to the Automatic Computer
 
 _A narrative of transitions — December 2025_
 
@@ -78,7 +78,7 @@ Through all these iterations, a pattern emerged: the architecture kept evolving 
 
 ---
 
-## Part V: The Agentic Computer Thesis
+## Part V: The Automatic Computer Thesis
 
 The synthesis arrived: **the computer itself should be the agent's environment.**
 
@@ -94,7 +94,7 @@ This reframing changes everything:
 | Context as prompt  | Context as environment   |
 | Output as response | Output as file/action    |
 
-The agentic computer is:
+The automatic computer is:
 
 - **Pansynchronous**: Operates at all timescales, from instant autocomplete to long-running background research
 - **Observable**: Agents watch file changes, app events, user actions—not just explicit invocations
@@ -107,7 +107,7 @@ The user doesn't "talk to AI." The user works in an environment that happens to 
 
 ## Part VI: The Human Experience Design Turn
 
-With the agentic computer thesis in hand, the question became: what should this actually look like?
+With the automatic computer thesis in hand, the question became: what should this actually look like?
 
 The answer emerged through thinking about human experience, not just technical architecture. How do people actually use computers? What interfaces are already intuitive?
 
@@ -122,7 +122,7 @@ A web-based desktop environment where:
 - Settings are configurable, but agents can modify them via prompts
 - The experience is familiar, but the substrate is intelligent
 
-This led to the "vibe-design" concept: the first interaction with the agentic computer is customizing it through natural language. User arrives → describes ideal workspace → agent modifies theme files → desktop transforms.
+This led to the "vibe-design" concept: the first interaction with the automatic computer is customizing it through natural language. User arrives → describes ideal workspace → agent modifies theme files → desktop transforms.
 
 This is the teaching moment: "I prompted → the computer changed." Sets the expectation for all future interaction.
 
@@ -202,7 +202,7 @@ The yield farming agent couldn't stay a yield farming agent because the underlyi
 
 Narrow agents are inefficient—they duplicate capabilities across domains. General agents with specialized workspaces are the correct architecture. Those workspaces should be complete computational environments. Those environments should be the web desktop paradigm, made intelligent.
 
-The chatbot was a detour. The agentic computer is the destination.
+The chatbot was a detour. The automatic computer is the destination.
 
 Choir has been reaching toward this from the beginning—through all the names, all the pivots, all the partial implementations. The technology finally caught up to the vision. The vision finally found its form.
 
