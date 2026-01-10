@@ -50,7 +50,7 @@ uvicorn api.main:app --reload --port 8000 &
 BACKEND_PID=$!
 
 echo -e "${GREEN}Starting Supervisor (port 8001)...${NC}"
-SUPERVISOR_STANDALONE=1 python -m supervisor.main &
+SUPERVISOR_STANDALONE=1 NATS_ENABLED=0 python -m supervisor.main &
 SUPERVISOR_PID=$!
 
 echo -e "${GREEN}Starting Frontend (Vite on port 5173)...${NC}"
