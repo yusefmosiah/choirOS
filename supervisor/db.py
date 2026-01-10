@@ -12,10 +12,19 @@ import sqlite3
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 import hashlib
 
-from .nats_client import NATSClient, ChoirEvent, get_nats_client, close_nats_client
+# Conditional import: NATS is optional for local dev
+try:
+    from .nats_client import NATSClient, ChoirEvent, get_nats_client, close_nats_client
+    NATS_AVAILABLE = True
+except ImportError:
+    NATS_AVAILABLE = False
+    NATSClient = None
+    ChoirEvent = None
+    get_nats_client = None
+    close_nats_client = None
 
 
 # Default path - can be overridden per-user
@@ -25,7 +34,7 @@ DEFAULT_DB_PATH = Path(__file__).parent.parent / "state.sqlite"
 DEFAULT_USER_ID = os.environ.get("CHOIROS_USER_ID", "local")
 
 # Feature flag: disable NATS for local dev if not running
-NATS_ENABLED = os.environ.get("NATS_ENABLED", "1") == "1"
+NATS_ENABLED = NATS_AVAILABLE and os.environ.get("NATS_ENABLED", "1") == "1"
 
 
 class EventStore:
