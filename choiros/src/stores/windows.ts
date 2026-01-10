@@ -38,6 +38,7 @@ const DEFAULT_SIZES: Record<string, { width: number; height: number }> = {
     writer: { width: 800, height: 600 },
     files: { width: 700, height: 500 },
     terminal: { width: 700, height: 450 },
+    git: { width: 500, height: 600 },
 };
 
 // App titles
@@ -45,6 +46,7 @@ const APP_TITLES: Record<string, string> = {
     writer: 'Writer',
     files: 'Files',
     terminal: 'Terminal',
+    git: 'Git',
 };
 
 export const useWindowStore = create<WindowStore>((set, get) => ({

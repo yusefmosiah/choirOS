@@ -1,6 +1,6 @@
 // App Registry
 import type { ComponentType } from 'react';
-import { FileText, Folder, Terminal, Mail } from 'lucide-react';
+import { FileText, Folder, Terminal, Mail, GitBranch } from 'lucide-react';
 
 export interface AppDefinition {
     id: string;
@@ -35,6 +35,12 @@ export const APP_REGISTRY: Record<string, AppDefinition> = {
         title: 'Mail',
         icon: Mail,
         defaultSize: { width: 1000, height: 600 },
+    },
+    git: {
+        id: 'git',
+        title: 'Git',
+        icon: GitBranch,
+        defaultSize: { width: 500, height: 600 },
     },
 };
 

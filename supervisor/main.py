@@ -157,6 +157,72 @@ async def undo(count: int = 1):
     }
 
 
+# =========== Git Endpoints ===========
+
+@app.get("/git/status")
+async def git_status():
+    """Get git status and HEAD info."""
+    from .git_ops import get_status, get_head_sha
+
+    status = get_status()
+    head = get_head_sha()
+
+    return {
+        "head": head[:8] if head else None,
+        "head_full": head,
+        "status": status,
+    }
+
+
+@app.get("/git/log")
+async def git_log(count: int = 10):
+    """Get recent commits."""
+    from .git_ops import log
+
+    commits = log(count)
+    return {
+        "commits": commits,
+        "count": len(commits),
+    }
+
+
+@app.post("/git/checkpoint")
+async def git_checkpoint(message: str = None):
+    """Create a git checkpoint (add all + commit)."""
+    from .git_ops import checkpoint
+
+    result = checkpoint(message)
+    return result
+
+
+@app.post("/git/revert")
+async def git_revert(sha: str):
+    """Revert to a specific commit (git reset --hard)."""
+    from .git_ops import git_run
+
+    # Safety: don't allow reverting without a valid SHA
+    if not sha or len(sha) < 7:
+        return {"success": False, "error": "Invalid SHA provided"}
+
+    result = git_run("reset", "--hard", sha)
+
+    if result.returncode != 0:
+        return {
+            "success": False,
+            "error": f"git reset failed: {result.stderr}"
+        }
+
+    # Restart Vite to pick up changes (Docker mode only)
+    if not STANDALONE:
+        await vite_manager.restart()
+
+    return {
+        "success": True,
+        "reverted_to": sha,
+        "message": f"Reverted to {sha}"
+    }
+
+
 @app.websocket("/agent")
 async def agent_websocket(websocket: WebSocket):
     """WebSocket endpoint for agent communication."""

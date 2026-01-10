@@ -12,6 +12,7 @@ const DESKTOP_ICONS = [
     { appId: 'writer', label: 'Writer' },
     { appId: 'terminal', label: 'Terminal' },
     { appId: 'mail', label: 'Mail' },
+    { appId: 'git', label: 'Git' },
 ];
 
 export function Desktop() {
