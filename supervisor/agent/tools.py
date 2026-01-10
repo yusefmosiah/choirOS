@@ -6,6 +6,8 @@ Based on AGENT_TOOLS.md:
 - write_file: Create or overwrite file
 - edit_file: Text-match replace with dry_run option
 - bash: Execute shell command
+- git_checkpoint: Create a git commit as a save point
+- git_status: Check git status and recent commits
 """
 
 import asyncio
@@ -134,6 +136,35 @@ class AgentTools:
                     }
                 },
                 "required": ["command"]
+            }
+        },
+        {
+            "name": "git_checkpoint",
+            "description": "Create a git commit as a save point. Use before making risky changes.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "description": "Commit message describing the checkpoint"
+                    }
+                },
+                "required": []
+            }
+        },
+        {
+            "name": "git_status",
+            "description": "Get git status and recent commit history.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "log_count": {
+                        "type": "integer",
+                        "description": "Number of recent commits to show (default 5)",
+                        "default": 5
+                    }
+                },
+                "required": []
             }
         }
     ]
@@ -305,6 +336,33 @@ class AgentTools:
         except Exception as e:
             return {"error": str(e)}
 
+    async def git_checkpoint(self, message: str = None) -> dict[str, Any]:
+        """Create a git checkpoint."""
+        try:
+            from ..git_ops import checkpoint
+            result = checkpoint(message)
+            return result
+        except Exception as e:
+            return {"error": str(e)}
+
+    async def git_status(self, log_count: int = 5) -> dict[str, Any]:
+        """Get git status and recent commits."""
+        try:
+            from ..git_ops import get_status, log, get_head_sha
+            status = get_status()
+            commits = log(log_count)
+            head = get_head_sha()
+            return {
+                "head": head[:8] if head else None,
+                "status": status,
+                "recent_commits": [
+                    {"sha": c["sha"][:8], "message": c["message"]}
+                    for c in commits
+                ]
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
     async def execute_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute a tool by name with given arguments."""
         if name == "read_file":
@@ -315,5 +373,9 @@ class AgentTools:
             return await self.edit_file(**arguments)
         elif name == "bash":
             return await self.bash(**arguments)
+        elif name == "git_checkpoint":
+            return await self.git_checkpoint(**arguments)
+        elif name == "git_status":
+            return await self.git_status(**arguments)
         else:
             return {"error": f"Unknown tool: {name}"}
