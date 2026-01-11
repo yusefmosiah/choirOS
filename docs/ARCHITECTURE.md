@@ -1,5 +1,7 @@
 # ChoirOS Architecture
 
+ChoirOS implements the **Automatic Computer** as a personal mainframe: a sandboxed runtime where the shell, agent, and version control live together so the system can modify itself and recover deterministically.
+
 ## Evolution Path
 
 ```
@@ -43,6 +45,25 @@ Local Dev → Container → MicroVM → TEE
                               │ S3/R2 URL │
                               └───────────┘
 ```
+
+## NATS as Source of Truth
+
+NATS is the authoritative event log. SQLite, filesystem, and UI are projections that can be rebuilt from the event stream. Time travel is event replay, not git history.
+
+**Principles**
+- Event-first: every mutation emits a NATS event with user + source
+- Deterministic replay: projections rebuild from events or snapshots
+- Undo is an event: `UNDO` targets a sequence, projections rewind
+
+**Write Path (Hybrid Evolution)**
+- Short-term: direct writes remain, but events are emitted synchronously
+- Mid-term: artifacts and source files are written by the projector
+- Long-term: projector-only writes for durable state
+
+**Event Streams**
+- Subjects are per user: `choiros.{user_id}.{source}.{type}`
+- Durable consumers per projection for resumable rebuilds
+- Snapshots (SQLite + filesystem) speed up replay
 
 ## Event Types
 
@@ -103,7 +124,7 @@ FROM files;
 
 ## Git Integration
 
-Each user gets a git repo that represents their materialized state.
+Each user gets a git repo that represents their materialized state. Checkpoints are exposed through the supervisor API and GitPanel UI for in-app version control.
 
 ```bash
 # Structure
@@ -216,10 +237,9 @@ key_server = "https://keys.choir.dev"
 ## Next Steps
 
 1. [x] Git repo initialized
-2. [ ] Add NATS to docker-compose
-3. [ ] Event publisher in supervisor
-4. [ ] SQLite materializer service
-5. [ ] Git checkpoint command
-6. [ ] Blob storage integration
-7. [ ] Firecracker spike
-8. [ ] TEE attestation PoC
+2. [x] Supervisor git endpoints + UI checkpointing
+3. [ ] Add NATS to docker-compose + browser client wiring
+4. [ ] Event materializer + blob storage integration
+5. [ ] In-app deploy pipeline (git push → CI/CD → redeploy)
+6. [ ] Firecracker spike
+7. [ ] TEE attestation PoC

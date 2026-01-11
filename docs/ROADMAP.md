@@ -1,202 +1,99 @@
 # ChoirOS Implementation Roadmap
 
-## Current State (Dec 2024)
+## Current State (Jan 2026)
 
 ### What Works ✅
-- Vite + React desktop shell with HMR
-- FastAPI backend for parsing
-- Supervisor managing processes
-- Agent harness (Claude via Bedrock)
-- File tools (read, write, edit, bash)
-- WebSocket streaming responses
-- Git repo on GitHub
+- Web desktop shell (window manager, taskbar, apps)
+- FastAPI parsing backend + artifact pipeline
+- Supervisor runtime + agent harness (Bedrock)
+- Git checkpoint API + GitPanel UI
+- Local dev orchestration via `dev.sh`
 
-### What's Designed but Not Built 📐
-- NATS JetStream (fully spec'd in `docs/bootstrap/NATS.md`)
-- SQLite per-user state (spec'd in `docs/bootstrap/STORAGE.md`)
-- Firecracker isolation (spec'd in `docs/bootstrap/FIRECRACKER.md`)
-- Citation economics
-- TEE deployment
+### In Progress 🔄
+- Event stream UI (needs live NATS wiring)
+- NATS client (browser + supervisor, untested)
+- Git-based self-hosted deployment loop
 
----
-
-## Phase 1: Local Persistence (NOW)
-
-**Goal**: Event-sourced state that survives restarts.
-
-### 1.1 Add SQLite to Supervisor
-
-```python
-# supervisor/db.py
-import sqlite3
-from pathlib import Path
-
-DB_PATH = Path("/Users/wiz/choirOS/state.sqlite")
-
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS events (
-            seq INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-            type TEXT NOT NULL,
-            payload JSON NOT NULL
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS files (
-            path TEXT PRIMARY KEY,
-            content_hash TEXT,
-            updated_at TEXT
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS conversations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            started_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            conversation_id INTEGER,
-            seq INTEGER REFERENCES events(seq),
-            role TEXT NOT NULL,
-            content TEXT NOT NULL
-        )
-    """)
-    conn.commit()
-    return conn
-```
-
-### 1.2 Log Every Event
-
-- Agent tool calls → event
-- User messages → event
-- File mutations → event
-- Window state → event
-
-### 1.3 Git Auto-Commit
-
-```bash
-# After N events or T minutes
-cd /Users/wiz/choirOS
-git add -A
-git commit -m "checkpoint: $(date +%Y%m%d-%H%M%S)"
-```
+### Not Started 📐
+- Firecracker microVM orchestration
+- S3/SQLite sync for per-user state
+- Citation graph + economic layer
 
 ---
 
-## Phase 2: Containerization
+## Phase 3: Agent Platform (Now)
 
-**Goal**: Reproducible dev environment, prep for isolation.
+**Goal:** An automatic computer that can modify itself safely, with visible actions and reversible state.
 
-### 2.1 Docker Compose with NATS
+**Foundational Layer**
+1. **User/Auth abstraction**
+   - Issue identity + token
+   - `user_id` required on every event
+2. **NATS namespacing**
+   - Per-user subjects + durable consumers
 
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  nats:
-    image: nats:2.10-alpine
-    command: --jetstream --store_dir /data
-    ports:
-      - "4222:4222"
-      - "8222:8222"  # monitoring
-    volumes:
-      - nats-data:/data
+**Source of Truth**
+3. **Event-first logging**
+   - Write/edit/delete emits event immediately
+   - SQLite + filesystem updated by projector
+4. **Undo as event**
+   - `UNDO(target_seq)` published by supervisor
+   - Projector rebuilds via replay + snapshots
 
-  choiros:
-    build: .
-    ports:
-      - "5173:5173"
-      - "8000:8000"
-      - "8001:8001"
-    environment:
-      - NATS_URL=nats://nats:4222
-    volumes:
-      - ./state:/app/state
-      - ./choiros/src:/app/choiros/src  # HMR still works
-    depends_on:
-      - nats
+**Deployment Loop**
+5. **In-app deploy pipeline**
+   - `DEPLOY_REQUEST` → CI/CD → `DEPLOY_RESULT`
+   - UI displays deploy status from events
 
-volumes:
-  nats-data:
-```
-
-### 2.2 Event Publisher
-
-Replace direct SQLite writes with NATS publish → materializer pattern.
-
-### 2.3 Browser WebSocket to NATS
-
-Use `nats.ws` in browser for real-time sync.
+**Product hygiene**
+6. **Event stream wiring**
+   - NATS connection + event sink
+   - EventStream UI consuming real events
+7. **Stub cleanup**
+   - Remove demo-only UI or mark as explicitly “mock”
 
 ---
 
-## Phase 3: Multi-User + Cloud
+## Phase 4: Persistence
 
-**Goal**: Per-user isolation, S3 sync.
+**Goal:** State survives sessions.
 
-### 3.1 User Auth (Simple)
-
-- GitHub OAuth or magic link
-- User ID → their SQLite file + S3 prefix
-
-### 3.2 S3 Sync
-
-SQLite → S3 on checkpoint.
-S3 → SQLite on load.
-
-### 3.3 Qdrant Vectors
-
-Embed artifacts for semantic search.
+**Deliverables:**
+- Per-user SQLite in sandbox
+- S3 sync for artifacts + DB
+- Workspace export/import
 
 ---
 
-## Phase 4: MicroVM Isolation
+## Phase 5: Publishing
 
-**Goal**: Agent code runs in Firecracker VM.
+**Goal:** Artifacts become shareable and attributable.
 
-### 4.1 Agent Scheduler
-
-NATS consumer → spawn Firecracker → return result.
-
-### 4.2 Network Isolation
-
-Agents can only reach NATS, nothing else.
-
-### 4.3 Pre-baked Images
-
-Minimal Alpine + Python + agent runtime.
+**Deliverables:**
+- Public artifact URLs
+- Citation metadata and queries
+- Export with provenance
 
 ---
 
-## Phase 5: TEE + Economics
+## Phase 6+: Collective Intelligence
 
-**Goal**: Verifiable computation, citation rewards.
+**Goal:** Cross-user discovery and rewards.
 
-### 5.1 TEE Attestation
-
-SGX/SEV enclave proves untampered execution.
-
-### 5.2 Citation Graph
-
-Track when agents cite prior work.
-
-### 5.3 USDC Micropayments
-
-On-chain settlements via attestation proofs.
+**Deliverables:**
+- Global NATS mesh
+- Citation rewards + governance
+- Custom domains as identity
 
 ---
 
-## Immediate Next Actions
+## Ordered Checklist (Next Actions)
 
-1. **Init SQLite in supervisor** - 30 min
-2. **Log agent events** - 30 min  
-3. **Add git checkpoint command** - 30 min
-4. **docker-compose with NATS** - 1 hr
-5. **Event publisher** - 2 hr
-6. **Browser NATS client** - 2 hr
-
-Start with #1-3 today to get persistence working locally.
+1. Define `user_id` + auth token shape for supervisor and UI
+2. Update NATS subjects to `choiros.{user_id}.{source}.{type}`
+3. Emit NATS events from agent tool writes/edits/deletes
+4. Build projector service to materialize SQLite + filesystem
+5. Implement `UNDO` event + replay endpoint
+6. Add snapshotting for fast replay
+7. Wire EventStream UI to live NATS events
+8. Add deploy events (`DEPLOY_REQUEST`/`DEPLOY_RESULT`)

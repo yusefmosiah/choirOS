@@ -10,19 +10,19 @@ Choir is an **Automatic Computer**—an operating system layer that transforms r
 
 ---
 
-## The Core Thesis: The Kernel Analogy
+## The Core Thesis: The Personal Mainframe
 
-> **"The Model is the Kernel. The Chatbot is the CLI. The Automatic Computer is the GUI."**
+> **"The Model is the Kernel. The Chatbot is the CLI. The Automatic Computer is the Personal Mainframe."**
 
 | Layer | Computing Analogy | AI Equivalent |
 |-------|------------------|---------------|
 | **Kernel** | OS kernel (syscalls) | LLM (raw probabilistic processing) |
-| **Shell** | CLI (text commands) | Chatbot (synchronous, stateless) |
-| **User Space** | GUI (windows, apps) | **Agentic OS** (what Choir is building) |
+| **CLI** | Command line | Chatbot (synchronous, stateless) |
+| **Mainframe** | Personal mainframe | **Automatic Computer** (Choir) |
 
 The chatbot is a **regression in affordance**—like using a computer through nothing but a command line. It creates "Blank Screen Paralysis" where users don't know what to ask.
 
-Choir is the missing **User Space layer**: a window manager, process scheduler, and persistence engine that protects users from the raw kernel and manages long-running tasks.
+Choir is the missing **personal mainframe layer**: persistent state, event streams, audit trails, and a windowed OS that makes long-running AI work visible and interruptible.
 
 ---
 

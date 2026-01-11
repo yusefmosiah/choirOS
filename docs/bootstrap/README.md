@@ -8,7 +8,7 @@
 
 This is the **decision layer** for ChoirOS—a web desktop where AI operates across your workspace, not in a chat silo.
 
-**The Thesis:** Chat is CLI. Desktop is GUI. The next platform is an agentic desktop where knowledge compounds, agents work visibly, and the system can be used to build itself.
+**The Thesis:** The model is the kernel, the chatbot is the CLI, and the Automatic Computer is the personal mainframe where the system can build itself.
 
 ## Core Documents
 

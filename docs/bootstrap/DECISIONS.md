@@ -7,7 +7,7 @@
 
 ## The Thesis
 
-**Chat is CLI. Desktop is GUI. The automatic computer is the next platform.**
+**The model is the kernel. The chatbot is the CLI. The Automatic Computer is the personal mainframe.**
 
 ChoirOS is a web desktop where:
 - AI operates across your workspace, not in a chat silo
