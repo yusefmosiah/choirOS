@@ -5,18 +5,11 @@ Receives prompts via WebSocket, calls Claude with tools, executes tool calls.
 """
 
 import json
-import os
+import uuid
 from typing import AsyncGenerator, Any
 
-import anthropic
-
+from supervisor.llm import LLMSettings, Message, build_llm_client
 from .tools import AgentTools
-
-
-# Model to use - Cross-region inference profile required for newer models
-# MODEL_ID = "us.anthropic.claude-3-5-haiku-20241022-v1:0"
-# MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-MODEL_ID = "us.anthropic.claude-opus-4-5-20251101-v1:0"
 
 
 # System prompt for the agent
@@ -54,10 +47,10 @@ class AgentHarness:
         """
         self.tools = AgentTools(file_history=file_history)
 
-        # Initialize Anthropic client for AWS Bedrock
-        self.client = anthropic.AnthropicBedrock(
-            aws_region=os.environ.get("AWS_REGION", "us-east-1"),
-        )
+        # Initialize provider-agnostic LLM client
+        self.llm_settings = LLMSettings.from_env()
+        self.client = build_llm_client(self.llm_settings)
+        self.model = self.llm_settings.model
 
     async def process(self, prompt: str) -> AsyncGenerator[dict[str, Any], None]:
         """
@@ -68,82 +61,77 @@ class AgentHarness:
         - content: The actual content
         """
         try:
-            messages = [{"role": "user", "content": prompt}]
+            messages: list[Message] = [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ]
 
             yield {"type": "thinking", "content": "Processing your request..."}
 
             while True:
-                # Call Claude
-                response = self.client.messages.create(
-                    model=MODEL_ID,
-                    max_tokens=4096,
-                    system=SYSTEM_PROMPT,
-                    tools=AgentTools.TOOL_DEFINITIONS,
+                response = self.client.chat(
                     messages=messages,
+                    model=self.model,
+                    max_tokens=4096,
+                    tools=AgentTools.TOOL_DEFINITIONS,
                 )
 
-                # Process response content blocks
                 assistant_content = []
-                has_tool_use = False
 
-                for block in response.content:
-                    if block.type == "text":
-                        yield {"type": "text", "content": block.text}
-                        assistant_content.append({"type": "text", "text": block.text})
+                text_content = response.get("content", "")
+                if text_content:
+                    yield {"type": "text", "content": text_content}
+                    assistant_content.append({"type": "text", "text": text_content})
 
-                    elif block.type == "tool_use":
-                        has_tool_use = True
-                        tool_name = block.name
-                        tool_input = block.input
-                        tool_use_id = block.id
-
-                        yield {
-                            "type": "tool_use",
-                            "content": {
-                                "tool": tool_name,
-                                "input": tool_input,
-                            }
-                        }
-
-                        assistant_content.append({
-                            "type": "tool_use",
-                            "id": tool_use_id,
-                            "name": tool_name,
-                            "input": tool_input,
-                        })
-
-                        # Execute the tool
-                        result = await self.tools.execute_tool(tool_name, tool_input)
-
-                        yield {
-                            "type": "tool_result",
-                            "content": {
-                                "tool": tool_name,
-                                "result": result,
-                            }
-                        }
-
-                        # Add assistant message and tool result for next turn
+                tool_calls = response.get("tool_calls", []) or []
+                if not tool_calls:
+                    if assistant_content:
                         messages.append({"role": "assistant", "content": assistant_content})
-                        messages.append({
-                            "role": "user",
-                            "content": [{
-                                "type": "tool_result",
-                                "tool_use_id": tool_use_id,
-                                "content": json.dumps(result),
-                            }]
-                        })
-
-                        # Reset for potential next tool call
-                        assistant_content = []
-
-                # If no tool use, we're done
-                if not has_tool_use:
                     break
 
-                # Check stop reason
-                if response.stop_reason == "end_turn":
-                    break
+                for tool_call in tool_calls:
+                    tool_name = tool_call.get("name", "")
+                    tool_input = tool_call.get("arguments", {})
+                    tool_use_id = tool_call.get("id") or str(uuid.uuid4())
+
+                    yield {
+                        "type": "tool_use",
+                        "content": {
+                            "tool": tool_name,
+                            "input": tool_input,
+                        }
+                    }
+
+                    assistant_content.append({
+                        "type": "tool_use",
+                        "id": tool_use_id,
+                        "name": tool_name,
+                        "input": tool_input,
+                    })
+
+                    # Execute the tool
+                    result = await self.tools.execute_tool(tool_name, tool_input)
+
+                    yield {
+                        "type": "tool_result",
+                        "content": {
+                            "tool": tool_name,
+                            "result": result,
+                        }
+                    }
+
+                    # Add assistant message and tool result for next turn
+                    messages.append({"role": "assistant", "content": assistant_content})
+                    messages.append({
+                        "role": "user",
+                        "content": [{
+                            "type": "tool_result",
+                            "tool_use_id": tool_use_id,
+                            "content": json.dumps(result),
+                        }]
+                    })
+
+                    assistant_content = []
 
             yield {"type": "done", "content": None}
 
