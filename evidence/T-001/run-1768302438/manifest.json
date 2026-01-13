@@ -1,0 +1,17 @@
+{
+  "run_id": "run-1768302438",
+  "task_id": "T-001",
+  "status": "success",
+  "decision": "propose_done",
+  "checks": [
+    {
+      "command": "ls -R",
+      "exit_code": 0,
+      "output_snippet": "Tests passed"
+    }
+  ],
+  "provenance": {
+    "timestamp": "Tue Jan 13 11:07:18 2026",
+    "git_commit": "HEAD"
+  }
+}

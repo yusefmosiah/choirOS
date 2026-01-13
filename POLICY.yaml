@@ -1,0 +1,57 @@
+# Policy Configuration
+
+# Global Defaults
+global:
+  max_iterations: 10
+  timeout_seconds: 600
+  allowed_egress:
+    - "pypi.org"
+    - "files.pythonhosted.org"
+    - "npmjs.org"
+    - "registry.npmjs.org"
+
+# Tool Permissions
+tools:
+  read_file:
+    allowed: true
+  write_file:
+    allowed: true
+    restricted_paths:
+      - ".git/"
+      - "SYSTEM.md"
+      - "POLICY.yaml"
+  run_command:
+    allowed: true
+    blocked_commands:
+      - "rm -rf /"
+      - "mkfs"
+  git_ops:
+    allowed: true
+    allowed_actions:
+      - "checkout"
+      - "commit"
+      - "status"
+      - "diff"
+
+# Agent Roles
+roles:
+  director:
+    can_merge: true
+    can_create_tasks: true
+    model: "claude-3-5-sonnet-20241022"
+
+  associate:
+    can_merge: false
+    can_create_tasks: false
+    model: "claude-3-5-haiku-20241022"
+
+  reviewer:
+    can_merge: false
+    model: "claude-3-5-sonnet-20241022"
+
+# Auto-Approve Thresholds
+auto_approve:
+  low_risk:
+    max_files: 1
+    max_lines: 10
+    required_tests_passed: true

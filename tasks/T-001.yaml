@@ -1,0 +1,9 @@
+id: "T-001"
+status: "open"
+objective: "Verify the system scaffold"
+verification_commands:
+  - "ls -R tasks evidence skills tools"
+  - "python3 tools/validators/validate_task.py tasks/T-001.yaml tasks/schema.json"
+acceptance_criteria:
+  - "Files exist"
+  - "Task validates itself"

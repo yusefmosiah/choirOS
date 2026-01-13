@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^T-\\d{3}$"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["open", "proposed", "done", "failed"]
+    },
+    "objective": {
+      "type": "string",
+      "description": "High-level goal of the task"
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "relevant_docs": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "verification_commands": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Commands that must pass for the task to be considered done"
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Manual or semantic checks for the Director"
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "timestamp": { "type": "string" },
+          "status": { "type": "string" },
+          "evidence_path": { "type": "string" },
+          "comment": { "type": "string" }
+        }
+      }
+    }
+  },
+  "required": ["id", "status", "objective", "verification_commands"]
+}

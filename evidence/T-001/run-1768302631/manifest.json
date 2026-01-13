@@ -1,0 +1,23 @@
+{
+  "run_id": "run-1768302631",
+  "task_id": "T-001",
+  "status": "success",
+  "decision": "propose_done",
+  "summary": "Executed task loop.",
+  "checks": [
+    {
+      "command": "ls -R tasks evidence skills tools",
+      "exit_code": 0,
+      "output_snippet": "evidence:\nT-001\nmanifest.schema.json\n\nevidence/T-001:\nrun-1768302438\n\nevidence/T-001/run-1768302438:\nmanifest.json\n\nskills:\nskill_manifest.schema.json\n\ntasks:\nT-001.yaml\nschema.json\n\ntools:\nrouters\nvalidators\nwrappers\n\ntools/routers:\n\ntools/validators:\nvalidate_evidence.py\nvalidate_task.py\n\ntools/wrappers:\nassociate_loop.py\n\n"
+    },
+    {
+      "command": "python3 tools/validators/validate_task.py tasks/T-001.yaml tasks/schema.json",
+      "exit_code": 0,
+      "output_snippet": "PASS: tasks/T-001.yaml is valid.\n\n"
+    }
+  ],
+  "provenance": {
+    "timestamp": "Tue Jan 13 11:10:31 2026",
+    "git_commit": "HEAD"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "run_id": { "type": "string" },
+    "task_id": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["success", "failure", "error"]
+    },
+    "summary": { "type": "string" },
+    "decision": {
+      "type": "string",
+      "enum": ["propose_done", "ask_question", "give_up"]
+    },
+    "artifacts": {
+      "type": "object",
+      "properties": {
+        "diff_path": { "type": "string" },
+        "logs_path": { "type": "string" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "command": { "type": "string" },
+          "exit_code": { "type": "integer" },
+          "output_snippet": { "type": "string" }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "git_commit": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "agent_model": { "type": "string" }
+      }
+    }
+  },
+  "required": ["run_id", "task_id", "status", "decision"]
+}
