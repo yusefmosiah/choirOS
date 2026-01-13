@@ -6,7 +6,7 @@
 
 ## Summary
 
-ChoirOS is evolving into an **Automatic Computer**: a personal mainframe that runs the shell, agent, and version control inside a sandbox. The desktop works end-to-end for local dev, but deployment hardening and self-hosted CI/CD are not done yet.
+ChoirOS is evolving into an **Automatic Computer** with two sandboxes per user: a Director loop and an Associate loop. The desktop works end-to-end for local dev, but dual-sandbox orchestration and control-plane separation are not implemented yet.
 
 ---
 
@@ -16,11 +16,12 @@ ChoirOS is evolving into an **Automatic Computer**: a personal mainframe that ru
 - Desktop shell + window manager (`choiros/src/components/desktop`)
 - Writer + Files apps (`choiros/src/components/apps`)
 - FastAPI parsing backend (`api/`)
-- Supervisor runtime + agent harness (`supervisor/`)
+- Supervisor runtime + agent harness (`supervisor/`) [prototype]
 - Git checkpoints + GitPanel UI (`supervisor/git_ops.py`, `choiros/src/components/apps/GitPanel.tsx`)
 
 ### 🔄 In Progress / Partial
-- NATS plumbing (browser + supervisor clients exist, not wired)
+- Director/Associate dual-sandbox orchestration
+- Sprites sandbox adapter
 - EventStream UI (ready, needs live events)
 - In-app deploy loop (git push → CI/CD → redeploy)
 
@@ -36,10 +37,10 @@ ChoirOS is evolving into an **Automatic Computer**: a personal mainframe that ru
 1. **Version control safety** — guardrails around `git reset --hard`, ignore generated files, and audit checkpoint content.
 2. **CI/CD loop** — push from inside Choir and surface build/deploy status in the UI.
 3. **Event stream** — real NATS wiring to replace local-only events.
-4. **Security posture** — sandbox isolation and auth story for public access.
+4. **Security posture** — control-plane separation and sandbox isolation.
 
 ---
 
 ## Near-Term Milestone
 
-**Build Choir inside Choir:** the desktop must be able to edit its own source, commit safely, push to CI/CD, and redeploy without leaving the app.
+**Director + Associate:** dual sandboxes with Ralph loops and git time travel.

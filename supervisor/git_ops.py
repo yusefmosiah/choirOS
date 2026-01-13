@@ -4,7 +4,9 @@ Git operations for ChoirOS.
 Checkpoints, commits, and artifact delivery.
 """
 
+import fnmatch
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -14,6 +16,19 @@ from .db import get_store
 
 # Root of the git repo
 REPO_ROOT = Path(__file__).parent.parent
+CHOIRIGNORE_PATH = REPO_ROOT / ".choirignore"
+
+DEFAULT_CHOIR_IGNORE_PATTERNS = [
+    "*.log",
+    "*.tmp",
+    "node_modules/",
+    "dist/",
+    "build/",
+    ".env*",
+    "*.sqlite-journal",
+    "__pycache__/",
+    ".choir/",
+]
 
 
 def git_run(*args, cwd: Path = REPO_ROOT) -> subprocess.CompletedProcess:
@@ -69,6 +84,121 @@ def get_status() -> dict:
     }
 
 
+def load_choirignore() -> list[str]:
+    """Load ignore patterns from .choirignore if present."""
+    if not CHOIRIGNORE_PATH.exists():
+        return DEFAULT_CHOIR_IGNORE_PATTERNS
+
+    patterns = []
+    for line in CHOIRIGNORE_PATH.read_text().splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        patterns.append(stripped)
+
+    return patterns or DEFAULT_CHOIR_IGNORE_PATTERNS
+
+
+def is_ignored(path: str, patterns: list[str]) -> bool:
+    """Return True if path matches any ignore pattern."""
+    normalized = path.replace("\\", "/")
+
+    for pattern in patterns:
+        if pattern.endswith("/"):
+            if normalized.startswith(pattern) or normalized.startswith(pattern.rstrip("/")):
+                return True
+        if fnmatch.fnmatch(normalized, pattern):
+            return True
+
+    return False
+
+
+def filter_ignored_files(status: dict) -> dict:
+    """Filter status entries using .choirignore patterns."""
+    patterns = load_choirignore()
+    keys = ["modified", "added", "deleted", "untracked"]
+
+    ignored = []
+    filtered = {}
+    for key in keys:
+        filtered[key] = []
+        for path in status[key]:
+            if is_ignored(path, patterns):
+                ignored.append(path)
+            else:
+                filtered[key].append(path)
+
+    filtered["ignored"] = sorted(set(ignored))
+    filtered["clean"] = all(len(filtered[key]) == 0 for key in keys)
+    return filtered
+
+
+def stage_paths(paths: list[str]) -> subprocess.CompletedProcess:
+    """Stage only the provided paths."""
+    if not paths:
+        return subprocess.CompletedProcess(args=["git", "add"], returncode=0)
+    return git_run("add", "-A", "--", *paths)
+
+
+def is_reachable_commit(sha: str) -> bool:
+    """Return True if commit is valid and reachable from HEAD."""
+    if not sha or len(sha) < 7:
+        return False
+
+    if git_run("cat-file", "-e", f"{sha}^{{commit}}").returncode != 0:
+        return False
+
+    return git_run("merge-base", "--is-ancestor", sha, "HEAD").returncode == 0
+
+
+def get_diff_preview(sha: str) -> str:
+    """Get a summary of changes between sha and HEAD."""
+    result = git_run("diff", "--stat", f"{sha}..HEAD")
+    return result.stdout if result.returncode == 0 else result.stderr
+
+
+def git_revert(sha: str, dry_run: bool = True) -> dict:
+    """Safely reset to a commit with backup and preview."""
+    if not is_reachable_commit(sha):
+        return {
+            "success": False,
+            "error": f"Commit {sha} is not reachable from HEAD",
+        }
+
+    backup_branch = f"backup-before-revert-{int(time.time())}"
+    backup_result = git_run("branch", backup_branch)
+    if backup_result.returncode != 0:
+        return {
+            "success": False,
+            "error": f"Failed to create backup branch: {backup_result.stderr}",
+        }
+
+    preview = get_diff_preview(sha)
+    if dry_run:
+        return {
+            "success": True,
+            "dry_run": True,
+            "backup_branch": backup_branch,
+            "changes": preview,
+        }
+
+    result = git_run("reset", "--hard", sha)
+    if result.returncode != 0:
+        return {
+            "success": False,
+            "error": f"git reset failed: {result.stderr}",
+            "backup_branch": backup_branch,
+        }
+
+    return {
+        "success": True,
+        "reverted_to": sha,
+        "message": f"Reverted to {sha}",
+        "backup_branch": backup_branch,
+        "changes": preview,
+    }
+
+
 def checkpoint(message: Optional[str] = None) -> dict:
     """
     Create a git checkpoint (add all + commit).
@@ -85,44 +215,58 @@ def checkpoint(message: Optional[str] = None) -> dict:
     
     # Check if there are changes
     status = get_status()
-    if status["clean"]:
+    filtered_status = filter_ignored_files(status)
+    if filtered_status["clean"]:
         return {
             "success": True,
-            "message": "Nothing to commit, working tree clean",
-            "commit_sha": get_head_sha()
+            "message": "Nothing to commit after applying .choirignore",
+            "commit_sha": get_head_sha(),
+            "changes": filtered_status,
         }
-    
-    # Stage all changes
-    result = git_run("add", "-A")
+
+    paths_to_stage = (
+        filtered_status["modified"]
+        + filtered_status["added"]
+        + filtered_status["deleted"]
+        + filtered_status["untracked"]
+    )
+
+    # Stage filtered changes
+    result = stage_paths(paths_to_stage)
     if result.returncode != 0:
         return {
             "success": False,
-            "error": f"git add failed: {result.stderr}"
+            "error": f"git add failed: {result.stderr}",
         }
-    
+
     # Commit
     result = git_run("commit", "-m", message)
     if result.returncode != 0:
         return {
             "success": False,
-            "error": f"git commit failed: {result.stderr}"
+            "error": f"git commit failed: {result.stderr}",
         }
-    
+
     # Get the new commit SHA
     commit_sha = get_head_sha()
-    
+    if not commit_sha:
+        return {
+            "success": False,
+            "error": "Unable to determine commit SHA",
+        }
+
     # Record in event store
     store.record_checkpoint(commit_sha, message)
-    
+
     return {
         "success": True,
         "message": message,
         "commit_sha": commit_sha,
-        "changes": status
+        "changes": filtered_status,
     }
 
 
-def push(remote: str = "origin", branch: str = None) -> dict:
+def push(remote: str = "origin", branch: Optional[str] = None) -> dict:
     """
     Push to remote.
     

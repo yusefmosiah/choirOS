@@ -14,7 +14,7 @@ import asyncio
 import os
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 
 # Detect project root - use PYTHONPATH if set, otherwise find relative to this file
@@ -307,10 +307,13 @@ class AgentTools:
 
             # Stream output to file
             output_lines = []
+            stdout = proc.stdout
+            if stdout is None:
+                raise RuntimeError("Process stdout not available")
             with open(log_path, "w") as f:
                 try:
                     async def read_output():
-                        async for line in proc.stdout:
+                        async for line in stdout:
                             decoded = line.decode()
                             f.write(decoded)
                             output_lines.append(decoded)
@@ -336,7 +339,7 @@ class AgentTools:
         except Exception as e:
             return {"error": str(e)}
 
-    async def git_checkpoint(self, message: str = None) -> dict[str, Any]:
+    async def git_checkpoint(self, message: Optional[str] = None) -> dict[str, Any]:
         """Create a git checkpoint."""
         try:
             from ..git_ops import checkpoint

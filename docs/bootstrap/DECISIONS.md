@@ -30,7 +30,7 @@ ChoirOS is a web desktop where:
 2. Workflow (intent → action → artifact loop)
 3. Publishing (artifact model, export, citation stub)
 4. Persistence (SQLite, sync patterns)
-5. Platform (NATS, agents, the loop closes)
+5. Platform (dual sandboxes, Ralph loops, git time travel)
 
 ---
 
@@ -48,15 +48,14 @@ ChoirOS is a web desktop where:
 ```
 Browser (thin client)
     ↓ WebSocket
-User's MicroVM
+Associate Sandbox
     ├── /app (Choir source, Vite project)
     ├── /artifacts (user's files, configs, GenUI)
-    ├── /state (SQLite, action log)
+    ├── /workspace (user files)
     ├── Vite dev server
-    ├── Agent runtime
-    └── NATS connection
-    ↓ NATS
-Global Infrastructure (S3, Qdrant, JetStream)
+    └── Associate agent runtime
+    ↓ DirectorTask
+Director Sandbox (planner)
 ```
 
 ---
@@ -388,7 +387,7 @@ interface ActionEvent {
 }
 ```
 
-Every mutation is logged. This is the event stream agents subscribe to.
+Every mutation is checkpointed or logged locally. Event streaming is deferred.
 
 ---
 

@@ -14,6 +14,7 @@ import os
 import signal
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -187,7 +188,7 @@ async def git_log(count: int = 10):
 
 
 @app.post("/git/checkpoint")
-async def git_checkpoint(message: str = None):
+async def git_checkpoint(message: Optional[str] = None):
     """Create a git checkpoint (add all + commit)."""
     from .git_ops import checkpoint
 
@@ -196,31 +197,16 @@ async def git_checkpoint(message: str = None):
 
 
 @app.post("/git/revert")
-async def git_revert(sha: str):
-    """Revert to a specific commit (git reset --hard)."""
-    from .git_ops import git_run
+async def git_revert(sha: str, dry_run: bool = True):
+    """Safely revert to a specific commit with backup."""
+    from .git_ops import git_revert
 
-    # Safety: don't allow reverting without a valid SHA
-    if not sha or len(sha) < 7:
-        return {"success": False, "error": "Invalid SHA provided"}
+    result = git_revert(sha, dry_run=dry_run)
 
-    result = git_run("reset", "--hard", sha)
-
-    if result.returncode != 0:
-        return {
-            "success": False,
-            "error": f"git reset failed: {result.stderr}"
-        }
-
-    # Restart Vite to pick up changes (Docker mode only)
-    if not STANDALONE:
+    if result.get("success") and not dry_run and not STANDALONE:
         await vite_manager.restart()
 
-    return {
-        "success": True,
-        "reverted_to": sha,
-        "message": f"Reverted to {sha}"
-    }
+    return result
 
 
 @app.websocket("/agent")
@@ -239,6 +225,10 @@ async def agent_websocket(websocket: WebSocket):
                 continue
 
             # Process with agent
+            if agent_harness is None:
+                await websocket.send_json({"type": "error", "content": "Agent harness not ready"})
+                continue
+
             async for response in agent_harness.process(prompt):
                 await websocket.send_json(response)
 

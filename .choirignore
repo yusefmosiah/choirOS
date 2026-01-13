@@ -1,0 +1,10 @@
+# ChoirOS generated content
+*.log
+*.tmp
+node_modules/
+dist/
+build/
+.env*
+*.sqlite-journal
+__pycache__/
+.choir/

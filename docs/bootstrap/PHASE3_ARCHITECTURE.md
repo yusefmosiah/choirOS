@@ -1,106 +1,84 @@
-# ChoirOS Phase 3: Agent Platform Architecture
+# ChoirOS Phase 3: Director + Associate Architecture
 
-> Unified sandbox. Supervisor pattern. Simple tools.
+> Dual sandboxes. Ralph supervising Ralph. Vite lives in the Associate.
 
 ---
 
 ## Core Decisions
 
-### 1. Unified Sandbox
+### 1. Dual Sandbox Model
 
-Agent + ChoirOS shell run in a single sandbox.
+Each user gets two sandboxes:
 
-**Why not separate?**
-- Prompt injection is the model labs' problem
-- A compromised agent already owns the sandbox—separation doesn't help
-- Simpler architecture, no file sync complexity
+- Director sandbox: planning loop, policy, orchestration.
+- Associate sandbox: ChoirOS UI + repo + tools.
 
-### 2. Supervisor Process Pattern
+The Director never edits files directly. All state changes are expressed as
+Associate task types.
 
-Two processes in the sandbox:
+### 2. Vite in the Associate
 
-| Process | Role | Can Crash? |
-|---------|------|------------|
-| **Supervisor** | Manages file history, handles undo, restarts Vite | No |
-| **Vite + Agent** | Serves UI, runs agent, edits files | Yes |
+The Associate runs the Vite dev server so the OS can rewrite itself live.
+This is the vibecoding primitive.
 
-### 3. Auth Isolation
+### 3. Git Time Travel (v0)
 
-Auth tokens live in a separate layer the agent cannot access. Agent receives sanitized user input only.
+Git checkpoints are the time travel mechanism. The Director requests git
+actions as Associate tasks.
 
-### 4. Undo Works Even If UI Crashes
+### 4. Control Plane Is Separate
 
-Browser → Supervisor (port 8001) → restores files → restarts Vite → browser reconnects.
-
-### 5. Files Are Files
-
-Agent edits files directly on disk. Events are for timeline/coordination, not storage.
-
-### 6. Data Sovereignty
-
-Self-hosted only. Docker for dev, Firecracker on EC2 for prod. No E2B, Modal, or third-party sandbox services.
+Control plane code lives in a separate repo/folder and is not mounted into
+Director or Associate sandboxes. It hosts a stable UI and spawns sandboxes.
 
 ---
 
 ## Architecture Diagram
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                        Sandbox                                │
-│                                                               │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  Auth Proxy (isolated)                                  │  │
-│  │    └── Session tokens, never exposed to agent           │  │
-│  └────────────────────────────────────────────────────────┘  │
-│                            │                                  │
-│                            │ (user_id only)                   │
-│                            ▼                                  │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  Supervisor (port 8001)                                 │  │
-│  │    └── File history (SQLite or in-memory)               │  │
-│  │    └── Undo endpoint                                    │  │
-│  │    └── Vite process manager                             │  │
-│  └────────────────────────────────────────────────────────┘  │
-│                            │                                  │
-│                            │ (manages)                        │
-│                            ▼                                  │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  Vite + Agent (port 5173)                               │  │
-│  │    └── Serves React shell to browser                    │  │
-│  │    └── Agent writes files to disk                       │  │
-│  │    └── HMR updates browser on file change               │  │
-│  └────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────┘
-                            │
-                            │ WebSocket (HMR) + HTTP (undo)
-                            ▼
-                    ┌──────────────┐
-                    │   Browser    │
-                    └──────────────┘
+┌───────────────────────────────────────────────────────────┐
+│                      Control Plane UI                      │
+│   (trusted, stable, spawns sandboxes, shows status)        │
+└───────────────┬───────────────────────────────────────────┘
+                │
+                ▼
+        ┌──────────────────────┐
+        │   Director Sandbox   │
+        │  (Ralph loop + LLM)  │
+        └───────────┬──────────┘
+                    │ DirectorTask
+                    ▼
+        ┌──────────────────────┐
+        │  Associate Sandbox   │
+        │ (Vite + repo + tools)│
+        └───────────┬──────────┘
+                    │ AssociateResult
+                    ▼
+                Git checkpoints
 ```
 
 ---
 
-## Security Model
+## Security Model (v0)
 
 | Concern | Position |
 |---------|----------|
-| Prompt injection | Model labs' problem |
-| Session compromise | Same as any web app. Auth isolated from agent. |
-| Agent writes bad code | Undo solves it. Not a security issue. |
-| Wallet deception | Lit/Vincent policies + trusted UI |
+| Prompt injection | Expected; Director verifies via Associate results |
+| Session compromise | Handled at control plane later |
+| Bad code edits | Git time travel + undo via Associate tasks |
+| Secrets | Not inside sandboxes |
 
 ---
 
-## Implementation Phases
+## Implementation Phases (v0)
 
 | Phase | Goal | What to Build |
 |-------|------|---------------|
-| **3.1** | Agent writes files | Docker + Supervisor + Agent harness |
-| **3.2** | Vibecoding works | Theme modification → HMR → live update |
-| **3.3** | Undo works | File history + undo endpoint + UI |
-| **3.4** | Production | Firecracker on EC2, S3 backup |
+| **3.1** | Dual sandboxes | Director + Associate spawn via Sprites |
+| **3.2** | Vibecoding works | Vite in Associate + hot reload |
+| **3.3** | Ralph loops | Director plans, Associate executes + verifies |
+| **3.4** | Time travel | Git checkpoints + reset tasks |
 
 ---
 
-*Created: 2025-12-17*
+*Updated: 2026-01-XX*
