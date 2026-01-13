@@ -1,6 +1,7 @@
 # Firecracker MicroVM Setup
 
 > Isolated agent execution on AWS.
+> Deferred in v0; Sprites is the bootstrap sandbox backend.
 
 ---
 

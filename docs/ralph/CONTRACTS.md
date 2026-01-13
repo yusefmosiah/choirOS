@@ -12,12 +12,19 @@ Fields:
 - instruction: natural language goal
 - acceptance_criteria: short checklist
 - base_ref: optional git ref for context
+- git_action: optional verb for kind = git
 - allowed_tools: tool allowlist
 - egress_profile: network policy
 - verify_profile: verification policy
 - commands: optional explicit commands
 - time_budget_s: default 300
 - return: requested outputs
+
+Task kinds (v0):
+- edit_repo: change files to satisfy acceptance_criteria.
+- run: execute commands without modifying files.
+- git: request git_checkpoint | git_reset | git_checkout | git_status.
+- inspect: read-only context gathering (files, directory listings, logs).
 
 Example:
 
@@ -70,6 +77,11 @@ Fields:
 - verify: verification results
 - questions: needed user inputs
 - suggested_next: optional follow-up
+
+Result invariants:
+- Use status = "failed" if verification fails.
+- Use status = "needs_input" only when user input is required to proceed.
+- Never respond directly to end users; only return structured results.
 
 Example:
 

@@ -34,27 +34,27 @@ ChoirOS is a web desktop where:
 
 ---
 
-### D2: MicroVM as Session Server
+### D2: Associate Sandbox as Session Server
 
-**Decision:** The user's microVM serves the UI. Browser is thin client.
+**Decision:** The Associate sandbox serves the UI. Browser is thin client.
 
 **Rationale:**
 - Vibecoding becomes "agent writes files, Vite rebuilds, browser updates"
-- Arbitrary code runs in VM, not browser (security)
+- Arbitrary code runs in sandbox, not browser (security)
 - True filesystem means artifacts are just files
-- The user's VM contains Choir source—building Choir in Choir becomes literal
+- Building Choir in Choir becomes literal
 
 **Architecture:**
 ```
 Browser (thin client)
-    ↓ WebSocket
+    ↓
 Associate Sandbox
     ├── /app (Choir source, Vite project)
-    ├── /artifacts (user's files, configs, GenUI)
+    ├── /artifacts (user files, configs)
     ├── /workspace (user files)
     ├── Vite dev server
-    └── Associate agent runtime
-    ↓ DirectorTask
+    └── Associate runtime
+    ↑ DirectorTask
 Director Sandbox (planner)
 ```
 
@@ -172,7 +172,7 @@ Director Sandbox (planner)
 - Calibration (how consistent are answers across runs?)
 - Search (each agent explores a branch)
 
-**Architecture:** Each agent gets its own sandbox (microVM or lighter). Results merge into parent workspace. User sees the fanout as parallel windows or a "search results" artifact.
+**Architecture:** Each agent gets its own sandbox (Sprites now, microVM later). Results merge into parent workspace. User sees the fanout as parallel windows or a "search results" artifact.
 
 **When to use:**
 - Uncertainty is high, cost of exploration is low
@@ -189,23 +189,22 @@ Director Sandbox (planner)
 
 ### D13: Sandbox-First Architecture
 
-**Decision:** The shell itself runs inside the agent sandbox (microVM). The browser is a thin client.
+**Decision:** The shell runs inside the Associate sandbox. The browser is a thin client.
 
 **Rationale:**
 - Vibecoding becomes literal: agent writes CSS/JSX → Vite HMR → browser updates
 - The shell is modifiable at runtime—users can "vibe" their environment
-- Security: arbitrary code runs in VM, not browser
+- Security: arbitrary code runs in sandbox, not browser
 - Composability: building Choir in Choir is possible
 
 **Architecture:**
 ```
-Browser (thin client, WebSocket only)
+Browser (thin client)
     ↓
-MicroVM (/app contains Choir source)
+Associate Sandbox (/app contains Choir source)
     ├── Vite dev server
-    ├── Agent runtime
-    ├── /artifacts (user content)
-    └── /state (SQLite)
+    ├── Associate runtime
+    └── /artifacts (user content)
 ```
 
 **Launch Feature:** The proof that this works is vibecoding. User types "make the background dark blue" → agent edits theme.json → HMR fires → UI updates. This demonstrates the architecture enables live modification.

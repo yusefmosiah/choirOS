@@ -1,6 +1,7 @@
 # ChoirOS Authentication
 
 > Passkey-based WebAuthn authentication for secure, passwordless access.
+> NATS-specific sections are deferred; v0 focuses on Ralph-in-Ralph sandboxing.
 
 ## Overview
 
@@ -23,7 +24,7 @@ ChoirOS uses **passkey authentication** (WebAuthn/FIDO2) for biometric login wit
 **Perfect for ChoirOS:**
 - Distributed system needs strong user identity
 - No centralized password database
-- Works with per-user S3 buckets and NATS subject ACLs
+- Works with per-user S3 buckets (NATS ACLs later)
 - Complements sovereign data architecture
 
 ---
@@ -998,4 +999,4 @@ s3_client.create_bucket(f"choiros-user-{user_id}")
 
 ---
 
-**The goal:** Passwordless, secure, biometric authentication for ChoirOS that integrates seamlessly with the distributed architecture (NATS, S3, Firecracker).
+**The goal:** Passwordless, secure, biometric authentication for ChoirOS that integrates with the distributed architecture (S3, Firecracker; NATS later).

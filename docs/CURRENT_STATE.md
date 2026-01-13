@@ -22,7 +22,7 @@ ChoirOS is evolving into an **Automatic Computer** with two sandboxes per user: 
 ### 🔄 In Progress / Partial
 - Director/Associate dual-sandbox orchestration
 - Sprites sandbox adapter
-- EventStream UI (ready, needs live events)
+- Prompt routing through Director
 - In-app deploy loop (git push → CI/CD → redeploy)
 
 ### 🚧 Stubs / Demos
@@ -36,8 +36,8 @@ ChoirOS is evolving into an **Automatic Computer** with two sandboxes per user: 
 
 1. **Version control safety** — guardrails around `git reset --hard`, ignore generated files, and audit checkpoint content.
 2. **CI/CD loop** — push from inside Choir and surface build/deploy status in the UI.
-3. **Event stream** — real NATS wiring to replace local-only events.
-4. **Security posture** — control-plane separation and sandbox isolation.
+3. **Control plane separation** — trusted app that spawns sandboxes and owns auth.
+4. **Sandbox isolation** — Director/Associate split with per-task egress.
 
 ---
 

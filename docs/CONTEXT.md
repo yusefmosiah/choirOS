@@ -68,13 +68,14 @@ A computational environment that:
 | **GenUI** | Just-in-time generated interfaces—customization is a prompt away. |
 | **Citation Graph** | Tracks attribution. When AI uses your work, you get paid. |
 
-### Technical Stack
+### Technical Stack (v0)
 
-- **Frontend**: Web desktop (browser-based OS GUI)
-- **Event Bus**: NATS JetStream (log streaming middleware as the "kernel bus")
-- **Agent Isolation**: Firecracker microVMs (each agent in sandboxed VM)
-- **State**: Per-user SQLite synced to S3 (sovereignty + portability)
-- **Vectors**: Qdrant for semantic search and citation detection
+- **Frontend**: Web desktop (Vite + React)
+- **Sandboxes**: Sprites (Director + Associate per user)
+- **Control Plane**: Separate app/repo (trusted, no hot reload)
+- **State**: Git checkpoints (time travel v0)
+- **Event Bus**: Deferred (NATS later)
+- **Models**: Bedrock (multi-provider later)
 
 ---
 

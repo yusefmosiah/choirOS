@@ -2,6 +2,7 @@
 
 > Questions we're explicitly not answering yet.
 > Tracked here so they don't get buried in code.
+> NATS and distributed eventing are deferred until after Ralph-in-Ralph.
 
 ---
 

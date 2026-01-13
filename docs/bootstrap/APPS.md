@@ -1,6 +1,7 @@
 # ChoirOS Applications
 
 > Specifications for Writer, Files, Terminal, and the ? bar.
+> NATS references in this doc are deferred; v0 uses local state and git only.
 
 ---
 
@@ -46,7 +47,7 @@ The primary document editing app. Notion-like rich text with markdown export.
 - Slash commands (`/heading`, `/list`, `/quote`)
 - Markdown import/export
 - Auto-save to SQLite
-- NATS events for agent observation
+- Local events for agent observation (NATS later)
 
 ### Component
 
@@ -63,7 +64,7 @@ interface WriterProps {
 export function Writer({ artifactId }: WriterProps) {
   const [content, setContent] = useState('');
   const saveArtifact = useArtifactStore(s => s.save);
-  const publishEvent = useNatsStore(s => s.publish);
+  const publishEvent = useEventStore(s => s.publish);
 
   // Load existing artifact if provided
   useEffect(() => {
@@ -86,7 +87,7 @@ export function Writer({ artifactId }: WriterProps) {
     },
   });
 
-  // Emit NATS event on significant changes
+  // Emit local event on significant changes (NATS later)
   const handleBlur = () => {
     if (editor && artifactId) {
       publishEvent(`choiros.user.${userId}.file.UPDATED`, {
@@ -463,7 +464,7 @@ function handleCommand(cmd: string, xterm: XTerm) {
   } else if (trimmed === 'clear') {
     xterm.clear();
   } else if (trimmed === 'status') {
-    xterm.writeln('Connected to NATS: ✓');
+    xterm.writeln('Connected: ✓');
     xterm.writeln('SQLite synced: ✓');
   } else if (trimmed) {
     xterm.writeln(`Unknown command: ${trimmed}`);
@@ -569,7 +570,7 @@ export async function sendToAgent(input: string): Promise<void> {
     ? getWindowContext(focusedWindowId)
     : null;
 
-  // Emit to NATS for agent processing
+  // Emit local event for agent processing (NATS later)
   await publishEvent(`choiros.user.${userId}.action.COMMAND`, {
     natural_language: input,
     context: {
@@ -588,7 +589,7 @@ export async function sendToAgent(input: string): Promise<void> {
 
 ## App Communication
 
-Apps communicate through the Zustand stores and NATS events, not directly.
+Apps communicate through the Zustand stores and local events. NATS is deferred.
 
 ```typescript
 // Example: Writer emits event, Files updates

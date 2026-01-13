@@ -3,6 +3,8 @@
 **Date:** 2025-12-17
 **Status:** ✅ Agent WebSocket bug fixed - connection and message sending working
 
+> Legacy: predates the Director/Associate split. Use Ralph-in-Ralph docs for v0.
+
 ---
 
 ## What Was Built

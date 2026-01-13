@@ -7,7 +7,7 @@
 ## Design Principles
 
 1. **Minimal surface**: 4 tools total
-2. **Unrestricted**: No allowlists (workarounds defeat the purpose)
+2. **Task-scoped access**: Director sets `allowed_tools` per task
 3. **Token efficient**: Stream large outputs to files
 4. **Never lose data**: Logs retained 30 days
 
@@ -132,7 +132,6 @@ class BashTool:
 
 | Feature | Why |
 |---------|-----|
-| Command allowlist | Models work around it |
 | MCP protocol | Call via bash later |
 | Directory tools | Use `ls`, `mkdir`, `find` via bash |
 | File info/move | Use `stat`, `mv` via bash |

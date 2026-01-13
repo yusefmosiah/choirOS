@@ -12,39 +12,50 @@
 ### In Progress
 - Director/Associate dual-sandbox design
 - Sprites integration planning
+- Multi-provider LLM abstraction (branch)
 
 ### Not Started
-- Director + Associate sandbox orchestration
-- Control plane UI (stable, trusted)
-- Git time travel tasks + verification protocol
+- Control plane app (separate repo)
+- Director/Associate task protocol wiring
+- Prompt routing through Director
 
 ---
 
-## Phase 3: Ralph-in-Ralph (Now)
+## Phase 0: Ralph-in-Ralph (v0)
 
-**Goal:** Director plans, Associate executes. Two sandboxes per user.
+**Goal:** Two sandboxes per user. Director plans, Associate executes.
 
-1) **Task contract**
+1) **Contracts**
    - DirectorTask and AssociateResult schemas
    - Git actions as Associate tasks
 
-2) **Dual sandboxes**
-   - Spawn Director + Associate per user
-   - Explicit mounts, zero secrets
+2) **Sandbox orchestration**
+   - Spawn Director + Associate via Sprites
+   - No secrets inside sandboxes
 
-3) **Vibecoding**
-   - Vite dev server inside Associate
-   - Prompt flow: Associate UI -> Director -> Associate
+3) **Prompt flow**
+   - Associate UI forwards prompts to Director
+   - Director replies only after Associate verification
 
-4) **Git time travel**
-   - Checkpoints on success
-   - Reset/checkout as Associate task types
+4) **Time travel**
+   - Git checkpoints + reset/checkout tasks
+   - No event log, no snapshots
 
 ---
 
-## Phase 4: Persistence + Replay
+## Phase 1: Control Plane (v1)
 
-**Goal:** Fast recovery and time-travel beyond git.
+**Goal:** A trusted app that owns auth and sandbox lifecycle.
+
+- Separate repo with its own CI/CD
+- Stable UI (no hot reload)
+- Session issuance and token forwarding
+
+---
+
+## Phase 2: Persistence + Replay (v2)
+
+**Goal:** Faster recovery and richer auditing.
 
 - Event log (NATS or equivalent)
 - Filesystem snapshots
@@ -52,7 +63,7 @@
 
 ---
 
-## Phase 5: Publishing
+## Phase 3: Publishing (v3)
 
 **Goal:** Artifacts become shareable and attributable.
 

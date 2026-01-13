@@ -61,59 +61,49 @@
 
 ---
 
-## Phase 3: Agent Platform 🔜
+## Phase 3: Ralph-in-Ralph (v0) 🔜
 
-**Goal:** The agentic infrastructure. MicroVM sandbox where the shell itself runs, modifiable at runtime.
+**Goal:** Two sandboxes per user. Director plans, Associate executes. Vite lives in the Associate.
 
 ### Why Sandbox-First?
 
-The key insight: **everything built so far should run inside the agent sandbox**. This means:
-- The desktop shell is served from a microVM
-- Agents can modify the shell files (CSS, components, layout)
-- Vibecoding works: user prompts → agent edits → Vite HMR → live update
+The key insight: **the shell itself runs inside the Associate sandbox**. This means:
+- The desktop shell is served from the Associate sandbox
+- The Associate edits shell files (CSS, components, layout)
+- Vibecoding works: prompts → edits → Vite HMR → live update
 
 ### Subtasks
 
-**3.1: MicroVM Base Image**
-- [ ] Firecracker VM with Alpine + Node + Vite
-- [ ] Choir shell source in `/app`
-- [ ] Artifacts directory at `/artifacts`
-- [ ] Vite dev server running
+**3.1: Sprites Sandbox Adapter**
+- [ ] Create Director + Associate sandboxes per user
+- [ ] Explicit mounts, no secrets in sandboxes
 
-**3.2: VM Orchestration**
-- [ ] Spawn VM on user connect
-- [ ] WebSocket bridge (browser ↔ VM)
-- [ ] Destroy on disconnect (or idle timeout)
+**3.2: Dual Ralph Loops**
+- [ ] Director plans and issues tasks
+- [ ] Associate executes and verifies
+- [ ] Contracts in `docs/ralph/CONTRACTS.md`
 
-**3.3: S3 State Sync**
-- [ ] Artifacts sync to S3
-- [ ] Restore on VM spawn
-- [ ] Per-user namespacing
+**3.3: Prompt Routing**
+- [ ] ? bar input forwards to Director
+- [ ] Director responses render in Associate UI
 
-**3.4: NATS Event Bus**
-- [ ] JetStream setup
-- [ ] Action log streaming
-- [ ] Agent subscriptions
+**3.4: Git Time Travel**
+- [ ] git_checkpoint, git_reset, git_checkout tasks
+- [ ] Verify before response
 
-**3.5: Agent Harness**
-- [ ] Agent receives ? bar input
-- [ ] Agent can read/write files
-- [ ] Agent actions visible (opens windows, edits files)
+**3.5: Control Plane Stub**
+- [ ] Separate repo/app that spawns sandboxes
+- [ ] Stable UI for session creation and status
 
 ### Launch Feature: Vibecoding
 
-The proof point for Phase 3: **type in ? bar → agent modifies theme/layout → UI updates live**.
-
-This demonstrates:
-- Agent can modify the shell
-- Changes are visible and immediate
-- Users can "vibe" the system into their preferred state
+The proof point for Phase 3: **type in ? bar → Associate edits theme/layout → UI updates live**.
 
 **Exit criteria:**
-- Browser connects to microVM (not local dev server)
-- ? bar input reaches agent
-- Agent can write files, UI updates via HMR
-- "Change the background to dark blue" works
+- Browser connects to Associate dev server
+- ? bar input reaches Director
+- Associate writes files, UI updates via HMR
+- Git checkpoint restores last good state
 
 ---
 

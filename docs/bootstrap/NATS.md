@@ -1,4 +1,6 @@
-# NATS JetStream Configuration
+# NATS JetStream Configuration (Deferred)
+
+> Not in v0. Kept for future reference once the event bus is reintroduced.
 
 > The event bus / kernel of ChoirOS.
 

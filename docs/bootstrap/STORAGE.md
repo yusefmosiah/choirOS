@@ -1,6 +1,7 @@
 # Storage & State Architecture
 
 > Per-user SQLite, S3 sync, and Qdrant vectors.
+> Deferred in v0; git checkpoints are the time-travel mechanism.
 
 ---
 
@@ -45,7 +46,7 @@ CREATE TABLE action_log (
   timestamp INTEGER NOT NULL,
   action_type TEXT NOT NULL,             -- ARTIFACT_CREATE, COMMAND, etc.
   payload JSON NOT NULL,
-  synced INTEGER DEFAULT 0               -- Has this been pushed to NATS?
+  synced INTEGER DEFAULT 0               -- Has this been pushed to event log (future)?
 );
 
 CREATE INDEX idx_action_log_timestamp ON action_log(timestamp);
@@ -273,7 +274,7 @@ export async function syncToS3(): Promise<void> {
   // Update sync state
   setSyncState('lastSyncTimestamp', Date.now().toString());
 
-  // Emit sync complete event to NATS
+  // Emit sync complete event (future event bus)
   await publishEvent(`choiros.user.${userId}.sync.complete`, {
     direction: 'PUSH',
     timestamp: Date.now(),
@@ -381,7 +382,7 @@ Hosted on EC2, shared across all users (but queries are always scoped to user).
 User saves artifact
     │
     ▼
-NATS: choiros.user.{id}.file.UPDATED
+Event bus (future): choiros.user.{id}.file.UPDATED
     │
     ▼
 Embedding worker (subscribes to file events):

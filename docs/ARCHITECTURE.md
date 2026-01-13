@@ -1,167 +1,79 @@
-# ChoirOS Architecture
+# ChoirOS Architecture (v0)
 
-ChoirOS implements the **Automatic Computer** as a dual-sandbox system: a Director loop supervises an Associate loop. Both are agentic Ralph loops, but only the Associate edits the repo and runs commands. Time travel in v0 is git-based.
+ChoirOS is a dual-sandbox system: a Director loop supervises an Associate loop.
+The control plane is a separate app/repo that spawns sandboxes and never runs
+untrusted code. Vite lives inside the Associate for live rewrites.
 
-## Evolution Path
-
-```
-Local Dev → Container → MicroVM → TEE
-    ↓          ↓          ↓        ↓
-  File I/O   Docker    Firecracker  SGX/SEV
-             Volumes    rootfs      Encrypted
-```
-
-## Core Data Flow
+## System Overview
 
 ```
-┌───────────────┐     ┌────────────────────────────┐
-│   Browser     │────▶│     Control Plane UI       │
-└───────────────┘     └───────────────┬────────────┘
-                                      │
-                                      ▼
-                         ┌──────────────────────┐
-                         │   Director Sandbox   │
-                         │  (planner + policy)  │
-                         └───────────┬──────────┘
-                                     │ DirectorTask
-                                     ▼
-                         ┌──────────────────────┐
-                         │   Associate Sandbox  │
-                         │  (Vite + repo + tools)│
-                         └───────────┬──────────┘
-                                     │ AssociateResult
-                                     ▼
-                             ┌─────────────┐
-                             │     Git     │
-                             │ checkpoints │
-                             └─────────────┘
+User Browser
+    │
+    ▼
+Control Plane (trusted, separate repo)
+    │  spawn Director + Associate
+    ▼
+Director Sandbox (agentic Ralph)
+    │  DirectorTask
+    ▼
+Associate Sandbox (deterministic Ralph)
+    │  AssociateResult
+    ▼
+Git Checkpoints (time travel)
 ```
+
+## Components
+
+### Control Plane (trusted)
+- Spawns Director + Associate sandboxes.
+- Hosts a stable UI (no hot reload).
+- Holds auth and session issuance.
+- Never mounts the ChoirOS repo.
+
+### Director Sandbox (planner)
+- Receives user prompts from the Associate UI.
+- Expands prompts into DirectorTask envelopes.
+- Evaluates AssociateResult and decides next steps.
+- Requests git actions via Associate tasks.
+
+### Associate Sandbox (executor)
+- Runs the ChoirOS UI and Vite dev server.
+- Executes deterministic tasks with tools.
+- Edits repo, runs commands, and verifies.
+- Returns structured diffs, logs, and verification status.
+
+## Prompt Flow
+
+User -> Associate UI -> Director -> Associate task -> Associate verify -> Director
+
+The Associate never answers users directly; it only executes tasks. The Director
+is the sole agent that communicates results back to the user.
+
+## Trust and Egress (v0)
+
+- Treat both sandboxes as untrusted.
+- Control plane holds credentials and secrets.
+- Egress is set per task by the Director with tight defaults (git + registries).
 
 ## Time Travel (v0)
 
 Time travel is git-based. The Director requests git actions as Associate tasks.
-All state changes flow through the Associate sandbox and are checkpointed in git.
+Event sourcing and filesystem snapshots are deferred until after Sprites.
 
-## Future: Event Log
+## Contracts
 
-NATS event sourcing and filesystem snapshots are deferred. When introduced, they
-will complement git checkpoints rather than replace the Director/Associate loop.
+Director/Associate envelopes are defined in `docs/ralph/CONTRACTS.md`.
 
-## Task Contracts
+## Deferred (post-v0)
 
-Director/Associate contracts are defined in `docs/ralph/CONTRACTS.md`.
-
-## Deferred: Event Log Schema
-
-Event sourcing and materialized projections are deferred in v0. The schema will
-be defined when NATS and snapshots are reintroduced.
-
-## Git Integration
-
-Each user gets a git repo inside the Associate sandbox. Git checkpoints are the
-time travel mechanism and the primary state history.
-
-```bash
-# Structure
-/workspaces/{user_id}/
-├── .git/
-├── choiros/             # ChoirOS app and UI
-├── artifacts/           # Parsed content (optional)
-└── workspace/           # User files
-```
-
-### Commit Strategy
-
-1. **Auto-commit**: After N tasks or T time
-2. **Manual commit**: User requests checkpoint
-3. **Before deploy**: Always commit + push
-
-```python
-async def checkpoint(user_id: str, message: str = "checkpoint"):
-    """Create git commit from current state."""
-    repo_path = f"/users/{user_id}"
-    
-    # Git operations
-    subprocess.run(["git", "add", "-A"], cwd=repo_path)
-    subprocess.run(["git", "commit", "-m", message], cwd=repo_path)
-    
-    # Push to remote (user's fork or managed repo)
-    subprocess.run(["git", "push"], cwd=repo_path)
-    
-```
-
-## Blob Storage
-
-Large content → hash → upload → store URL
-
-```python
-async def store_blob(content: bytes) -> str:
-    """Store content in S3/R2, return URL."""
-    content_hash = hashlib.sha256(content).hexdigest()
-    key = f"blobs/{content_hash[:2]}/{content_hash}"
-    
-    # Check if exists (content-addressed = idempotent)
-    if not await blob_exists(key):
-        await upload_blob(key, content)
-    
-    return f"s3://choir-blobs/{key}"
-```
-
-Threshold: ~64KB inline, larger → blob URL
-
-## Container → MicroVM → TEE
-
-### Phase 1: Container (Current)
-- Docker with volume mounts
-- SQLite on host filesystem
-- Git via subprocess
-
-### Phase 2: MicroVM (Firecracker)
-- Minimal kernel + rootfs
-- Virtio-fs for shared storage
-- Control plane channel over VSOCK
-
-### Phase 3: TEE (SGX/SEV)
-- Encrypted memory
-- Attestation before key release
-- Sealed storage for SQLite
-
-```yaml
-# firecracker config
-kernel: /images/vmlinux
-rootfs: /images/choiros-rootfs.ext4
-vsock:
-  guest_cid: 3
-  uds_path: /tmp/firecracker.sock
-```
-
-## Configuration Management
-
-```toml
-# /etc/choir/config.toml
-
-[runtime]
-mode = "container"  # local | container | microvm | tee
-
-[storage]
-blobs_url = "s3://choir-blobs"
-
-[git]
-remote_template = "https://github.com/{user}/choir-state.git"
-auto_commit_interval = 300  # seconds
-auto_commit_threshold = 50  # tasks
-
-[tee]
-attestation_server = "https://attest.choir.dev"
-key_server = "https://keys.choir.dev"
-```
+- NATS event bus and persistent event log.
+- Forking and snapshotting beyond git.
+- Firecracker/TEE isolation and attestation.
+- Control-plane-driven CI/CD for deployments.
 
 ## Next Steps
 
-1. [x] Git repo initialized
-2. [x] Supervisor git endpoints + UI checkpointing
-3. [ ] Director <-> Associate task protocol
-4. [ ] Sprites sandbox adapter
-5. [ ] In-app deploy pipeline (git push → CI/CD → redeploy)
-6. [ ] Firecracker spike
-7. [ ] TEE attestation PoC
+1. Wire Director/Associate contracts into the supervisor.
+2. Add Sprites sandbox adapter and spawn flow.
+3. Route prompts through the Director from the Associate UI.
+4. Implement git tasks + verification defaults.

@@ -31,10 +31,12 @@ Implementation details for each subsystem:
 | [DESKTOP.md](./DESKTOP.md) | Window manager, taskbar, CSS architecture |
 | [APPS.md](./APPS.md) | Writer, Files, Terminal, ? bar specs |
 | [AUTH.md](./AUTH.md) | Passkey authentication (WebAuthn) |
-| [NATS.md](./NATS.md) | Event bus setup, subject hierarchy |
 | [AGENT_HARNESS.md](./AGENT_HARNESS.md) | Agent architecture, isolation |
 | [FIRECRACKER.md](./FIRECRACKER.md) | MicroVM setup |
 | [STORAGE.md](./STORAGE.md) | SQLite, S3 sync, Qdrant vectors |
+
+Deferred specs (not in v0):
+- [NATS.md](./NATS.md) | Event bus setup, subject hierarchy
 
 ## How to Use
 
@@ -56,7 +58,7 @@ Implementation details for each subsystem:
 ```bash
 npm create vite@latest choiros -- --template react-ts
 cd choiros
-npm install zustand @tiptap/react @tiptap/starter-kit @dnd-kit/core sql.js nats.ws lucide-react
+npm install zustand @tiptap/react @tiptap/starter-kit @dnd-kit/core sql.js lucide-react
 npm run dev
 ```
 
@@ -65,6 +67,8 @@ npm run dev
 | Location | Purpose |
 |----------|---------|
 | [../CONTEXT.md](../CONTEXT.md) | AI context primer (for LLM priming) |
+| [../ralph/OVERVIEW.md](../ralph/OVERVIEW.md) | Ralph-in-Ralph architecture |
+| [../ralph/CONTRACTS.md](../ralph/CONTRACTS.md) | Director/Associate envelopes |
 | [../CHANGELOG.md](../CHANGELOG.md) | Project history |
 | [../archive/](../archive/) | Legacy vision/narrative docs |
 
@@ -72,4 +76,4 @@ npm run dev
 
 *Build order: Interface → Sources → Platform → Persistence → Publishing*
 
-*Current phase: 3 (Agent Platform)*
+*Current phase: 3 (Ralph-in-Ralph)*
