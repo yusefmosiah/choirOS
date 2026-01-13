@@ -182,20 +182,19 @@ def git_revert(sha: str, dry_run: bool = True) -> dict:
             "changes": preview,
         }
 
-    result = git_run("reset", "--hard", sha)
-    if result.returncode != 0:
-        return {
-            "success": False,
-            "error": f"git reset failed: {result.stderr}",
-            "backup_branch": backup_branch,
-        }
+    # SECURITY: Disable git reset --hard
+    # result = git_run("reset", "--hard", sha)
+    # if result.returncode != 0:
+    #     return {
+    #         "success": False,
+    #         "error": f"git reset failed: {result.stderr}",
+    #         "backup_branch": backup_branch,
+    #     }
 
     return {
-        "success": True,
-        "reverted_to": sha,
-        "message": f"Reverted to {sha}",
+        "success": False,
+        "error": "Hard reset is currently disabled for security reasons. Please use revert commits instead.",
         "backup_branch": backup_branch,
-        "changes": preview,
     }
 
 
