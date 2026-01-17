@@ -20,7 +20,14 @@ All events must follow this shape:
 - event_type: string (dot-delimited, lower-case)
 - payload: object (event-specific)
 
+## Event type normalization
+- Canonical event types are lower-case and dot-delimited.
+- Legacy separators are normalized: `/` → `.`, `_` → `.`
+- NOTE subtypes normalize as `note.<kind>` (e.g., `NOTE/REQUEST_VERIFY` → `note.request.verify`)
+- RECEIPT subtypes normalize as `receipt.<kind>` via either `RECEIPT/<KIND>` or `<KIND>_RECEIPT`
+
 ## Canonical event types (v0)
+Core events:
 - file.write
 - file.delete
 - file.move
@@ -31,6 +38,43 @@ All events must follow this shape:
 - window.close
 - checkpoint
 - undo
+
+Notes (AHDB-typed telemetry):
+- note.observation
+- note.hypothesis
+- note.hyperthesis
+- note.conjecture
+- note.status
+- note.request.help
+- note.request.verify
+
+Receipts (capabilities + verification):
+- receipt.read
+- receipt.patch
+- receipt.verifier
+- receipt.net
+- receipt.db
+- receipt.export
+- receipt.publish
+- receipt.context.footprint
+- receipt.verifier.results
+- receipt.verifier.attestations
+- receipt.discrepancy.report
+- receipt.commit
+- receipt.ahdb.delta
+- receipt.evidence.set.hash
+- receipt.retrieval
+- receipt.conjecture.set
+- receipt.policy.decision.tokens
+- receipt.security.attestations
+- receipt.hyperthesis.delta
+- receipt.expansion.plan
+- receipt.projection.rebuild
+- receipt.attack.report
+- receipt.disclosure.objects
+- receipt.mitigation.proposals
+- receipt.preference.decision
+- receipt.timeout
 
 ## Examples
 

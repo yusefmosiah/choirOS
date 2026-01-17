@@ -37,14 +37,22 @@ Status: DRAFT
 - docs/handoff-2026-01-17.md
 - docs/handoff-2026-01-17b.md
 - docs/test_report-2026-01-17.md
+- docs/test_report-2026-01-17c.md
 - docs/CHANGELOG.md
 
 ## Project Notes
+- docs/SELF_DEV_BOOTSTRAP.md
 - PLANNING.md
 - next_steps_checklist.md
 - agent_brief_implementation_recovery.md
 - docs_review.md
 
+## Archive
+- docs/archive/PLANNING_2026-01-17.md
+
 ## Automation
 - scripts/test.sh (runs Playwright E2E; starts NATS if available)
 - scripts/setup.sh (creates api/.env stub + installs deps)
+
+## Ops
+- docs/ops/ARCH_RESEARCH_ROADMAP.md
