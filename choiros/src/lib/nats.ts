@@ -5,7 +5,9 @@
  * Uses nats.ws for WebSocket connection to NATS JetStream.
  */
 
-import { connect, StringCodec, NatsConnection, JetStreamClient } from 'nats.ws';
+import { connect, StringCodec } from 'nats.ws';
+import type { NatsConnection, JetStreamClient } from 'nats.ws';
+import { buildSubject, normalizeEventType, CHOIR_SUBJECT_ROOT } from './event_contract';
 
 // Configuration
 const NATS_WS_URL = import.meta.env.VITE_NATS_WS_URL || 'ws://localhost:8080';
@@ -13,9 +15,23 @@ const USER_ID = import.meta.env.VITE_USER_ID || 'local';
 
 const sc = StringCodec();
 
+export type NatsConnectionStatus = 'online' | 'offline';
+
 // Singleton connection
 let nc: NatsConnection | null = null;
 let _js: JetStreamClient | null = null;  // Prefixed with _ to indicate intentionally unused for now
+
+type StatusListener = (status: NatsConnectionStatus) => void;
+const statusListeners = new Set<StatusListener>();
+
+function notifyStatus(status: NatsConnectionStatus) {
+    statusListeners.forEach((listener) => listener(status));
+}
+
+export function onNatsStatusChange(listener: StatusListener): () => void {
+    statusListeners.add(listener);
+    return () => statusListeners.delete(listener);
+}
 
 export interface ChoirEvent {
     id: string;
@@ -30,7 +46,10 @@ export interface ChoirEvent {
  * Connect to NATS via WebSocket.
  */
 export async function connectNats(): Promise<NatsConnection> {
-    if (nc) return nc;
+    if (nc) {
+        notifyStatus('online');
+        return nc;
+    }
 
     try {
         nc = await connect({
@@ -40,17 +59,20 @@ export async function connectNats(): Promise<NatsConnection> {
 
         _js = nc.jetstream();
         console.log('✓ NATS WebSocket connected');
+        notifyStatus('online');
 
         // Handle disconnection
         nc.closed().then(() => {
             console.log('NATS connection closed');
             nc = null;
             _js = null;
+            notifyStatus('offline');
         });
 
         return nc;
     } catch (error) {
         console.error('NATS connection failed:', error);
+        notifyStatus('offline');
         throw error;
     }
 }
@@ -63,6 +85,7 @@ export async function disconnectNats(): Promise<void> {
         await nc.drain();
         nc = null;
         _js = null;
+        notifyStatus('offline');
     }
 }
 
@@ -79,12 +102,13 @@ export async function publishEvent(
         return;
     }
 
+    const normalizedType = normalizeEventType(eventType);
     const event: ChoirEvent = {
         id: crypto.randomUUID(),
         timestamp: Date.now(),
         user_id: USER_ID,
         source,
-        event_type: eventType,
+        event_type: normalizedType,
         payload,
     };
 
@@ -127,7 +151,7 @@ export async function subscribeEvents(
 export async function subscribeUserEvents(
     callback: (event: ChoirEvent) => void
 ): Promise<() => void> {
-    return subscribeEvents(`choiros.*.${USER_ID}.>`, callback);
+    return subscribeEvents(`${CHOIR_SUBJECT_ROOT}.${USER_ID}.>`, callback);
 }
 
 /**
@@ -141,19 +165,8 @@ export function isConnected(): boolean {
  * Map event to NATS subject hierarchy.
  */
 function eventToSubject(event: ChoirEvent): string {
-    const base = `choiros.${event.source}.${event.user_id}`;
-
-    const typeMap: Record<string, string> = {
-        FILE_WRITE: 'file.write',
-        FILE_DELETE: 'file.delete',
-        WINDOW_OPEN: 'window.open',
-        WINDOW_CLOSE: 'window.close',
-        COMMAND: 'action.command',
-        UNDO: 'undo',
-    };
-
-    const suffix = typeMap[event.event_type] || event.event_type.toLowerCase();
-    return `${base}.${suffix}`;
+    const normalizedType = normalizeEventType(event.event_type);
+    return buildSubject(event.user_id, event.source, normalizedType);
 }
 
 // Re-export types

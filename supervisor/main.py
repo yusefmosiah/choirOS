@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI):
     store = get_store()
 
     # Initialize agent harness
-    agent_harness = AgentHarness(file_history=file_history)
+    agent_harness = AgentHarness(file_history=file_history, event_store=store)
 
     api_process = None
 

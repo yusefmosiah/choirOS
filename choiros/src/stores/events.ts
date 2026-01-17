@@ -9,17 +9,23 @@ export interface StreamEvent {
     artifactId?: string;
 }
 
+type NatsStatus = 'connecting' | 'online' | 'offline';
+
 interface EventStore {
     events: StreamEvent[];
     addEvent: (message: string, type: StreamEvent['type'], artifactId?: string) => string;
     removeEvent: (id: string) => void;
     clearAll: () => void;
+    natsStatus: NatsStatus;
+    setNatsStatus: (status: NatsStatus) => void;
 }
 
 let eventCounter = 0;
+const MAX_EVENTS = 200;
 
 export const useEventStore = create<EventStore>((set) => ({
     events: [],
+    natsStatus: 'connecting',
     
     addEvent: (message, type, artifactId) => {
         const id = `event-${Date.now()}-${eventCounter++}`;
@@ -31,9 +37,12 @@ export const useEventStore = create<EventStore>((set) => ({
             artifactId,
         };
         
-        set((state) => ({
-            events: [...state.events, event],
-        }));
+        set((state) => {
+            const next = [...state.events, event];
+            return {
+                events: next.length > MAX_EVENTS ? next.slice(-MAX_EVENTS) : next,
+            };
+        });
         
         return id;
     },
@@ -46,6 +55,10 @@ export const useEventStore = create<EventStore>((set) => ({
     
     clearAll: () => {
         set({ events: [] });
+    },
+
+    setNatsStatus: (status) => {
+        set({ natsStatus: status });
     },
 }));
 

@@ -1,5 +1,4 @@
 // EventStream - ascending stack of events with perspective
-import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useEventStore, type StreamEvent } from '../../stores/events';
 import { useWindowStore } from '../../stores/windows';
@@ -7,23 +6,9 @@ import './EventStream.css';
 
 export function EventStream() {
     const events = useEventStore((s) => s.events);
+    const natsStatus = useEventStore((s) => s.natsStatus);
     const removeEvent = useEventStore((s) => s.removeEvent);
     const openWindow = useWindowStore((s) => s.openWindow);
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    // Auto-remove old events
-    useEffect(() => {
-        const interval = setInterval(() => {
-            const now = Date.now();
-            events.forEach((event) => {
-                // Events older than 8 seconds start fading, removed at 12s
-                if (now - event.timestamp > 12000) {
-                    removeEvent(event.id);
-                }
-            });
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [events, removeEvent]);
 
     const handleEventClick = (event: StreamEvent) => {
         if (event.artifactId) {
@@ -36,7 +21,15 @@ export function EventStream() {
     const visibleEvents = events.slice(-8);
 
     return (
-        <div className="event-stream" ref={containerRef}>
+        <div className="event-stream">
+            {natsStatus !== 'online' && (
+                <div className={`event-stream-status ${natsStatus}`}>
+                    <span className="event-stream-status-dot" />
+                    <span className="event-stream-status-text">
+                        {natsStatus === 'connecting' ? 'NATS connecting...' : 'NATS offline'}
+                    </span>
+                </div>
+            )}
             <div className="event-stream-inner">
                 {visibleEvents.map((event, index) => {
                     const age = Date.now() - event.timestamp;

@@ -1,11 +1,13 @@
 services:
   nats:
     image: nats:2.10-alpine
-    command: --jetstream --store_dir /data
+    command: -c /etc/nats/nats.conf
     ports:
       - "4222:4222"   # Client connections
       - "8222:8222"   # Monitoring UI
+      - "8080:8080"   # WebSocket connections
     volumes:
+      - ./config/nats.conf:/etc/nats/nats.conf:ro
       - nats-data:/data
     restart: unless-stopped
 

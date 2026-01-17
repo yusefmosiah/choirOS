@@ -55,8 +55,8 @@ class AgentHarness:
             file_history: Optional FileHistory instance for undo support
             event_store: Optional EventStore for persistence (uses global if not provided)
         """
-        self.tools = AgentTools(file_history=file_history)
         self.store = event_store or get_store()
+        self.tools = AgentTools(file_history=file_history, event_store=self.store)
         self.conversation_id: Optional[int] = None
 
         # Initialize Anthropic client for AWS Bedrock

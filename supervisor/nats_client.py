@@ -15,6 +15,12 @@ from dataclasses import dataclass, asdict
 import nats
 from nats.js.api import StreamConfig, ConsumerConfig, RetentionPolicy, StorageType
 
+from .event_contract import (
+    CHOIR_STREAM,
+    CHOIR_SUBJECT_PATTERN,
+    build_subject,
+    normalize_event_type,
+)
 
 # Configuration
 NATS_URL = os.environ.get("NATS_URL", "nats://localhost:4222")
@@ -79,36 +85,19 @@ class NATSClient:
 
     async def _ensure_streams(self) -> None:
         """Create required streams if they don't exist."""
-        streams = [
-            StreamConfig(
-                name="USER_EVENTS",
-                subjects=["choiros.user.>"],
-                retention=RetentionPolicy.LIMITS,
-                max_age=30 * 24 * 60 * 60 * 1_000_000_000,  # 30 days in nanoseconds
-                storage=StorageType.FILE,
-            ),
-            StreamConfig(
-                name="AGENT_EVENTS",
-                subjects=["choiros.agent.>"],
-                retention=RetentionPolicy.LIMITS,
-                max_age=7 * 24 * 60 * 60 * 1_000_000_000,  # 7 days
-                storage=StorageType.FILE,
-            ),
-            StreamConfig(
-                name="SYSTEM_EVENTS",
-                subjects=["choiros.system.>"],
-                retention=RetentionPolicy.LIMITS,
-                max_age=24 * 60 * 60 * 1_000_000_000,  # 1 day
-                storage=StorageType.MEMORY,
-            ),
-        ]
+        config = StreamConfig(
+            name=CHOIR_STREAM,
+            subjects=[CHOIR_SUBJECT_PATTERN],
+            retention=RetentionPolicy.LIMITS,
+            max_age=30 * 24 * 60 * 60,  # 30 days in seconds (nats-py converts to ns)
+            storage=StorageType.FILE,
+        )
 
-        for config in streams:
-            try:
-                await self.js.add_stream(config)
-            except nats.js.errors.BadRequestError:
-                # Stream already exists, update it
-                await self.js.update_stream(config)
+        try:
+            await self.js.add_stream(config)
+        except nats.js.errors.BadRequestError:
+            # Stream already exists, update it
+            await self.js.update_stream(config)
 
     async def publish_event(self, event: ChoirEvent) -> int:
         """
@@ -119,6 +108,9 @@ class NATSClient:
         if not self._connected:
             raise RuntimeError("NATS not connected")
 
+        # Normalize event type before publish
+        event.event_type = normalize_event_type(event.event_type)
+
         # Determine subject from event type
         subject = self._event_to_subject(event)
 
@@ -128,28 +120,12 @@ class NATSClient:
 
     def _event_to_subject(self, event: ChoirEvent) -> str:
         """Map event to NATS subject hierarchy."""
-        base = f"choiros.{event.source}.{event.user_id}"
-
-        # Map event types to subject suffixes
-        type_map = {
-            "FILE_WRITE": "file.write",
-            "FILE_DELETE": "file.delete",
-            "FILE_MOVE": "file.move",
-            "CONVERSATION_MESSAGE": "message",
-            "TOOL_CALL": "tool",
-            "TOOL_RESULT": "tool.result",
-            "WINDOW_OPEN": "window.open",
-            "WINDOW_CLOSE": "window.close",
-            "CHECKPOINT": "checkpoint",
-            "UNDO": "undo",
-        }
-
-        suffix = type_map.get(event.event_type, event.event_type.lower())
-        return f"{base}.{suffix}"
+        event_type = normalize_event_type(event.event_type)
+        return build_subject(event.user_id, event.source, event_type)
 
     async def get_events(
         self,
-        stream: str,
+        stream: str = CHOIR_STREAM,
         subject_filter: str = ">",
         start_seq: int = 1,
         limit: int = 1000,
@@ -158,7 +134,7 @@ class NATSClient:
         Fetch events from a stream.
 
         Args:
-            stream: Stream name (e.g., "USER_EVENTS")
+            stream: Stream name (default: "CHOIR")
             subject_filter: Subject pattern to filter
             start_seq: Starting sequence number
             limit: Maximum events to return
@@ -213,17 +189,10 @@ class NATSClient:
             await msg.ack()
 
         # Determine stream from subject
-        if subject.startswith("choiros.user"):
-            stream = "USER_EVENTS"
-        elif subject.startswith("choiros.agent"):
-            stream = "AGENT_EVENTS"
-        else:
-            stream = "SYSTEM_EVENTS"
-
         await self.js.subscribe(
             subject,
             cb=message_handler,
-            stream=stream,
+            stream=CHOIR_STREAM,
             durable=durable,
             manual_ack=True,
         )
