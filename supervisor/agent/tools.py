@@ -178,7 +178,13 @@ class AgentTools:
         p = Path(path)
         if not p.is_absolute():
             p = self.app_dir / path
-        return p
+        resolved = p.resolve()
+        root = self.app_dir.resolve()
+        try:
+            resolved.relative_to(root)
+        except ValueError:
+            raise ValueError(f"Path outside workspace: {path}")
+        return resolved
 
     def _display_path(self, path: Path) -> str:
         """Prefer app-relative paths for event payloads."""

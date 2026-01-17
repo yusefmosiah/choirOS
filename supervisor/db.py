@@ -168,7 +168,7 @@ class EventStore:
         self.conn.commit()
         return cursor.lastrowid
 
-    def append(self, event_type: str, payload: dict) -> int:
+    def append(self, event_type: str, payload: dict, source: str = "system") -> int:
         """
         Synchronous append for backward compatibility.
 
@@ -179,7 +179,7 @@ class EventStore:
         try:
             loop = asyncio.get_running_loop()
             # Schedule async append but don't wait
-            asyncio.create_task(self._append_async_background(event_type, payload))
+            asyncio.create_task(self._append_async_background(event_type, payload, source))
         except RuntimeError:
             pass  # No event loop, skip NATS
 
@@ -193,7 +193,7 @@ class EventStore:
         self.conn.commit()
         return cursor.lastrowid
 
-    async def _append_async_background(self, event_type: str, payload: dict):
+    async def _append_async_background(self, event_type: str, payload: dict, source: str):
         """Background task to publish to NATS."""
         nats = await self._get_nats()
         if nats:
@@ -203,7 +203,7 @@ class EventStore:
                     id=str(uuid.uuid4()),
                     timestamp=int(datetime.now().timestamp() * 1000),
                     user_id=self.user_id,
-                    source="system",
+                    source=source,
                     event_type=normalized_type,
                     payload=payload
                 )
@@ -275,23 +275,25 @@ class EventStore:
 
         # Replay each event
         count = 0
-        for event in events:
-            self._materialize_event(event)
+        for event, nats_seq in events:
+            self._materialize_event(event, nats_seq)
             count += 1
 
         self.conn.commit()
         return count
 
-    def _materialize_event(self, event: ChoirEvent) -> None:
+    def _materialize_event(self, event: ChoirEvent, nats_seq: Optional[int] = None) -> None:
         """Materialize a single event into SQLite tables."""
         event_type = normalize_event_type(event.event_type)
         payload = event.payload
+        timestamp = datetime.fromtimestamp(event.timestamp / 1000).isoformat()
 
         # Insert into events table
-        self.conn.execute(
+        cursor = self.conn.execute(
             "INSERT INTO events (nats_seq, type, payload, timestamp) VALUES (?, ?, ?, ?)",
-            (None, event_type, json.dumps(payload), datetime.fromtimestamp(event.timestamp / 1000).isoformat())
+            (nats_seq, event_type, json.dumps(payload), timestamp)
         )
+        event_seq = cursor.lastrowid
 
         # Update materialized tables based on type
         if event_type == "file.write":
@@ -299,10 +301,61 @@ class EventStore:
                 """INSERT OR REPLACE INTO files (path, content_hash, updated_at)
                    VALUES (?, ?, ?)""",
                 (payload.get("path"), payload.get("content_hash"),
-                 datetime.fromtimestamp(event.timestamp / 1000).isoformat())
+                 timestamp)
             )
         elif event_type == "file.delete":
             self.conn.execute("DELETE FROM files WHERE path = ?", (payload.get("path"),))
+        elif event_type == "message":
+            conversation_id = payload.get("conversation_id")
+            if conversation_id is not None:
+                self._ensure_conversation(conversation_id, timestamp)
+            self.conn.execute(
+                """INSERT INTO messages
+                   (conversation_id, event_seq, role, content, timestamp)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (
+                    conversation_id,
+                    event_seq,
+                    payload.get("role"),
+                    payload.get("content"),
+                    timestamp,
+                )
+            )
+            if conversation_id is not None:
+                self.conn.execute(
+                    "UPDATE conversations SET last_seq = ? WHERE id = ?",
+                    (event_seq, conversation_id)
+                )
+        elif event_type == "tool.call":
+            conversation_id = payload.get("conversation_id")
+            if conversation_id is not None:
+                self._ensure_conversation(conversation_id, timestamp)
+            self.conn.execute(
+                """INSERT INTO tool_calls
+                   (event_seq, conversation_id, tool_name, tool_input, tool_result, timestamp)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (
+                    event_seq,
+                    conversation_id,
+                    payload.get("tool_name"),
+                    json.dumps(payload.get("tool_input")),
+                    json.dumps(payload.get("tool_result")),
+                    timestamp,
+                )
+            )
+
+    def _ensure_conversation(self, conversation_id: int, started_at: str) -> None:
+        """Ensure a conversation row exists for materialization."""
+        cursor = self.conn.execute(
+            "SELECT 1 FROM conversations WHERE id = ?",
+            (conversation_id,)
+        )
+        if cursor.fetchone():
+            return
+        self.conn.execute(
+            "INSERT INTO conversations (id, started_at, last_seq) VALUES (?, ?, ?)",
+            (conversation_id, started_at, None)
+        )
 
     # =========== Conversation Helpers ===========
 
@@ -365,7 +418,7 @@ class EventStore:
             "conversation_id": conversation_id,
             "role": role,
             "content": content
-        })
+        }, source="user" if role == "user" else "agent")
 
         # Materialize to messages table
         self.conn.execute(
@@ -439,7 +492,7 @@ class EventStore:
             "tool_name": tool_name,
             "tool_input": tool_input,
             "tool_result": tool_result
-        })
+        }, source="agent")
 
         self.conn.execute(
             """INSERT INTO tool_calls
@@ -480,7 +533,7 @@ class EventStore:
             "path": path,
             "content_hash": content_hash,
             "size_bytes": len(content)
-        })
+        }, source="agent")
 
         # Upsert to files table
         self.conn.execute(
@@ -493,7 +546,7 @@ class EventStore:
 
     def log_file_delete(self, path: str) -> int:
         """Log a file deletion event."""
-        seq = self.append("file.delete", {"path": path})
+        seq = self.append("file.delete", {"path": path}, source="agent")
 
         self.conn.execute("DELETE FROM files WHERE path = ?", (path,))
         self.conn.commit()

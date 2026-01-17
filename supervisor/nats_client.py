@@ -129,7 +129,7 @@ class NATSClient:
         subject_filter: str = ">",
         start_seq: int = 1,
         limit: int = 1000,
-    ) -> list[ChoirEvent]:
+    ) -> list[tuple[ChoirEvent, Optional[int]]]:
         """
         Fetch events from a stream.
 
@@ -138,11 +138,14 @@ class NATSClient:
             subject_filter: Subject pattern to filter
             start_seq: Starting sequence number
             limit: Maximum events to return
+
+        Returns:
+            List of (ChoirEvent, nats_seq) tuples.
         """
         if not self._connected:
             raise RuntimeError("NATS not connected")
 
-        events = []
+        events: list[tuple[ChoirEvent, Optional[int]]] = []
 
         # Create ephemeral consumer for fetching
         consumer = await self.js.pull_subscribe(
@@ -159,7 +162,10 @@ class NATSClient:
             msgs = await consumer.fetch(limit, timeout=5)
             for msg in msgs:
                 event = ChoirEvent.from_json(msg.data)
-                events.append(event)
+                nats_seq = None
+                if msg.metadata:
+                    nats_seq = msg.metadata.sequence.stream
+                events.append((event, nats_seq))
                 await msg.ack()
         except nats.errors.TimeoutError:
             pass  # No more messages

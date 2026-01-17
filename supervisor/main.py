@@ -12,6 +12,8 @@ Manages:
 import asyncio
 import os
 import signal
+import time
+from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
@@ -47,16 +49,30 @@ STANDALONE = os.environ.get("SUPERVISOR_STANDALONE", "0") == "1"
 # NATS enabled flag
 NATS_ENABLED = os.environ.get("NATS_ENABLED", "1") == "1"
 
+# WebSocket limits (defensive defaults)
+MAX_PROMPT_CHARS = int(os.environ.get("WS_MAX_PROMPT_CHARS", "20000"))
+WS_RATE_WINDOW_SECONDS = int(os.environ.get("WS_RATE_WINDOW_SECONDS", "10"))
+WS_MAX_PROMPTS_PER_WINDOW = int(os.environ.get("WS_MAX_PROMPTS_PER_WINDOW", "5"))
+
 # Global instances
 vite_manager = ViteManager()
 file_history = FileHistory()
-agent_harness: AgentHarness | None = None
+
+
+def _get_cors_settings() -> tuple[list[str], bool]:
+    raw = os.environ.get("CORS_ALLOW_ORIGINS")
+    if raw:
+        origins = [item.strip() for item in raw.split(",") if item.strip()]
+    else:
+        origins = ["http://localhost:5173"]
+    if "*" in origins:
+        return ["*"], False
+    return origins, True
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
-    global agent_harness
 
     # Initialize NATS connection (if enabled)
     nats_connected = False
@@ -70,9 +86,6 @@ async def lifespan(app: FastAPI):
 
     # Initialize event store (will use NATS if connected)
     store = get_store()
-
-    # Initialize agent harness
-    agent_harness = AgentHarness(file_history=file_history, event_store=store)
 
     api_process = None
 
@@ -111,10 +124,11 @@ app = FastAPI(
 )
 
 # CORS for browser connections
+cors_origins, cors_allow_credentials = _get_cors_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -213,6 +227,9 @@ async def git_revert(sha: str, dry_run: bool = True):
 async def agent_websocket(websocket: WebSocket):
     """WebSocket endpoint for agent communication."""
     await websocket.accept()
+    store = get_store()
+    agent_harness = AgentHarness(file_history=file_history, event_store=store)
+    recent_prompts = deque()
 
     try:
         while True:
@@ -224,11 +241,25 @@ async def agent_websocket(websocket: WebSocket):
                 await websocket.send_json({"type": "error", "content": "No prompt provided"})
                 continue
 
-            # Process with agent
-            if agent_harness is None:
-                await websocket.send_json({"type": "error", "content": "Agent harness not ready"})
+            if len(prompt) > MAX_PROMPT_CHARS:
+                await websocket.send_json({
+                    "type": "error",
+                    "content": f"Prompt too large (max {MAX_PROMPT_CHARS} chars)"
+                })
                 continue
 
+            now = time.monotonic()
+            while recent_prompts and now - recent_prompts[0] > WS_RATE_WINDOW_SECONDS:
+                recent_prompts.popleft()
+            if len(recent_prompts) >= WS_MAX_PROMPTS_PER_WINDOW:
+                await websocket.send_json({
+                    "type": "error",
+                    "content": "Rate limit exceeded, please slow down."
+                })
+                continue
+            recent_prompts.append(now)
+
+            # Process with agent
             async for response in agent_harness.process(prompt):
                 await websocket.send_json(response)
 

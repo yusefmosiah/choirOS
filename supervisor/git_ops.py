@@ -105,8 +105,10 @@ def is_ignored(path: str, patterns: list[str]) -> bool:
 
     for pattern in patterns:
         if pattern.endswith("/"):
-            if normalized.startswith(pattern) or normalized.startswith(pattern.rstrip("/")):
+            dir_pattern = pattern.rstrip("/")
+            if normalized == dir_pattern or normalized.startswith(f"{dir_pattern}/"):
                 return True
+            continue
         if fnmatch.fnmatch(normalized, pattern):
             return True
 

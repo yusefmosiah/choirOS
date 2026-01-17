@@ -75,10 +75,10 @@ class AgentHarness:
         try:
             # Ensure we have a conversation
             if self.conversation_id is None:
-                self.conversation_id = self.store.get_or_create_conversation()
+                self.conversation_id = self.store.start_conversation()
             
             # Log user message
-            self.store.add_message(self.conversation_id, "user", prompt)
+            await self.store.add_message_async(self.conversation_id, "user", prompt)
             
             messages = [{"role": "user", "content": prompt}]
 
@@ -131,7 +131,7 @@ class AgentHarness:
                         result = await self.tools.execute_tool(tool_name, tool_input)
                         
                         # Log tool call to event store
-                        self.store.log_tool_call(
+                        await self.store.log_tool_call_async(
                             self.conversation_id,
                             tool_name,
                             tool_input,
@@ -164,7 +164,7 @@ class AgentHarness:
                 if not has_tool_use:
                     if assistant_text_parts:
                         full_response = "\n".join(assistant_text_parts)
-                        self.store.add_message(
+                        await self.store.add_message_async(
                             self.conversation_id, 
                             "assistant", 
                             full_response
@@ -175,7 +175,7 @@ class AgentHarness:
                 if response.stop_reason == "end_turn":
                     if assistant_text_parts:
                         full_response = "\n".join(assistant_text_parts)
-                        self.store.add_message(
+                        await self.store.add_message_async(
                             self.conversation_id,
                             "assistant",
                             full_response
