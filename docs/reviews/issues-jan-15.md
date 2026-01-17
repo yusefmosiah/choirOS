@@ -12,3 +12,16 @@
 - CR-10 | Medium | .choirignore prefix matching can over-match (node_modulesx) and miss nested directories. `supervisor/git_ops.py:102`
 - CR-11 | Low | Websocket prompt loop lacks size/rate limits; potential resource exhaustion. `supervisor/main.py:212`
 - DOC-01 | Medium | Docs reconciliation and update work remains: move/rename new docs, add status headers, and create docs index. `docs/docs_reconciliation.md:1`
+
+## Next Focus: Close the Event Loop (Walking Skeleton)
+
+- [x] Decide canonical event contract (subject format, event type naming, stream naming) and record it in docs + code constants. See `docs/specs/CHOIR_EVENT_CONTRACT_SPEC.md`, `supervisor/event_contract.py`, `choiros/src/lib/event_contract.ts`.
+- [x] Implement the canonical contract for a single event path end-to-end (suggest `file.write`): SQLite log, NATS publish, and frontend schema.
+- [x] Enable NATS in dev (remove `NATS_ENABLED=0` in `dev.sh`) and ensure WebSocket port is exposed/configured for the frontend.
+- [x] Wire frontend NATS connection on app start and subscribe to the canonical subject (e.g., `choiros.{user_id}.{source}.>`).
+- [x] Update `EventStream` to display real events (no auto-clear) and show connection status when offline.
+
+## Automation & Testing
+
+- [x] Add Playwright E2E test for EventStream NATS rendering.
+- [x] Ensure NATS WebSocket config is provided via docker compose.

@@ -16,6 +16,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Optional
 
+from ..db import EventStore, get_store
+
 
 # Detect project root - use PYTHONPATH if set, otherwise find relative to this file
 def _get_project_root() -> Path:
@@ -34,14 +36,16 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 class AgentTools:
     """Implementation of the 4 agent tools."""
 
-    def __init__(self, file_history=None):
+    def __init__(self, file_history=None, event_store: Optional[EventStore] = None):
         """
         Initialize tools.
 
         Args:
             file_history: Optional FileHistory instance for undo support
+            event_store: Optional EventStore for logging file mutations
         """
         self.file_history = file_history
+        self.store = event_store or get_store()
         self.env = os.environ.copy()
         self.cwd = str(PROJECT_ROOT / "choiros")  # Default working directory
         self.app_dir = PROJECT_ROOT
@@ -176,6 +180,13 @@ class AgentTools:
             p = self.app_dir / path
         return p
 
+    def _display_path(self, path: Path) -> str:
+        """Prefer app-relative paths for event payloads."""
+        try:
+            return str(path.relative_to(self.app_dir))
+        except ValueError:
+            return str(path)
+
     async def read_file(self, path: str, head: int | None = None, tail: int | None = None) -> dict[str, Any]:
         """Read file contents."""
         try:
@@ -218,6 +229,9 @@ class AgentTools:
 
             # Write content
             file_path.write_text(content)
+
+            if self.store:
+                await self.store.log_file_write_async(self._display_path(file_path), content.encode())
 
             return {
                 "success": True,
@@ -280,6 +294,8 @@ class AgentTools:
                     await self.file_history.save_state(str(file_path))
 
                 file_path.write_text(content)
+                if self.store:
+                    await self.store.log_file_write_async(self._display_path(file_path), content.encode())
 
             return {
                 "success": True,

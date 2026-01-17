@@ -26,6 +26,7 @@ except ImportError:
     get_nats_client = None
     close_nats_client = None
 
+from .event_contract import CHOIR_STREAM, normalize_event_type
 
 # Default path - can be overridden per-user
 DEFAULT_DB_PATH = Path(__file__).parent.parent / "state.sqlite"
@@ -141,12 +142,13 @@ class EventStore:
 
         Returns the SQLite sequence number.
         """
+        normalized_type = normalize_event_type(event_type)
         event = ChoirEvent(
             id=str(uuid.uuid4()),
             timestamp=int(datetime.now().timestamp() * 1000),
             user_id=self.user_id,
             source=source,
-            event_type=event_type.upper().replace(".", "_"),
+            event_type=normalized_type,
             payload=payload
         )
 
@@ -161,7 +163,7 @@ class EventStore:
         # Always write to SQLite
         cursor = self.conn.execute(
             "INSERT INTO events (nats_seq, type, payload) VALUES (?, ?, ?)",
-            (nats_seq, event_type, json.dumps(payload))
+            (nats_seq, normalized_type, json.dumps(payload))
         )
         self.conn.commit()
         return cursor.lastrowid
@@ -181,10 +183,12 @@ class EventStore:
         except RuntimeError:
             pass  # No event loop, skip NATS
 
+        normalized_type = normalize_event_type(event_type)
+
         # Always write immediately to SQLite
         cursor = self.conn.execute(
             "INSERT INTO events (type, payload) VALUES (?, ?)",
-            (event_type, json.dumps(payload))
+            (normalized_type, json.dumps(payload))
         )
         self.conn.commit()
         return cursor.lastrowid
@@ -194,12 +198,13 @@ class EventStore:
         nats = await self._get_nats()
         if nats:
             try:
+                normalized_type = normalize_event_type(event_type)
                 event = ChoirEvent(
                     id=str(uuid.uuid4()),
                     timestamp=int(datetime.now().timestamp() * 1000),
                     user_id=self.user_id,
                     source="system",
-                    event_type=event_type.upper().replace(".", "_"),
+                    event_type=normalized_type,
                     payload=payload
                 )
                 await nats.publish_event(event)
@@ -262,8 +267,8 @@ class EventStore:
 
         # Fetch all events from NATS
         events = await nats.get_events(
-            stream="USER_EVENTS",
-            subject_filter=f"choiros.*.{self.user_id}.>",
+            stream=CHOIR_STREAM,
+            subject_filter=f"choiros.{self.user_id}.>",
             start_seq=1,
             limit=target_seq or 100000,
         )
@@ -279,7 +284,7 @@ class EventStore:
 
     def _materialize_event(self, event: ChoirEvent) -> None:
         """Materialize a single event into SQLite tables."""
-        event_type = event.event_type.lower()
+        event_type = normalize_event_type(event.event_type)
         payload = event.payload
 
         # Insert into events table
@@ -289,14 +294,14 @@ class EventStore:
         )
 
         # Update materialized tables based on type
-        if event_type == "file_write":
+        if event_type == "file.write":
             self.conn.execute(
                 """INSERT OR REPLACE INTO files (path, content_hash, updated_at)
                    VALUES (?, ?, ?)""",
                 (payload.get("path"), payload.get("content_hash"),
                  datetime.fromtimestamp(event.timestamp / 1000).isoformat())
             )
-        elif event_type == "file_delete":
+        elif event_type == "file.delete":
             self.conn.execute("DELETE FROM files WHERE path = ?", (payload.get("path"),))
 
     # =========== Conversation Helpers ===========
@@ -404,7 +409,7 @@ class EventStore:
         tool_result: Any = None
     ) -> int:
         """Log a tool call as an event (async version)."""
-        seq = await self.append_async("tool_call", {
+        seq = await self.append_async("tool.call", {
             "conversation_id": conversation_id,
             "tool_name": tool_name,
             "tool_input": tool_input,
@@ -429,7 +434,7 @@ class EventStore:
         tool_result: Any = None
     ) -> int:
         """Log a tool call as an event."""
-        seq = self.append("tool_call", {
+        seq = self.append("tool.call", {
             "conversation_id": conversation_id,
             "tool_name": tool_name,
             "tool_input": tool_input,
