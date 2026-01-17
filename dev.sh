@@ -10,6 +10,105 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+MODE="start"
+SKIP_NATS=0
+KEEP_NATS=${KEEP_NATS:-0}
+DOCKER_COMPOSE=""
+NATS_STARTED=0
+
+print_usage() {
+    echo "Usage: ./dev.sh [start|stop|status] [--no-nats]"
+    echo "  start    Start frontend, backend, supervisor (default)"
+    echo "  stop     Stop NATS container started by docker compose"
+    echo "  status   Show NATS container status"
+    echo "  --no-nats  Skip starting NATS"
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        start|stop|status)
+            MODE="$arg"
+            ;;
+        --no-nats)
+            SKIP_NATS=1
+            ;;
+        -h|--help)
+            print_usage
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Unknown argument: $arg${NC}"
+            print_usage
+            exit 1
+            ;;
+    esac
+done
+
+detect_docker_compose() {
+    if command -v docker >/dev/null 2>&1; then
+        if docker compose version >/dev/null 2>&1; then
+            DOCKER_COMPOSE="docker compose"
+        elif command -v docker-compose >/dev/null 2>&1; then
+            DOCKER_COMPOSE="docker-compose"
+        fi
+    fi
+}
+
+start_nats() {
+    ensure_env_file
+    if [ "$SKIP_NATS" -eq 1 ]; then
+        return
+    fi
+    detect_docker_compose
+    if [ -z "$DOCKER_COMPOSE" ]; then
+        echo -e "${YELLOW}⚠ Docker Compose not available; skipping NATS start${NC}"
+        return
+    fi
+    if ! $DOCKER_COMPOSE up -d nats; then
+        echo -e "${YELLOW}⚠ Failed to start NATS via docker compose${NC}"
+        return
+    fi
+    NATS_STARTED=1
+}
+
+stop_nats() {
+    detect_docker_compose
+    if [ -z "$DOCKER_COMPOSE" ]; then
+        echo -e "${YELLOW}⚠ Docker Compose not available; cannot stop NATS${NC}"
+        return
+    fi
+    $DOCKER_COMPOSE stop nats >/dev/null 2>&1 || true
+}
+
+show_status() {
+    detect_docker_compose
+    if [ -z "$DOCKER_COMPOSE" ]; then
+        echo -e "${YELLOW}⚠ Docker Compose not available${NC}"
+        return
+    fi
+    $DOCKER_COMPOSE ps nats
+}
+
+ensure_env_file() {
+    if [ ! -f "api/.env" ]; then
+        echo -e "${YELLOW}⚠ api/.env missing; creating stub${NC}"
+        cat > api/.env <<'EOF'
+# Local overrides for ChoirOS
+# Add AWS_BEARER_TOKEN_BEDROCK and AWS_REGION if needed.
+EOF
+    fi
+}
+
+if [ "$MODE" = "stop" ]; then
+    stop_nats
+    exit 0
+fi
+
+if [ "$MODE" = "status" ]; then
+    show_status
+    exit 0
+fi
+
 echo -e "${GREEN}🎹 Starting ChoirOS Development Environment${NC}"
 echo ""
 
@@ -24,6 +123,9 @@ cleanup() {
     echo ""
     echo -e "${YELLOW}Shutting down...${NC}"
     kill $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID 2>/dev/null
+    if [ "$NATS_STARTED" -eq 1 ] && [ "$KEEP_NATS" -ne 1 ]; then
+        stop_nats
+    fi
     exit 0
 }
 
@@ -44,6 +146,10 @@ fi
 
 # Set PYTHONPATH to project root for absolute imports
 export PYTHONPATH="${PWD}"
+export NATS_ENABLED=1
+
+echo -e "${GREEN}Starting NATS (docker compose)...${NC}"
+start_nats
 
 echo -e "${GREEN}Starting Backend (FastAPI on port 8000)...${NC}"
 uvicorn api.main:app --reload --port 8000 &
