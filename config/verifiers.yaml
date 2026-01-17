@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "mood_defaults": {
+    "CALM": ["V-08-FAST-UNIT"],
+    "SKEPTICAL": ["V-08-FAST-UNIT"],
+    "BOLD": ["V-08-FAST-UNIT"]
+  },
+  "verifiers": [
+    {
+      "id": "V-01-EVENT-CONTRACT",
+      "description": "Event contract unit tests + doc sync",
+      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "scopes": [
+        "supervisor/event_contract.py",
+        "supervisor/tests/test_event_contract.py",
+        "docs/specs/CHOIR_EVENT_CONTRACT_SPEC.md",
+        "choiros/src/lib/event_contract.ts"
+      ],
+      "command": "python -m unittest supervisor.tests.test_event_contract"
+    },
+    {
+      "id": "V-02-AHDB-PROJECTION",
+      "description": "AHDB projection unit tests",
+      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "scopes": [
+        "supervisor/db.py",
+        "supervisor/tests/test_ahdb_projection.py"
+      ],
+      "command": "python -m unittest supervisor.tests.test_ahdb_projection"
+    },
+    {
+      "id": "V-03-RUN-STATE",
+      "description": "Run/work item persistence smoke tests",
+      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "scopes": [
+        "supervisor/main.py",
+        "supervisor/db.py",
+        "supervisor/tests/test_runs.py"
+      ],
+      "command": "python -m unittest supervisor.tests.test_runs"
+    },
+    {
+      "id": "V-04-PLAN-SELECT",
+      "description": "Verifier plan selection tests",
+      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "scopes": [
+        "supervisor/verifier_plan.py",
+        "config/verifiers.yaml"
+      ],
+      "command": "python -m unittest supervisor.tests.test_verifier_plan"
+    },
+    {
+      "id": "V-05-GREEN-THREAD",
+      "description": "Verifier runner integration tests",
+      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "scopes": [
+        "supervisor/verifier_runner.py",
+        "supervisor/tests/test_verifier_runner.py"
+      ],
+      "command": "python -m unittest supervisor.tests.test_verifier_runner"
+    },
+    {
+      "id": "V-06-MOOD-ENGINE",
+      "description": "Mood transition guard unit tests",
+      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "scopes": [
+        "supervisor/mood_engine.py",
+        "supervisor/tests/test_mood_engine.py"
+      ],
+      "command": "python -m unittest supervisor.tests.test_mood_engine"
+    },
+    {
+      "id": "V-07-AGENT-ORCH",
+      "description": "Run orchestration integration test",
+      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "scopes": [
+        "supervisor/run_orchestrator.py",
+        "supervisor/tests/test_run_orchestrator.py"
+      ],
+      "command": "python -m unittest supervisor.tests.test_run_orchestrator"
+    },
+    {
+      "id": "V-09-DOC-ALIGN",
+      "description": "Docs index + cross-link consistency check",
+      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "scopes": [
+        "docs/00_INDEX.md",
+        "docs/",
+        "supervisor/tests/test_doc_alignment.py"
+      ],
+      "command": "python -m unittest supervisor.tests.test_doc_alignment"
+    },
+    {
+      "id": "V-10-E2E-EVENTSTREAM",
+      "description": "Playwright E2E (NATS event stream UI)",
+      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "scopes": [
+        "choiros/tests/e2e/eventstream.spec.ts",
+        "choiros/playwright.config.ts",
+        "scripts/test.sh"
+      ],
+      "command": "./scripts/test.sh"
+    },
+    {
+      "id": "V-08-FAST-UNIT",
+      "description": "Fast supervisor unit suite",
+      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "scopes": ["supervisor/"],
+      "command": "python -m unittest supervisor.tests.test_event_contract supervisor.tests.test_ahdb_projection supervisor.tests.test_runs supervisor.tests.test_verifier_plan supervisor.tests.test_verifier_runner supervisor.tests.test_mood_engine supervisor.tests.test_run_orchestrator supervisor.tests.test_tools"
+    }
+  ]
+}

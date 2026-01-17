@@ -10,7 +10,7 @@ Doctrines are distinct from CAPABILITIES (syscalls). The coupling is:
 
 ## 0) Coupling: doctrine × capabilities × “next verifiable step”
 
-Key insight (Ralph → automatic computer): you do not hand-author decomposition. The system selects the next **verifiable** step.
+Key insight (single-loop agent → automatic computer): you do not hand-author decomposition. The system selects the next **verifiable** step.
 
 A step is defined as:
 STEP := (WORK_ITEM, MOOD, REQUIRED_SYSCALLS, VERIFIER_PLAN)

@@ -7,13 +7,13 @@ Core idea:
 - **Verification must be isolated (“green thread”) to avoid token-noise poisoning.**
 - **Raw verifier output is stored as artifacts; only structured attestations enter the control state (AHDB).**
 
-This spec is foundational for “Agentic Ralph” and “Ralph-in-Ralph.”
+This spec is foundational for agentic run orchestration and nested verification loops.
 
 ---
 
 ## 1) Motivation
 
-Classic “Ralph” loops often rely on:
+Classic single-loop agents often rely on:
 - the agent claiming “done,” and/or
 - a human operator stopping the loop.
 
@@ -31,13 +31,13 @@ Therefore:
 
 ## 2) Three-loop architecture
 
-### 2.1 EXECUTION LOOP (Ralph)
+### 2.1 EXECUTION LOOP (run)
 Implements changes toward a single WORK ITEM.
 
 ### 2.2 VERIFICATION LOOP (Referee)
 Runs checks and produces a structured report + ATTESTATION.
 
-### 2.3 GOVERNANCE LOOP (Director / Ralph-in-Ralph)
+### 2.3 GOVERNANCE LOOP (Director / nested loop)
 Chooses which verifiers apply, adjudicates results, and decides:
 - continue / split / escalate / halt,
 - promote / demote assertions,
@@ -161,7 +161,7 @@ If repeated failures occur with the same signature:
 - switch mood to CURIOUS (reframe) or SKEPTICAL (narrow and isolate)
 - split the work item until satisfiable
 
-### 7.2 “Ralph-in-Ralph” for verification depth
+### 7.2 Nested verification for depth
 When verification is flaky or ambiguous:
 - respawn verifier threads with alternate lenses:
   - clean sandbox rerun

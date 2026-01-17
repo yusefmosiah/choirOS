@@ -62,7 +62,11 @@ setup_node() {
     if [ ! -d "$ROOT_DIR/choiros/node_modules" ]; then
         echo "Installing frontend dependencies..."
         cd "$ROOT_DIR/choiros"
-        npm install
+        if [ -f "$ROOT_DIR/choiros/package-lock.json" ]; then
+            npm ci
+        else
+            npm install
+        fi
         cd "$ROOT_DIR"
     fi
 }

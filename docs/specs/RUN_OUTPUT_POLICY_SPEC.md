@@ -22,7 +22,7 @@ The correct posture is:
 - Treat code changes as **transactional**.
 - Treat progress notes as **append-only telemetry** outside Git.
 
-This makes “Ralph in Ralph” scalable: sessions can crash or restart freely, while durable state stays coherent.
+This makes nested run restarts scalable: sessions can crash or restart freely, while durable state stays coherent.
 
 ---
 

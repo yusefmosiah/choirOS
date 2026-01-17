@@ -124,7 +124,7 @@ The point is not tiny work. The point is sustained flow with real feedback.
 
 ## 6) The Automatic Computer pattern (the big synthesis)
 
-Beyond “a model in a loop” (tool calling agent), and beyond “Ralph” (session restart loop), the Automatic Computer is:
+Beyond “a model in a loop” (tool calling agent), and beyond a simple session restart loop, the Automatic Computer is:
 
 - a **state machine** with guarded transitions,
 - a **small state vector** (AHDB + hyperthesis + conjectures),
