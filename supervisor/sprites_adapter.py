@@ -212,9 +212,13 @@ class SpritesSandboxRunner(SandboxRunner):
             params.append(("cmd", arg))
         if command.cwd:
             params.append(("dir", str(command.cwd)))
+        env_payload: dict[str, str] = {}
+        if command.sandbox and command.sandbox.config.env:
+            env_payload.update(command.sandbox.config.env)
         if command.env:
-            for key, value in command.env.items():
-                params.append(("env", f"{key}={value}"))
+            env_payload.update(command.env)
+        for key, value in env_payload.items():
+            params.append(("env", f"{key}={value}"))
         query = urllib.parse.urlencode(params, doseq=True)
         return f"{self.api_base}/v1/sprites/{sprite}/exec?{query}"
 
@@ -286,6 +290,11 @@ class SpritesSandboxRunner(SandboxRunner):
             params.append(("dir", str(command.cwd)))
         if command.env:
             for key, value in command.env.items():
+                params.append(("env", f"{key}={value}"))
+        if command.sandbox and command.sandbox.config.env:
+            for key, value in command.sandbox.config.env.items():
+                if command.env and key in command.env:
+                    continue
                 params.append(("env", f"{key}={value}"))
         max_run = os.environ.get("SPRITES_MAX_RUN_AFTER_DISCONNECT", "3600")
         params.append(("max_run_after_disconnect", max_run))

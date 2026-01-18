@@ -112,7 +112,7 @@ class LocalSandboxRunner(SandboxRunner):
         self.root = root or (Path(".context") / "sandboxes")
         self.root.mkdir(parents=True, exist_ok=True)
         self._handles: dict[str, SandboxHandle] = {}
-        self._processes: dict[str, subprocess.Popen] = {}
+        self._processes: dict[str, tuple[subprocess.Popen, Optional[str]]] = {}
 
     def _sandbox_dir(self, handle: SandboxHandle) -> Path:
         return self.root / handle.sandbox_id
@@ -142,6 +142,18 @@ class LocalSandboxRunner(SandboxRunner):
 
     def destroy(self, handle: SandboxHandle) -> None:
         sandbox_dir = self._sandbox_dir(handle)
+        for process_id, (process, sandbox_id) in list(self._processes.items()):
+            if sandbox_id != handle.sandbox_id:
+                continue
+            try:
+                process.terminate()
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+            if process.stdout:
+                process.stdout.close()
+            self._processes.pop(process_id, None)
         if sandbox_dir.exists():
             shutil.rmtree(sandbox_dir)
         self._handles.pop(handle.sandbox_id, None)
@@ -180,7 +192,8 @@ class LocalSandboxRunner(SandboxRunner):
             text=True,
         )
         process_id = f"proc-{uuid.uuid4().hex}"
-        self._processes[process_id] = process
+        sandbox_id = command.sandbox.sandbox_id if command.sandbox else None
+        self._processes[process_id] = (process, sandbox_id)
         return SandboxProcess(
             process_id=process_id,
             command=command.command,
@@ -188,9 +201,10 @@ class LocalSandboxRunner(SandboxRunner):
         )
 
     def stop_process(self, handle: SandboxHandle, process_id: str) -> None:
-        process = self._processes.pop(process_id, None)
-        if not process:
+        entry = self._processes.pop(process_id, None)
+        if not entry:
             raise ValueError(f"Process not found: {process_id}")
+        process, _ = entry
         process.terminate()
         try:
             process.wait(timeout=5)

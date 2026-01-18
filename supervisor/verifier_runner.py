@@ -76,7 +76,11 @@ class VerifierRunner:
         start = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         cwd = spec.cwd
         if self.sandbox_handle and self.sandbox_handle.config.workspace_root:
-            cwd = Path(self.sandbox_handle.config.workspace_root)
+            workspace_root = Path(self.sandbox_handle.config.workspace_root)
+            if cwd is None:
+                cwd = workspace_root
+            elif not cwd.is_absolute():
+                cwd = workspace_root / cwd
         command = SandboxCommand(
             command=spec.command,
             timeout_seconds=spec.timeout_seconds,
