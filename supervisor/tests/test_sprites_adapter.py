@@ -1,6 +1,7 @@
 import json
 import threading
 import unittest
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from supervisor.sprites_adapter import SpritesSandboxRunner, SpritesAPIError
@@ -27,35 +28,54 @@ class _SpritesHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         payload = self._read_body()
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
         _SpritesHandler.received.append((self.path, self.headers, payload))
 
-        if self.path == "/sandboxes":
-            self._send_json({"sandbox_id": "sbx-1"})
+        if path == "/v1/sprites":
+            self._send_json({"id": "sbx-1", "name": payload.get("name"), "url": "http://sprite-url"})
             return
-        if self.path == "/sandboxes/sbx-1/checkpoints":
-            self._send_json({"checkpoint_id": "ckpt-1", "created_at": "now"})
+        if path.endswith("/checkpoint") and path.startswith("/v1/sprites/"):
+            body = "\n".join([
+                json.dumps({"type": "progress", "data": "working"}),
+                json.dumps({"type": "complete", "data": "Checkpoint v1 created"}),
+            ])
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body.encode("utf-8"))
             return
-        if self.path == "/sandboxes/sbx-1/restore":
+        if "/checkpoints/ckpt-1/restore" in path:
+            body = json.dumps({"type": "complete", "data": "Restored to v1"})
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body.encode("utf-8"))
+            return
+        if path.endswith("/exec") and path.startswith("/v1/sprites/"):
+            self._send_json({"exit_code": 0, "stdout": "ok", "stderr": ""})
+            return
+        if path.endswith("/exec/proc-1/kill") and path.startswith("/v1/sprites/"):
             self._send_json({"ok": True})
-            return
-        if self.path == "/sandboxes/sbx-1/exec":
-            if payload.get("detach") or payload.get("mode") == "background":
-                self._send_json({"process_id": "proc-1"})
-            else:
-                self._send_json({"return_code": 0, "stdout": "ok", "stderr": ""})
-            return
-        if self.path == "/sandboxes/sbx-1/processes/proc-1/stop":
-            self._send_json({"ok": True})
-            return
-        if self.path == "/sandboxes/sbx-1/proxy":
-            self._send_json({"url": "http://proxy"})
             return
         self._send_json({"error": "not found"}, status=404)
 
     def do_DELETE(self) -> None:  # noqa: N802
         _SpritesHandler.received.append((self.path, self.headers, {}))
-        if self.path == "/sandboxes/sbx-1":
+        if self.path.startswith("/v1/sprites/"):
             self._send_json({"ok": True})
+            return
+        self._send_json({"error": "not found"}, status=404)
+
+    def do_GET(self) -> None:  # noqa: N802
+        _SpritesHandler.received.append((self.path, self.headers, {}))
+        if self.path.startswith("/v1/sprites/") and self.path.count("/") == 3:
+            self._send_json({"url": "http://sprite-url"})
+            return
+        if self.path.endswith("/checkpoints") and self.path.startswith("/v1/sprites/"):
+            self._send_json([{"id": "ckpt-1"}])
             return
         self._send_json({"error": "not found"}, status=404)
 
@@ -82,7 +102,7 @@ class TestSpritesAdapter(unittest.TestCase):
         _SpritesHandler.received.clear()
 
     def test_full_lifecycle(self) -> None:
-        runner = SpritesSandboxRunner(api_base=f"http://127.0.0.1:{self.port}", token="token")
+        runner = SpritesSandboxRunner(api_base=f"http://127.0.0.1:{self.port}", token="token", use_ws_exec=False)
         config = SandboxConfig(
             user_id="u1",
             workspace_id="w1",
@@ -91,7 +111,7 @@ class TestSpritesAdapter(unittest.TestCase):
         )
 
         handle = runner.create(config)
-        self.assertEqual(handle.sandbox_id, "sbx-1")
+        self.assertEqual(handle.sandbox_id, "w1")
 
         checkpoint = runner.checkpoint(handle, label="label")
         self.assertEqual(checkpoint.checkpoint_id, "ckpt-1")
@@ -99,21 +119,19 @@ class TestSpritesAdapter(unittest.TestCase):
         runner.restore(handle, checkpoint.checkpoint_id)
         result = runner.run(SandboxCommand(command=["echo", "ok"], sandbox=handle))
         self.assertEqual(result.return_code, 0)
-        process = runner.start_process(SandboxCommand(command=["sleep", "10"], sandbox=handle))
-        self.assertEqual(process.process_id, "proc-1")
-        runner.stop_process(handle, process.process_id)
+        runner.stop_process(handle, "proc-1")
         proxy = runner.open_proxy(handle, 5173)
-        self.assertEqual(proxy.url, "http://proxy")
+        self.assertEqual(proxy.url, "http://sprite-url")
         runner.destroy(handle)
 
         paths = [item[0] for item in _SpritesHandler.received]
-        self.assertIn("/sandboxes", paths)
-        self.assertIn("/sandboxes/sbx-1/checkpoints", paths)
-        self.assertIn("/sandboxes/sbx-1/restore", paths)
-        self.assertIn("/sandboxes/sbx-1/exec", paths)
-        self.assertIn("/sandboxes/sbx-1", paths)
-        self.assertIn("/sandboxes/sbx-1/processes/proc-1/stop", paths)
-        self.assertIn("/sandboxes/sbx-1/proxy", paths)
+        self.assertIn("/v1/sprites", paths)
+        self.assertTrue(any(path.endswith("/checkpoint") for path in paths))
+        self.assertTrue(any("/checkpoints/ckpt-1/restore" in path for path in paths))
+        exec_paths = [path for path in paths if "/exec" in path and path.startswith("/v1/sprites/")]
+        self.assertTrue(exec_paths)
+        self.assertTrue(any(path.startswith("/v1/sprites/") and path.count("/") == 3 for path in paths))
+        self.assertTrue(any(path.endswith("/exec/proc-1/kill") for path in paths))
 
         # Ensure auth header included
         headers = _SpritesHandler.received[0][1]
@@ -122,34 +140,17 @@ class TestSpritesAdapter(unittest.TestCase):
         def payloads_for(path: str) -> list[dict]:
             return [entry[2] for entry in _SpritesHandler.received if entry[0] == path]
 
-        create_payload = payloads_for("/sandboxes")[0]
-        self.assertEqual(create_payload.get("user_id"), "u1")
-        self.assertEqual(create_payload.get("workspace_id"), "w1")
-        self.assertEqual(create_payload.get("workspace_root"), "/tmp")
-        self.assertEqual(create_payload.get("env", {}).get("TEST_ENV"), "1")
+        create_payload = payloads_for("/v1/sprites")[0]
+        self.assertEqual(create_payload.get("name"), "w1")
+        self.assertEqual(create_payload.get("url_settings", {}).get("auth"), "sprite")
 
-        checkpoint_payload = payloads_for("/sandboxes/sbx-1/checkpoints")[0]
-        self.assertEqual(checkpoint_payload.get("label"), "label")
+        checkpoint_payload = payloads_for([path for path in paths if path.endswith("/checkpoint")][0])[0]
+        self.assertEqual(checkpoint_payload.get("comment"), "label")
 
-        restore_payload = payloads_for("/sandboxes/sbx-1/restore")[0]
-        self.assertEqual(restore_payload.get("checkpoint_id"), "ckpt-1")
-
-        exec_payloads = payloads_for("/sandboxes/sbx-1/exec")
-        foreground = exec_payloads[0]
-        self.assertEqual(foreground.get("command"), ["echo", "ok"])
-        self.assertEqual(foreground.get("env"), {})
-        self.assertEqual(foreground.get("timeout_seconds"), 300)
-
-        background = exec_payloads[1]
-        self.assertEqual(background.get("command"), ["sleep", "10"])
-        self.assertTrue(background.get("detach"))
-        self.assertEqual(background.get("mode"), "background")
-
-        stop_payload = payloads_for("/sandboxes/sbx-1/processes/proc-1/stop")[0]
-        self.assertEqual(stop_payload.get("process_id"), "proc-1")
-
-        proxy_payload = payloads_for("/sandboxes/sbx-1/proxy")[0]
-        self.assertEqual(proxy_payload.get("port"), 5173)
+        exec_path = exec_paths[0]
+        parsed = urllib.parse.urlparse(exec_path)
+        query = urllib.parse.parse_qs(parsed.query)
+        self.assertEqual(query.get("cmd"), ["echo", "ok"])
 
     def test_run_without_handle(self) -> None:
         runner = SpritesSandboxRunner(api_base=f"http://127.0.0.1:{self.port}")

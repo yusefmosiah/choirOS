@@ -19,12 +19,13 @@ PYTHONPATH=/Users/wiz/conductor/workspaces/choirOS/monterrey python -m unittest 
   supervisor.tests.test_supervisor_git_endpoints \
   supervisor.tests.test_supervisor_sandbox_endpoints \
   supervisor.tests.test_run_orchestrator \
-  supervisor.tests.test_verifier_runner
+  supervisor.tests.test_verifier_runner \
+  supervisor.tests.test_sprites_live
 ```
 
 ## Results
-- All tests passed (18 tests).
+- 19 tests executed, 1 skipped (live sprites test requires `SPRITES_API_TOKEN`).
 
 ## Notes
 - Sprites adapter payloads were validated against the mock HTTP server in `supervisor/tests/test_sprites_adapter.py`.
-- Real sprites.dev API contract validation remains pending (requires live endpoint + credentials).
+- Live sprites test (`supervisor/tests/test_sprites_live.py`) skipped because `SPRITES_API_TOKEN` was not set in this workspace.
