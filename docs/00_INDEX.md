@@ -36,14 +36,8 @@ Status: ACTIVE
 - docs/reviews/work_log-jan-15.md
 - docs/reviews/docs_reconciliation.md
 
-## Handoffs and Reports
-- docs/handoff-2026-01-18.md
-- docs/handoff-2026-01-17.md
-- docs/handoff-2026-01-17b.md
-- docs/test_report-2026-01-17.md
-- docs/test_report-2026-01-17c.md
-- docs/test_report-2026-01-18.md
-- docs/CHANGELOG.md
+## Handoffs and Reports (Archived)
+- All handoffs moved to `docs/archive/` — see issue tracker `docs/reviews/issues-2026-01-18.md` for current status.
 
 ## Project Notes
 - docs/SELF_DEV_BOOTSTRAP.md
