@@ -23,7 +23,7 @@ class SpritesAPIError(RuntimeError):
     pass
 
 
-DEFAULT_SPRITES_API_BASE = "https://sprites.dev/api"
+DEFAULT_SPRITES_API_BASE = "https://api.sprites.dev/v1"
 
 
 class SpritesSandboxRunner(SandboxRunner):
@@ -71,18 +71,18 @@ class SpritesSandboxRunner(SandboxRunner):
 
     def create(self, config: SandboxConfig) -> SandboxHandle:
         payload = asdict(config)
-        response = self._request("POST", "/v1/sandboxes", payload)
+        response = self._request("POST", "/sandboxes", payload)
         sandbox_id = self._extract_id(response, "sandbox") or self._extract_id(response, "handle")
         if not sandbox_id:
             raise SpritesAPIError("Sprites create did not return sandbox id")
         return SandboxHandle(sandbox_id=sandbox_id, config=config)
 
     def destroy(self, handle: SandboxHandle) -> None:
-        self._request("DELETE", f"/v1/sandboxes/{handle.sandbox_id}")
+        self._request("DELETE", f"/sandboxes/{handle.sandbox_id}")
 
     def checkpoint(self, handle: SandboxHandle, label: Optional[str] = None) -> SandboxCheckpoint:
         payload = {"label": label} if label else {}
-        response = self._request("POST", f"/v1/sandboxes/{handle.sandbox_id}/checkpoints", payload)
+        response = self._request("POST", f"/sandboxes/{handle.sandbox_id}/checkpoints", payload)
         checkpoint_id = self._extract_id(response, "checkpoint")
         created_at = response.get("created_at") or response.get("createdAt") or ""
         if not checkpoint_id:
@@ -91,7 +91,7 @@ class SpritesSandboxRunner(SandboxRunner):
 
     def restore(self, handle: SandboxHandle, checkpoint_id: str) -> None:
         payload = {"checkpoint_id": checkpoint_id}
-        self._request("POST", f"/v1/sandboxes/{handle.sandbox_id}/restore", payload)
+        self._request("POST", f"/sandboxes/{handle.sandbox_id}/restore", payload)
 
     def run(self, command: SandboxCommand) -> SandboxResult:
         if not command.sandbox:
@@ -102,7 +102,7 @@ class SpritesSandboxRunner(SandboxRunner):
             "env": command.env or {},
             "timeout_seconds": command.timeout_seconds,
         }
-        response = self._request("POST", f"/v1/sandboxes/{command.sandbox.sandbox_id}/exec", payload)
+        response = self._request("POST", f"/sandboxes/{command.sandbox.sandbox_id}/exec", payload)
         return SandboxResult(
             return_code=int(response.get("return_code", response.get("exit_code", 1))),
             stdout=str(response.get("stdout", "")),

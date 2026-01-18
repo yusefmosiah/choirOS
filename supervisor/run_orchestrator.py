@@ -320,19 +320,19 @@ class RunOrchestrator:
                     {"error": str(exc), "bound": "re-run with isolated executor"},
                 )
 
-        touched_paths = self.store.get_event_paths_since(start_seq)
-        work_item = self.store.get_work_item(work_item_id) or {}
-        required_verifiers = work_item.get("required_verifiers", [])
-        risk_tier = work_item.get("risk_tier")
+            touched_paths = self.store.get_event_paths_since(start_seq)
+            work_item = self.store.get_work_item(work_item_id) or {}
+            required_verifiers = work_item.get("required_verifiers", [])
+            risk_tier = work_item.get("risk_tier")
 
-        plan = select_verifier_plan(
-            touched_paths=touched_paths,
-            mood=mood,
-            required_verifiers=required_verifiers,
-            risk_tier=risk_tier,
-            config_path=config_path,
-        )
-        verifier_specs = build_verifier_specs(plan.verifier_ids, config_path=config_path)
+            plan = select_verifier_plan(
+                touched_paths=touched_paths,
+                mood=mood,
+                required_verifiers=required_verifiers,
+                risk_tier=risk_tier,
+                config_path=config_path,
+            )
+            verifier_specs = build_verifier_specs(plan.verifier_ids, config_path=config_path)
 
             if not success:
                 self.store.update_run(run_id, {"status": "failed", "mood": "SKEPTICAL"})
@@ -348,27 +348,27 @@ class RunOrchestrator:
                 }
                 return response
 
-        self.store.update_run(run_id, {"status": "verifying"})
-        self.store.add_run_note(
-            run_id,
-            "note.status",
-            {"status": "verifying", "mood": mood, "stage": "verify"},
-        )
+            self.store.update_run(run_id, {"status": "verifying"})
+            self.store.add_run_note(
+                run_id,
+                "note.status",
+                {"status": "verifying", "mood": mood, "stage": "verify"},
+            )
 
-        results = []
-        for spec in verifier_specs:
-            result = self.verifier_runner.run(spec)
-            results.append(result)
-            self.store.add_run_verification(run_id, asdict(result))
+            results = []
+            for spec in verifier_specs:
+                result = self.verifier_runner.run(spec)
+                results.append(result)
+                self.store.add_run_verification(run_id, asdict(result))
 
-        all_passed = all(result.status == "pass" for result in results)
-        final_status = "verified" if all_passed else "failed"
-        self.store.update_run(run_id, {"status": final_status, "mood": "SKEPTICAL"})
-        self.store.add_run_note(
-            run_id,
-            "note.status",
-            {"status": final_status, "mood": "SKEPTICAL", "stage": "adjudicate"},
-        )
+            all_passed = all(result.status == "pass" for result in results)
+            final_status = "verified" if all_passed else "failed"
+            self.store.update_run(run_id, {"status": final_status, "mood": "SKEPTICAL"})
+            self.store.add_run_note(
+                run_id,
+                "note.status",
+                {"status": final_status, "mood": "SKEPTICAL", "stage": "adjudicate"},
+            )
 
             if all_passed:
                 checkpoint_result = checkpoint(
