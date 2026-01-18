@@ -38,8 +38,23 @@ class TestSpritesLive(unittest.TestCase):
         sprite_name = f"choiros-live-{uuid.uuid4().hex[:8]}"
         config = SandboxConfig(user_id="local", workspace_id=sprite_name, workspace_root=".")
         handle = runner.create(config)
+        checkpoint = None
+        proxy = None
         try:
             result = runner.run(SandboxCommand(command=["echo", "ok"], sandbox=handle))
+            checkpoint = runner.checkpoint(handle, label="live test")
+            runner.restore(handle, checkpoint.checkpoint_id)
+            proxy = runner.open_proxy(handle, 5173)
+            if os.environ.get("SPRITES_WS_EXEC_LIVE", "0") == "1":
+                process = runner.start_process(
+                    SandboxCommand(command=["sleep", "1"], sandbox=handle)
+                )
+                runner.stop_process(handle, process.process_id)
         finally:
             runner.destroy(handle)
         self.assertEqual(result.return_code, 0)
+        self.assertIn("ok", result.stdout)
+        self.assertIsNotNone(checkpoint)
+        self.assertTrue(checkpoint.checkpoint_id)
+        self.assertIsNotNone(proxy)
+        self.assertTrue(proxy.url)

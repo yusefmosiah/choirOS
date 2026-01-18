@@ -28,4 +28,5 @@ PYTHONPATH=/Users/wiz/conductor/workspaces/choirOS/monterrey python -m unittest 
 
 ## Notes
 - Sprites adapter payloads were validated against the mock HTTP server in `supervisor/tests/test_sprites_adapter.py`.
-- Live sprites test (`supervisor/tests/test_sprites_live.py`) passed using `SPRITES_API_TOKEN` from `api/.env`.
+- Live sprites test (`supervisor/tests/test_sprites_live.py`) passed using `SPRITES_API_TOKEN` from `api/.env` and now covers exec + checkpoint/restore + proxy.
+- Background exec over websockets can be enabled by setting `SPRITES_WS_EXEC_LIVE=1`.

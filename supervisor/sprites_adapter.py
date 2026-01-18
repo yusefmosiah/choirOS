@@ -294,12 +294,21 @@ class SpritesSandboxRunner(SandboxRunner):
         ws_url = f"{self.api_base.replace('https://', 'wss://').replace('http://', 'ws://')}/v1/sprites/{sprite_name}/exec?{query}"
 
         async def _run_ws() -> str:
+            import inspect
             import websockets  # type: ignore
 
             headers = []
             if self.token:
                 headers.append(("Authorization", f"Bearer {self.token}"))
-            async with websockets.connect(ws_url, extra_headers=headers) as ws:
+
+            connect_kwargs = {}
+            params = inspect.signature(websockets.connect).parameters
+            if "additional_headers" in params:
+                connect_kwargs["additional_headers"] = headers
+            else:
+                connect_kwargs["extra_headers"] = headers
+
+            async with websockets.connect(ws_url, **connect_kwargs) as ws:
                 while True:
                     msg = await ws.recv()
                     if isinstance(msg, bytes):

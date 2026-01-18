@@ -9,6 +9,7 @@
 ## Tests
 - Unit and integration tests run; see `docs/test_report-2026-01-18.md`.
 - Live sprites test passed with token from `api/.env`.
+- Live sprites test now validates exec + checkpoint/restore + proxy; background exec optional via `SPRITES_WS_EXEC_LIVE=1`.
 
 ## Next Steps
 - Provide a valid `SPRITES_API_TOKEN` (or `SPRITES_TOKEN`) and re-run `supervisor.tests.test_sprites_live`.
