@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 import { Desktop } from './components/desktop/Desktop';
 import { connectNats, disconnectNats, onNatsStatusChange, subscribeUserEvents, type ChoirEvent } from './lib/nats';
-import { onSessionChange } from './lib/auth';
+import { authFetch, onSessionChange } from './lib/auth';
 import { useEventStore } from './stores/events';
+
+const SUPERVISOR_BASE = import.meta.env.VITE_SUPERVISOR_URL || 'http://localhost:8001';
 
 function App() {
     const addEvent = useEventStore((s) => s.addEvent);
@@ -58,6 +60,31 @@ function App() {
             stopSession();
         };
     }, [addEvent, setNatsStatus]);
+
+    useEffect(() => {
+        if (import.meta.env.VITE_FRONTEND_SANDBOX !== '1') {
+            return;
+        }
+        let cancelled = false;
+        const ensureProxy = async () => {
+            try {
+                const res = await authFetch(`${SUPERVISOR_BASE}/frontend/url`);
+                if (!res.ok || cancelled) return;
+                const data = await res.json();
+                if (!data.url) return;
+                const target = new URL(data.url, window.location.href);
+                if (target.origin !== window.location.origin) {
+                    window.location.replace(target.toString());
+                }
+            } catch {
+                // Ignore proxy errors; keep local URL.
+            }
+        };
+        ensureProxy();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     return <Desktop />;
 }

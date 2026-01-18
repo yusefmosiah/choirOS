@@ -109,3 +109,12 @@ class TestSupervisorSandboxEndpoints(unittest.TestCase):
         self.assertEqual(self.fake.destroyed, 1)
         self.assertEqual(self.fake.checkpoints, 1)
         self.assertEqual(self.fake.restores, 1)
+
+    def test_frontend_url_endpoint(self) -> None:
+        with (
+            mock.patch("supervisor.main.vite_manager.start", return_value=True),
+            mock.patch("supervisor.main.vite_manager.get_url", return_value="http://sandbox.ui"),
+        ):
+            response = self.client.get("/frontend/url")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json().get("url"), "http://sandbox.ui")

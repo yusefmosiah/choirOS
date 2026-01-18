@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .sandbox_config import build_sandbox_config
 from .sandbox_provider import get_sandbox_runner
-from .sandbox_runner import SandboxCommand, SandboxHandle, SandboxProcess, SandboxRunner
+from .sandbox_runner import SandboxCommand, SandboxHandle, SandboxProcess, SandboxRunner, SandboxProxy
 
 
 def _get_project_root() -> Path:
@@ -29,6 +29,7 @@ class ViteManager:
         self._sandbox_runner: SandboxRunner | None = None
         self._sandbox_handle: SandboxHandle | None = None
         self._sandbox_process: SandboxProcess | None = None
+        self._sandbox_proxy: SandboxProxy | None = None
 
     async def start(self) -> bool:
         """
@@ -59,6 +60,12 @@ class ViteManager:
                         sandbox=self._sandbox_handle,
                     )
                     self._sandbox_process = self._sandbox_runner.start_process(command)
+                    port = int(os.environ.get("CHOIR_FRONTEND_PORT", "5173"))
+                    try:
+                        self._sandbox_proxy = self._sandbox_runner.open_proxy(self._sandbox_handle, port)
+                    except Exception as e:
+                        print(f"Failed to open sandbox proxy: {e}")
+                        self._sandbox_proxy = None
                     return True
                 except Exception as e:
                     print(f"Failed to start Vite in sandbox: {e}")
@@ -99,6 +106,7 @@ class ViteManager:
                     print(f"Failed to stop sandboxed Vite: {e}")
                 finally:
                     self._sandbox_process = None
+                    self._sandbox_proxy = None
                 if os.environ.get("CHOIR_FRONTEND_SANDBOX_KEEP", "0") != "1":
                     try:
                         self._sandbox_runner.destroy(self._sandbox_handle)
@@ -125,3 +133,9 @@ class ViteManager:
         if self._sandbox_enabled:
             return self._sandbox_process is not None
         return self._process is not None and self._process.returncode is None
+
+    def get_url(self) -> str:
+        """Get the frontend URL."""
+        if self._sandbox_enabled and self._sandbox_proxy:
+            return self._sandbox_proxy.url
+        return os.environ.get("CHOIR_FRONTEND_URL", "http://localhost:5173")

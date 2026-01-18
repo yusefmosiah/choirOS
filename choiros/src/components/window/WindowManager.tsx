@@ -6,6 +6,7 @@ import { Files } from '../apps/Files';
 import { MailApp } from '../apps/Mail';
 import { GitPanel } from '../apps/GitPanel';
 import { AuthApp } from '../apps/Auth';
+import { Terminal } from '../apps/Terminal';
 
 // App component mapping
 const APP_COMPONENTS: Record<string, React.ComponentType<{ artifactId?: string }>> = {
@@ -14,7 +15,7 @@ const APP_COMPONENTS: Record<string, React.ComponentType<{ artifactId?: string }
     mail: MailApp,
     git: GitPanel,
     auth: AuthApp,
-    // terminal will be added in later phases
+    terminal: Terminal,
 };
 
 // Placeholder component for apps not yet implemented

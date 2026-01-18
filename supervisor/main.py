@@ -664,6 +664,15 @@ async def sandbox_restore(payload: SandboxRestorePayload):
     runner.restore(handle, payload.checkpoint_id)
     return {"success": True, "checkpoint_id": payload.checkpoint_id}
 
+
+@app.get("/frontend/url")
+async def frontend_url():
+    """Return the frontend URL, using sandbox proxy if enabled."""
+    started = await vite_manager.start()
+    if not started:
+        raise HTTPException(status_code=500, detail="Frontend failed to start")
+    return {"url": vite_manager.get_url()}
+
 @app.websocket("/agent")
 async def agent_websocket(websocket: WebSocket):
     """WebSocket endpoint for agent communication."""
