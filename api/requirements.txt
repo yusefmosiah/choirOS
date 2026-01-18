@@ -9,3 +9,4 @@ lxml_html_clean>=0.4.1
 markitdown[all]>=0.0.1a3
 python-multipart>=0.0.18
 httpx>=0.28.0
+pytest>=8.3.0
