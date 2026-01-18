@@ -139,6 +139,8 @@ class LocalSandboxRunner(SandboxRunner):
 
     def run(self, command: SandboxCommand) -> SandboxResult:
         env = os.environ.copy()
+        if command.sandbox and command.sandbox.config.env:
+            env.update(command.sandbox.config.env)
         if command.env:
             env.update(command.env)
 

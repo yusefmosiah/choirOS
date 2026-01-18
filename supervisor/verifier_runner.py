@@ -59,17 +59,26 @@ class VerifierRunner:
         self,
         store: Optional[ArtifactStore] = None,
         sandbox_runner: Optional[SandboxRunner] = None,
+        sandbox_handle: Optional[SandboxHandle] = None,
     ) -> None:
         self.store = store or ArtifactStore()
         self.sandbox_runner = sandbox_runner or LocalSandboxRunner()
+        self.sandbox_handle = sandbox_handle
+
+    def set_sandbox(self, handle: Optional[SandboxHandle]) -> None:
+        self.sandbox_handle = handle
 
     def run(self, spec: VerifierSpec) -> VerifierResult:
         start = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        cwd = spec.cwd
+        if self.sandbox_handle and self.sandbox_handle.config.workspace_root:
+            cwd = Path(self.sandbox_handle.config.workspace_root)
         command = SandboxCommand(
             command=spec.command,
             timeout_seconds=spec.timeout_seconds,
-            cwd=spec.cwd,
+            cwd=cwd,
             env=spec.env,
+            sandbox=self.sandbox_handle,
         )
         result = self.sandbox_runner.run(command)
         return_code = result.return_code
@@ -117,4 +126,4 @@ class VerifierRunner:
 
 def default_python_command(args: list[str]) -> list[str]:
     return [sys.executable] + args
-from .sandbox_runner import SandboxRunner, SandboxCommand, LocalSandboxRunner
+from .sandbox_runner import SandboxRunner, SandboxCommand, LocalSandboxRunner, SandboxHandle
