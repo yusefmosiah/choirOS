@@ -83,7 +83,12 @@ class TestSpritesAdapter(unittest.TestCase):
 
     def test_full_lifecycle(self) -> None:
         runner = SpritesSandboxRunner(api_base=f"http://127.0.0.1:{self.port}", token="token")
-        config = SandboxConfig(user_id="u1", workspace_id="w1", workspace_root="/tmp")
+        config = SandboxConfig(
+            user_id="u1",
+            workspace_id="w1",
+            workspace_root="/tmp",
+            env={"TEST_ENV": "1"},
+        )
 
         handle = runner.create(config)
         self.assertEqual(handle.sandbox_id, "sbx-1")
@@ -107,10 +112,44 @@ class TestSpritesAdapter(unittest.TestCase):
         self.assertIn("/sandboxes/sbx-1/restore", paths)
         self.assertIn("/sandboxes/sbx-1/exec", paths)
         self.assertIn("/sandboxes/sbx-1", paths)
+        self.assertIn("/sandboxes/sbx-1/processes/proc-1/stop", paths)
+        self.assertIn("/sandboxes/sbx-1/proxy", paths)
 
         # Ensure auth header included
         headers = _SpritesHandler.received[0][1]
         self.assertEqual(headers.get("Authorization"), "Bearer token")
+
+        def payloads_for(path: str) -> list[dict]:
+            return [entry[2] for entry in _SpritesHandler.received if entry[0] == path]
+
+        create_payload = payloads_for("/sandboxes")[0]
+        self.assertEqual(create_payload.get("user_id"), "u1")
+        self.assertEqual(create_payload.get("workspace_id"), "w1")
+        self.assertEqual(create_payload.get("workspace_root"), "/tmp")
+        self.assertEqual(create_payload.get("env", {}).get("TEST_ENV"), "1")
+
+        checkpoint_payload = payloads_for("/sandboxes/sbx-1/checkpoints")[0]
+        self.assertEqual(checkpoint_payload.get("label"), "label")
+
+        restore_payload = payloads_for("/sandboxes/sbx-1/restore")[0]
+        self.assertEqual(restore_payload.get("checkpoint_id"), "ckpt-1")
+
+        exec_payloads = payloads_for("/sandboxes/sbx-1/exec")
+        foreground = exec_payloads[0]
+        self.assertEqual(foreground.get("command"), ["echo", "ok"])
+        self.assertEqual(foreground.get("env"), {})
+        self.assertEqual(foreground.get("timeout_seconds"), 300)
+
+        background = exec_payloads[1]
+        self.assertEqual(background.get("command"), ["sleep", "10"])
+        self.assertTrue(background.get("detach"))
+        self.assertEqual(background.get("mode"), "background")
+
+        stop_payload = payloads_for("/sandboxes/sbx-1/processes/proc-1/stop")[0]
+        self.assertEqual(stop_payload.get("process_id"), "proc-1")
+
+        proxy_payload = payloads_for("/sandboxes/sbx-1/proxy")[0]
+        self.assertEqual(proxy_payload.get("port"), 5173)
 
     def test_run_without_handle(self) -> None:
         runner = SpritesSandboxRunner(api_base=f"http://127.0.0.1:{self.port}")
