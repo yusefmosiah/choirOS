@@ -23,6 +23,9 @@ class SpritesAPIError(RuntimeError):
     pass
 
 
+DEFAULT_SPRITES_API_BASE = "https://sprites.dev/api"
+
+
 class SpritesSandboxRunner(SandboxRunner):
     def __init__(self, api_base: str, token: Optional[str] = None, timeout_seconds: int = 60) -> None:
         self.api_base = api_base.rstrip("/")
@@ -31,9 +34,7 @@ class SpritesSandboxRunner(SandboxRunner):
 
     @classmethod
     def from_env(cls) -> "SpritesSandboxRunner":
-        api_base = os.environ.get("SPRITES_API_BASE", "").strip()
-        if not api_base:
-            raise SpritesAPIError("SPRITES_API_BASE is required for sprites adapter")
+        api_base = os.environ.get("SPRITES_API_BASE", DEFAULT_SPRITES_API_BASE).strip()
         token = os.environ.get("SPRITES_API_TOKEN")
         timeout = int(os.environ.get("SPRITES_API_TIMEOUT", "60"))
         return cls(api_base=api_base, token=token, timeout_seconds=timeout)
