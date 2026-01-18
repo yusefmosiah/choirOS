@@ -130,6 +130,77 @@ class SpritesSandboxRunner(SandboxRunner):
                     return match.group(0)
         return None
 
+    @staticmethod
+    def _parse_exec_response(text: str) -> dict:
+        if not text.strip():
+            return {"exit_code": 0, "stdout": "", "stderr": "", "timed_out": False}
+        try:
+            payload = json.loads(text)
+            if isinstance(payload, dict):
+                return {
+                    "exit_code": payload.get("exit_code", payload.get("return_code", payload.get("code", 0))),
+                    "stdout": payload.get("stdout", ""),
+                    "stderr": payload.get("stderr", ""),
+                    "timed_out": payload.get("timed_out", False),
+                }
+        except json.JSONDecodeError:
+            pass
+
+        stdout_parts: list[str] = []
+        stderr_parts: list[str] = []
+        exit_code: Optional[int] = None
+        timed_out = False
+
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                stdout_parts.append(raw_line)
+                continue
+
+            if isinstance(payload, dict):
+                if "stdout" in payload:
+                    stdout_parts.append(str(payload.get("stdout", "")))
+                if "stderr" in payload:
+                    stderr_parts.append(str(payload.get("stderr", "")))
+                if payload.get("type") in {"stdout", "stderr"} and payload.get("data"):
+                    target = stdout_parts if payload.get("type") == "stdout" else stderr_parts
+                    target.append(str(payload.get("data")))
+                if payload.get("type") in {"exit", "complete"} and payload.get("code") is not None:
+                    try:
+                        exit_code = int(payload.get("code"))
+                    except (TypeError, ValueError):
+                        pass
+                if payload.get("exit_code") is not None:
+                    try:
+                        exit_code = int(payload.get("exit_code"))
+                    except (TypeError, ValueError):
+                        pass
+                if payload.get("return_code") is not None:
+                    try:
+                        exit_code = int(payload.get("return_code"))
+                    except (TypeError, ValueError):
+                        pass
+                if payload.get("timed_out") is True:
+                    timed_out = True
+                if isinstance(payload.get("data"), str):
+                    match = re.search(r"exit\\s*code[:=]\\s*(\\d+)", payload["data"], re.IGNORECASE)
+                    if match:
+                        exit_code = int(match.group(1))
+
+        if exit_code is None:
+            exit_code = 0
+
+        return {
+            "exit_code": exit_code,
+            "stdout": "\n".join(stdout_parts),
+            "stderr": "\n".join(stderr_parts),
+            "timed_out": timed_out,
+        }
+
     def _sprite_name(self, handle: SandboxHandle | SandboxConfig) -> str:
         if isinstance(handle, SandboxHandle):
             return handle.config.workspace_id
@@ -189,16 +260,14 @@ class SpritesSandboxRunner(SandboxRunner):
         try:
             with urllib.request.urlopen(req, timeout=command.timeout_seconds) as resp:
                 body = resp.read().decode("utf-8")
-            response = json.loads(body) if body else {}
+            response = self._parse_exec_response(body)
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8") if exc.fp else str(exc)
             raise SpritesAPIError(f"Sprites exec error {exc.code}: {detail}") from exc
         except urllib.error.URLError as exc:
             raise SpritesAPIError(f"Sprites exec failed: {exc}") from exc
         return SandboxResult(
-            return_code=int(
-                response.get("exit_code", response.get("return_code", response.get("code", 1)))
-            ),
+            return_code=int(response.get("exit_code", 0)),
             stdout=str(response.get("stdout", "")),
             stderr=str(response.get("stderr", "")),
             timed_out=bool(response.get("timed_out", False)),

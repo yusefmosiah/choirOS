@@ -8,7 +8,7 @@
 
 ## Tests
 - Unit and integration tests run; see `docs/test_report-2026-01-18.md`.
-- Live sprites test exists but was skipped due to missing `SPRITES_API_TOKEN`.
+- Live sprites test passed with token from `api/.env`.
 
 ## Next Steps
 - Provide a valid `SPRITES_API_TOKEN` (or `SPRITES_TOKEN`) and re-run `supervisor.tests.test_sprites_live`.

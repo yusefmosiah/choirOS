@@ -1,6 +1,7 @@
 import os
 import unittest
 from pathlib import Path
+import uuid
 
 from supervisor.sprites_adapter import SpritesSandboxRunner
 from supervisor.sandbox_runner import SandboxCommand, SandboxConfig
@@ -15,7 +16,8 @@ def _load_env_file() -> None:
         if not stripped or stripped.startswith("#") or "=" not in stripped:
             continue
         key, value = stripped.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip())
+        cleaned = value.strip().strip("'").strip('"')
+        os.environ.setdefault(key.strip(), cleaned)
 
 
 class TestSpritesLive(unittest.TestCase):
@@ -33,8 +35,11 @@ class TestSpritesLive(unittest.TestCase):
             raise unittest.SkipTest("SPRITES_API_TOKEN not set; skipping live sprites test.")
 
         runner = SpritesSandboxRunner.from_env()
-        config = SandboxConfig(user_id="local", workspace_id="choiros-live", workspace_root=".")
+        sprite_name = f"choiros-live-{uuid.uuid4().hex[:8]}"
+        config = SandboxConfig(user_id="local", workspace_id=sprite_name, workspace_root=".")
         handle = runner.create(config)
-        result = runner.run(SandboxCommand(command=["echo", "ok"], sandbox=handle))
-        runner.destroy(handle)
+        try:
+            result = runner.run(SandboxCommand(command=["echo", "ok"], sandbox=handle))
+        finally:
+            runner.destroy(handle)
         self.assertEqual(result.return_code, 0)

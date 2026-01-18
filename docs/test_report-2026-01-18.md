@@ -24,8 +24,8 @@ PYTHONPATH=/Users/wiz/conductor/workspaces/choirOS/monterrey python -m unittest 
 ```
 
 ## Results
-- 19 tests executed, 1 skipped (live sprites test requires `SPRITES_API_TOKEN`).
+- 19 tests executed, all passed.
 
 ## Notes
 - Sprites adapter payloads were validated against the mock HTTP server in `supervisor/tests/test_sprites_adapter.py`.
-- Live sprites test (`supervisor/tests/test_sprites_live.py`) skipped because `SPRITES_API_TOKEN` was not set in this workspace.
+- Live sprites test (`supervisor/tests/test_sprites_live.py`) passed using `SPRITES_API_TOKEN` from `api/.env`.
