@@ -62,7 +62,11 @@ class VerifierRunner:
         sandbox_handle: Optional[SandboxHandle] = None,
     ) -> None:
         self.store = store or ArtifactStore()
-        self.sandbox_runner = sandbox_runner or LocalSandboxRunner()
+        if sandbox_runner is None:
+            from .sandbox_provider import get_sandbox_runner
+
+            sandbox_runner = get_sandbox_runner()
+        self.sandbox_runner = sandbox_runner
         self.sandbox_handle = sandbox_handle
 
     def set_sandbox(self, handle: Optional[SandboxHandle]) -> None:
@@ -126,4 +130,4 @@ class VerifierRunner:
 
 def default_python_command(args: list[str]) -> list[str]:
     return [sys.executable] + args
-from .sandbox_runner import SandboxRunner, SandboxCommand, LocalSandboxRunner, SandboxHandle
+from .sandbox_runner import SandboxRunner, SandboxCommand, SandboxHandle
