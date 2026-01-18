@@ -4,6 +4,8 @@ import { randomUUID } from 'crypto';
 
 const NATS_URL = process.env.NATS_URL || 'nats://localhost:4222';
 const USER_ID = process.env.VITE_USER_ID || 'local';
+const NATS_USER = process.env.NATS_USER;
+const NATS_PASSWORD = process.env.NATS_PASSWORD;
 
 function buildEvent(path: string) {
     return {
@@ -24,7 +26,12 @@ test('EventStream renders file.write events from NATS', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('.desktop', { state: 'visible' });
 
-    const nc = await connect({ servers: NATS_URL });
+    const options: { servers: string; user?: string; pass?: string } = { servers: NATS_URL };
+    if (NATS_USER && NATS_PASSWORD) {
+        options.user = NATS_USER;
+        options.pass = NATS_PASSWORD;
+    }
+    const nc = await connect(options);
 
     const event = buildEvent('tmp/test.txt');
     const subject = `choiros.${USER_ID}.${event.source}.${event.event_type}`;

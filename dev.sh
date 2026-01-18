@@ -147,6 +147,8 @@ fi
 # Set PYTHONPATH to project root for absolute imports
 export PYTHONPATH="${PWD}"
 export NATS_ENABLED=1
+export NATS_USER=${NATS_USER:-choiros_supervisor}
+export NATS_PASSWORD=${NATS_PASSWORD:-local_supervisor}
 
 echo -e "${GREEN}Starting NATS (docker compose)...${NC}"
 start_nats

@@ -30,6 +30,9 @@ services:
     environment:
       - NODE_ENV=development
       - VITE_API_URL=http://localhost:8000
+      - VITE_SUPERVISOR_URL=http://localhost:8001
+      - NATS_USER=choiros_supervisor
+      - NATS_PASSWORD=local_supervisor
       - NATS_URL=nats://nats:4222
       # AWS Bedrock credentials (from .env file)
       - AWS_BEARER_TOKEN_BEDROCK

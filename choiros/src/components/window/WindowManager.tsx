@@ -5,6 +5,7 @@ import { Writer } from '../apps/Writer';
 import { Files } from '../apps/Files';
 import { MailApp } from '../apps/Mail';
 import { GitPanel } from '../apps/GitPanel';
+import { AuthApp } from '../apps/Auth';
 
 // App component mapping
 const APP_COMPONENTS: Record<string, React.ComponentType<{ artifactId?: string }>> = {
@@ -12,6 +13,7 @@ const APP_COMPONENTS: Record<string, React.ComponentType<{ artifactId?: string }
     files: Files,
     mail: MailApp,
     git: GitPanel,
+    auth: AuthApp,
     // terminal will be added in later phases
 };
 

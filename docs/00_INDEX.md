@@ -1,6 +1,6 @@
 # Docs Index
-Updated: 2026-01-17
-Status: DRAFT
+Updated: 2026-01-18
+Status: ACTIVE
 
 ## Specs
 - docs/specs/CHOIR_EVENT_CONTRACT_SPEC.md (DRAFT)
@@ -29,6 +29,7 @@ Status: DRAFT
 
 ## Reviews
 - docs/reviews/issues-jan-15.md
+- docs/reviews/issues-2026-01-18.md
 - docs/reviews/code_review-jan-15.md
 - docs/reviews/work_log-jan-15.md
 - docs/reviews/docs_reconciliation.md
@@ -56,3 +57,4 @@ Status: DRAFT
 
 ## Ops
 - docs/ops/ARCH_RESEARCH_ROADMAP.md
+- docs/ops/NATS_PHASE0_HARDENING.md

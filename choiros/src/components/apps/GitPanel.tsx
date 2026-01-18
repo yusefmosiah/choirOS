@@ -1,6 +1,7 @@
 // GitPanel App - Version Control UI
 import { useEffect, useState, useCallback } from 'react';
 import { GitBranch, GitCommit, RotateCcw, Save, RefreshCw, AlertCircle, Check, Clock } from 'lucide-react';
+import { authFetch } from '../../lib/auth';
 import './GitPanel.css';
 
 interface GitStatus {
@@ -26,7 +27,7 @@ interface GitState {
     error: string | null;
 }
 
-const API_BASE = 'http://localhost:8001';
+const API_BASE = import.meta.env.VITE_SUPERVISOR_URL || 'http://localhost:8001';
 
 export function GitPanel() {
     const [state, setState] = useState<GitState>({
@@ -45,8 +46,8 @@ export function GitPanel() {
 
         try {
             const [statusRes, logRes] = await Promise.all([
-                fetch(`${API_BASE}/git/status`),
-                fetch(`${API_BASE}/git/log?count=10`),
+                authFetch(`${API_BASE}/git/status`),
+                authFetch(`${API_BASE}/git/log?count=10`),
             ]);
 
             if (!statusRes.ok || !logRes.ok) {
@@ -79,7 +80,7 @@ export function GitPanel() {
     const handleCheckpoint = async () => {
         setIsCheckpointing(true);
         try {
-            const res = await fetch(`${API_BASE}/git/checkpoint`, {
+            const res = await authFetch(`${API_BASE}/git/checkpoint`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: checkpointMessage || null }),
@@ -110,7 +111,7 @@ export function GitPanel() {
 
         setIsReverting(sha);
         try {
-            const res = await fetch(`${API_BASE}/git/revert`, {
+            const res = await authFetch(`${API_BASE}/git/revert`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sha }),

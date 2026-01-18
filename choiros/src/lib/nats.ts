@@ -6,11 +6,13 @@
  */
 
 import { connect, StringCodec } from 'nats.ws';
-import type { NatsConnection, JetStreamClient } from 'nats.ws';
+import type { NatsConnection } from 'nats.ws';
 import { buildSubject, normalizeEventType, CHOIR_SUBJECT_ROOT } from './event_contract';
+import { fetchNatsCredentials, getSessionUserId } from './auth';
 
 // Configuration
 const NATS_WS_URL = import.meta.env.VITE_NATS_WS_URL || 'ws://localhost:8080';
+const NATS_AUTH_TOKEN = import.meta.env.VITE_NATS_AUTH_TOKEN;
 const USER_ID = import.meta.env.VITE_USER_ID || 'local';
 
 const sc = StringCodec();
@@ -19,8 +21,7 @@ export type NatsConnectionStatus = 'online' | 'offline';
 
 // Singleton connection
 let nc: NatsConnection | null = null;
-let _js: JetStreamClient | null = null;  // Prefixed with _ to indicate intentionally unused for now
-
+let subjectPrefix: string | null = null;
 type StatusListener = (status: NatsConnectionStatus) => void;
 const statusListeners = new Set<StatusListener>();
 
@@ -52,12 +53,28 @@ export async function connectNats(): Promise<NatsConnection> {
     }
 
     try {
-        nc = await connect({
-            servers: NATS_WS_URL,
-            // Add auth token here when implementing multi-user
-        });
+        const options = { servers: NATS_WS_URL } as {
+            servers: string;
+            token?: string;
+            user?: string;
+            pass?: string;
+        };
+        if (NATS_AUTH_TOKEN) {
+            options.token = NATS_AUTH_TOKEN;
+            subjectPrefix = `${CHOIR_SUBJECT_ROOT}.${USER_ID}.>`;
+        } else {
+            const creds = await fetchNatsCredentials();
+            if (!creds) {
+                throw new Error('Missing NATS credentials');
+            }
+            options.servers = creds.servers || NATS_WS_URL;
+            options.user = creds.user;
+            options.pass = creds.password;
+            subjectPrefix = creds.subject_prefix || `${CHOIR_SUBJECT_ROOT}.${creds.user_id}.>`;
+        }
 
-        _js = nc.jetstream();
+        nc = await connect(options);
+
         console.log('✓ NATS WebSocket connected');
         notifyStatus('online');
 
@@ -65,8 +82,8 @@ export async function connectNats(): Promise<NatsConnection> {
         nc.closed().then(() => {
             console.log('NATS connection closed');
             nc = null;
-            _js = null;
             notifyStatus('offline');
+            subjectPrefix = null;
         });
 
         return nc;
@@ -84,8 +101,8 @@ export async function disconnectNats(): Promise<void> {
     if (nc) {
         await nc.drain();
         nc = null;
-        _js = null;
         notifyStatus('offline');
+        subjectPrefix = null;
     }
 }
 
@@ -103,10 +120,11 @@ export async function publishEvent(
     }
 
     const normalizedType = normalizeEventType(eventType);
+    const sessionUserId = getSessionUserId();
     const event: ChoirEvent = {
         id: crypto.randomUUID(),
         timestamp: Date.now(),
-        user_id: USER_ID,
+        user_id: sessionUserId || USER_ID,
         source,
         event_type: normalizedType,
         payload,
@@ -151,7 +169,12 @@ export async function subscribeEvents(
 export async function subscribeUserEvents(
     callback: (event: ChoirEvent) => void
 ): Promise<() => void> {
-    return subscribeEvents(`${CHOIR_SUBJECT_ROOT}.${USER_ID}.>`, callback);
+    if (subjectPrefix) {
+        return subscribeEvents(subjectPrefix, callback);
+    }
+    const sessionUserId = getSessionUserId();
+    const userId = sessionUserId || USER_ID;
+    return subscribeEvents(`${CHOIR_SUBJECT_ROOT}.${userId}.>`, callback);
 }
 
 /**
@@ -170,4 +193,4 @@ function eventToSubject(event: ChoirEvent): string {
 }
 
 // Re-export types
-export type { NatsConnection, JetStreamClient };
+export type { NatsConnection };

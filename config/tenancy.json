@@ -1,0 +1,23 @@
+{
+  "default_user_id": "local",
+  "nats": {
+    "ws_url": "ws://localhost:8080"
+  },
+  "tenants": {
+    "local": {
+      "subject_prefix": "choiros.local.>",
+      "nats": {
+        "web": {
+          "user": "choiros_local_web",
+          "password": "local_web"
+        }
+      }
+    }
+  },
+  "supervisor": {
+    "nats": {
+      "user": "choiros_supervisor",
+      "password": "local_supervisor"
+    }
+  }
+}

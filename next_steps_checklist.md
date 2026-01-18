@@ -1,4 +1,5 @@
 # ChoirOS Next Steps Checklist
+Updated: 2026-01-18
 
 ## 🎯 CONTRACT ALIGNMENT (Docs ↔ Code) - High Priority
 
@@ -6,7 +7,7 @@
 - [ ] **Decide and document canonical NATS subject format** - Resolve `choiros.{user_id}.{source}.{type}` (docs) vs `choiros.{source}.{user_id}.{type}` (code)
 - [ ] **Standardize event type naming** - Align dot-delimited (`file.write`) vs underscore (`file_write`) vs uppercase (`FILE_WRITE`) across NATS, SQLite, and UI
 - [ ] **Align stream naming** - Docs reference single `CHOIR` stream, code uses `USER_EVENTS`/`AGENT_EVENTS`/`SYSTEM_EVENTS`
-- [ ] **Document NATS WebSocket requirement** - Expose WS port in docker-compose and provide setup instructions
+- [x] **Document NATS WebSocket requirement** - Expose WS port in docker-compose and provide setup instructions
 
 ### Operational Contracts
 - [ ] **Clarify per-user filesystem layout** - Docs show `/users/{user_id}/.choir` but code uses single repo root
@@ -17,22 +18,26 @@
 
 ### Immediate Actions (Do Not Deploy Without These)
 - [ ] **Disable dangerous git operations** - Remove or severely restrict `git reset --hard` functionality
-- [ ] **Add authentication system** - Implement basic user auth before any public access
+- [x] **Add authentication system** - Implement basic user auth before any public access (stubbed passkeys + sessions)
 - [ ] **Fix CORS configuration** - Replace `allow_origins=["*"]` with proper origin restrictions
 - [ ] **Implement input validation** - Sanitize all user inputs and API parameters
 - [ ] **Add file operation safeguards** - Prevent agent from modifying critical system files
 - [ ] **Fix hardcoded configuration** - Move URLs and user IDs to environment variables
 
-## 🔧 CORE ARCHITECTURE FIXES
+### Phase 0 NATS Hardening (Shared Cluster)
+- [x] **Per-user subject permissions** - Restrict web clients to `choiros.{user_id}.>`
+- [x] **Read-only browser credentials** - Web clients subscribe only, no JetStream API access
+- [x] **Auth-gated NATS credentials** - Issue NATS credentials via `/api/auth/nats/credentials`
+- [ ] **Short-lived credentials** - Rotate NATS creds per session (Phase 1)
 
 ## 🔧 CORE ARCHITECTURE FIXES
 
 ### Phase 1: Closing the Loop (Highest Priority)
-- [ ] **Wire NATS to Frontend**
-    - [ ] Initialize `connectNats()` in `choiros/src/App.tsx` (or a high-level provider)
-    - [ ] Subscribe to `choiros.user.local.>` in `choiros/src/stores/events.ts`
-    - [ ] Update `EventStream` to display real events from NATS instead of just local notifications
-- [ ] **Fix NATS integration** - Remove `NATS_ENABLED=0` from dev.sh and make event sourcing work
+- [x] **Wire NATS to Frontend**
+    - [x] Initialize `connectNats()` in `choiros/src/App.tsx` (or a high-level provider)
+    - [x] Subscribe to `choiros.user.local.>` in `choiros/src/stores/events.ts`
+    - [x] Update `EventStream` to display real events from NATS instead of just local notifications
+- [x] **Fix NATS integration** - Remove `NATS_ENABLED=0` from dev.sh and make event sourcing work
 - [ ] **Unify State**
     - [ ] Make `api` service use `state.sqlite` (or a shared DB service) instead of in-memory dictionaries for artifacts
     - [ ] Ensure `api` and `supervisor` share the same volume/storage path for persistence
@@ -76,7 +81,7 @@
     - [ ] Connect `Mail.tsx` to fetch real emails (or at least persisted fake ones)
 - [ ] **Implement/Remove Terminal**
     - [ ] Either implement the `Terminal` app or remove it from docs
-- [ ] **Wire EventStream UI to NATS** - Or rename component to indicate it's local-only notifications
+- [x] **Wire EventStream UI to NATS** - Or rename component to indicate it's local-only notifications
 
 ### Agent System
 - [ ] **Implement tool sandboxing** - Restrict agent to safe operations only

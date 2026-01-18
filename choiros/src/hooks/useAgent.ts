@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { buildAgentWsUrl } from '../lib/auth';
 
 export interface AgentMessage {
     type: 'thinking' | 'tool_use' | 'tool_result' | 'text' | 'error' | 'done';
@@ -91,7 +92,7 @@ export function useAgent(options: UseAgentOptions = {}): UseAgentReturn {
 
 
             try {
-                const ws = new WebSocket(url);
+                const ws = new WebSocket(buildAgentWsUrl(url));
 
                 ws.onopen = () => {
                     if (isMounted) {
