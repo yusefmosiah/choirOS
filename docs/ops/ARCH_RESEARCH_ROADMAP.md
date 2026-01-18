@@ -1,6 +1,6 @@
 # Architecture Research Roadmap (v0)
-Status: DRAFT
-Date: 2026-01-17
+Status: ACTIVE
+Date: 2026-01-18
 Owner: ChoirOS Core
 
 ## Purpose
@@ -47,7 +47,12 @@ Provide a concrete agenda for the upcoming deep research + review session so the
 - A backlog of implementation tasks aligned to the SD-* bootstrap sequence
 
 ## Immediate follow-up tasks (post research)
-- Add auth gateway stub + token verification middleware.
-- Add NATS auth configuration with per-user subject prefix.
-- Add sandbox runner interface (even if local-only at first).
-- Standardize dev entrypoint for consistent setup.
+- Add auth gateway stub + token verification middleware. (DONE 2026-01-18)
+- Add NATS auth configuration with per-user subject prefix. (DONE 2026-01-18)
+- Add sandbox runner interface (even if local-only at first). (DONE 2026-01-18)
+- Standardize dev entrypoint for consistent setup. (IN PROGRESS)
+
+## Phase 0 decisions (2026-01-18)
+- Shared NATS cluster with per-user subject permissions.
+- Browser clients are subscribe-only; JetStream APIs reserved for supervisor.
+- Auth gateway issues per-session NATS credentials (static for now).

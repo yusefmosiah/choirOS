@@ -21,9 +21,20 @@ from .event_contract import (
     build_subject,
     normalize_event_type,
 )
+from shared.tenancy import get_supervisor_nats_credentials
 
 # Configuration
 NATS_URL = os.environ.get("NATS_URL", "nats://localhost:4222")
+NATS_USER = os.environ.get("NATS_USER")
+NATS_PASSWORD = os.environ.get("NATS_PASSWORD")
+NATS_CREDS = os.environ.get("NATS_CREDS")
+NATS_TOKEN = os.environ.get("NATS_TOKEN")
+
+if not NATS_USER or not NATS_PASSWORD:
+    supervisor_creds = get_supervisor_nats_credentials()
+    if supervisor_creds:
+        NATS_USER = supervisor_creds.user
+        NATS_PASSWORD = supervisor_creds.password
 
 
 @dataclass
@@ -70,7 +81,16 @@ class NATSClient:
         if self._connected:
             return
 
-        self.nc = await nats.connect(self.url)
+        options: dict[str, Any] = {}
+        if NATS_CREDS:
+            options["user_credentials"] = NATS_CREDS
+        if NATS_TOKEN:
+            options["token"] = NATS_TOKEN
+        if NATS_USER:
+            options["user"] = NATS_USER
+        if NATS_PASSWORD:
+            options["password"] = NATS_PASSWORD
+        self.nc = await nats.connect(self.url, **options)
         self.js = self.nc.jetstream()
         self._connected = True
 

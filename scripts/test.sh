@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+export NATS_USER=${NATS_USER:-choiros_supervisor}
+export NATS_PASSWORD=${NATS_PASSWORD:-local_supervisor}
+
 SKIP_NATS=0
 KEEP_NATS=${KEEP_NATS:-0}
 DOCKER_COMPOSE=""

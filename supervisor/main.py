@@ -28,6 +28,8 @@ from .file_history import FileHistory
 from .agent.harness import AgentHarness
 from .nats_client import get_nats_client, close_nats_client
 from .db import get_store
+from shared.auth import extract_session_token, get_auth_store
+from shared.auth_middleware import AuthMiddleware
 from .run_orchestrator import RunOrchestrator
 
 
@@ -50,6 +52,7 @@ STANDALONE = os.environ.get("SUPERVISOR_STANDALONE", "0") == "1"
 
 # NATS enabled flag
 NATS_ENABLED = os.environ.get("NATS_ENABLED", "1") == "1"
+AUTH_REQUIRED = os.environ.get("CHOIR_AUTH_REQUIRED", "0") == "1"
 
 # WebSocket limits (defensive defaults)
 MAX_PROMPT_CHARS = int(os.environ.get("WS_MAX_PROMPT_CHARS", "20000"))
@@ -161,6 +164,9 @@ app = FastAPI(
     version="0.2.0",
     lifespan=lifespan,
 )
+
+# Attach auth context when a session token is present.
+app.add_middleware(AuthMiddleware)
 
 # CORS for browser connections
 cors_origins, cors_allow_credentials = _get_cors_settings()
@@ -382,8 +388,18 @@ async def git_revert(sha: str, dry_run: bool = True):
 @app.websocket("/agent")
 async def agent_websocket(websocket: WebSocket):
     """WebSocket endpoint for agent communication."""
+    session = None
+    token = extract_session_token(websocket.headers)
+    if not token:
+        token = websocket.query_params.get("session")
+    if token:
+        session = get_auth_store().verify_session(token)
+    if AUTH_REQUIRED and session is None:
+        await websocket.close(code=4401)
+        return
+
     await websocket.accept()
-    store = get_store()
+    store = get_store(session.user_id if session else None)
     agent_harness = AgentHarness(file_history=file_history, event_store=store)
     orchestrator = RunOrchestrator(store=store)
     recent_prompts = deque()

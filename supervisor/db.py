@@ -27,12 +27,13 @@ except ImportError:
     close_nats_client = None
 
 from .event_contract import CHOIR_STREAM, normalize_event_type
+from shared.tenancy import get_default_user_id, subject_prefix_for
 
 # Default path - can be overridden per-user
 DEFAULT_DB_PATH = Path(__file__).parent.parent / "state.sqlite"
 
 # User ID for single-user mode (will be dynamic in multi-user)
-DEFAULT_USER_ID = os.environ.get("CHOIROS_USER_ID", "local")
+DEFAULT_USER_ID = os.environ.get("CHOIROS_USER_ID", get_default_user_id())
 
 # Feature flag: disable NATS for local dev if not running
 NATS_ENABLED = NATS_AVAILABLE and os.environ.get("NATS_ENABLED", "1") == "1"
@@ -366,7 +367,7 @@ class EventStore:
         # Fetch all events from NATS
         events = await nats.get_events(
             stream=CHOIR_STREAM,
-            subject_filter=f"choiros.{self.user_id}.>",
+            subject_filter=subject_prefix_for(self.user_id),
             start_seq=1,
             limit=target_seq or 100000,
         )
@@ -1034,11 +1035,16 @@ class EventStore:
 
 # Singleton instance
 _store: Optional[EventStore] = None
+_stores_by_user: dict[str, EventStore] = {}
 
 
-def get_store() -> EventStore:
-    """Get the global event store instance."""
-    global _store
-    if _store is None:
-        _store = EventStore()
-    return _store
+def get_store(user_id: Optional[str] = None) -> EventStore:
+    """Get the event store instance (optionally scoped to a user)."""
+    global _store, _stores_by_user
+    if user_id is None:
+        if _store is None:
+            _store = EventStore()
+        return _store
+    if user_id not in _stores_by_user:
+        _stores_by_user[user_id] = EventStore(user_id=user_id)
+    return _stores_by_user[user_id]

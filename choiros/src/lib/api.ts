@@ -2,7 +2,9 @@
  * API client for ChoirOS backend
  */
 
-const API_BASE = 'http://localhost:8000/api';
+import { authFetch } from './auth';
+
+const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api`;
 
 export interface ParseUrlResponse {
     artifact_id: string;
@@ -59,7 +61,7 @@ export type ParseMode = 'create' | 'overwrite' | 'keep_both';
  * Check if a URL has already been parsed
  */
 export async function checkUrl(url: string): Promise<CheckUrlResponse> {
-    const response = await fetch(`${API_BASE}/parse/check-url`, {
+    const response = await authFetch(`${API_BASE}/parse/check-url`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -78,7 +80,7 @@ export async function checkUrl(url: string): Promise<CheckUrlResponse> {
  * Parse a URL (YouTube or web page) and create an artifact
  */
 export async function parseUrl(url: string, mode: ParseMode = 'create'): Promise<ParseUrlResponse> {
-    const response = await fetch(`${API_BASE}/parse/url`, {
+    const response = await authFetch(`${API_BASE}/parse/url`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -107,7 +109,7 @@ export async function parseUpload(file: File): Promise<ParseUrlResponse> {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${API_BASE}/parse/upload`, {
+    const response = await authFetch(`${API_BASE}/parse/upload`, {
         method: 'POST',
         body: formData,
     });
@@ -124,7 +126,7 @@ export async function parseUpload(file: File): Promise<ParseUrlResponse> {
  * Get all artifacts
  */
 export async function listArtifacts(): Promise<ArtifactListResponse> {
-    const response = await fetch(`${API_BASE}/artifacts`);
+    const response = await authFetch(`${API_BASE}/artifacts`);
 
     if (!response.ok) {
         throw new Error('Failed to fetch artifacts');
@@ -137,7 +139,7 @@ export async function listArtifacts(): Promise<ArtifactListResponse> {
  * Get a single artifact by ID (with full content)
  */
 export async function getArtifact(id: string): Promise<Artifact> {
-    const response = await fetch(`${API_BASE}/artifacts/${id}`);
+    const response = await authFetch(`${API_BASE}/artifacts/${id}`);
 
     if (!response.ok) {
         throw new Error('Failed to fetch artifact');
@@ -163,7 +165,7 @@ export interface CreateArtifactResponse {
  * Create a new artifact (used for saving agent responses)
  */
 export async function createArtifact(request: CreateArtifactRequest): Promise<CreateArtifactResponse> {
-    const response = await fetch(`${API_BASE}/artifacts`, {
+    const response = await authFetch(`${API_BASE}/artifacts`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -182,7 +184,7 @@ export async function createArtifact(request: CreateArtifactRequest): Promise<Cr
  * Delete an artifact
  */
 export async function deleteArtifact(id: string): Promise<void> {
-    const response = await fetch(`${API_BASE}/artifacts/${id}`, {
+    const response = await authFetch(`${API_BASE}/artifacts/${id}`, {
         method: 'DELETE',
     });
 

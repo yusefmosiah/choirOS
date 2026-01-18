@@ -1,5 +1,18 @@
 # Changelog
 
+## [2026-01-18] - Dev Ergonomics Track (Phase 0 Hardening)
+
+### Added
+- Auth gateway stub + session issuance (passkey-shaped endpoints).
+- Frontend Auth app for passkeys + session management.
+- NATS Phase 0 hardening: per-user subject permissions and read-only web credentials.
+- Sandbox runner interface wired into verifier runner.
+- NATS Phase 0 hardening doc (`docs/ops/NATS_PHASE0_HARDENING.md`).
+
+### Changed
+- Frontend API calls now send session headers when available.
+- Supervisor uses authenticated NATS credentials in dev/test scripts.
+
 ## [2025-12-17] - choirOS Desktop v0 (Phase 2: Sources Workflow)
 
 ### Added

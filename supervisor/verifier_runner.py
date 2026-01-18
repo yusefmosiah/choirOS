@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -57,31 +55,26 @@ class ArtifactStore:
 
 
 class VerifierRunner:
-    def __init__(self, store: Optional[ArtifactStore] = None) -> None:
+    def __init__(
+        self,
+        store: Optional[ArtifactStore] = None,
+        sandbox_runner: Optional[SandboxRunner] = None,
+    ) -> None:
         self.store = store or ArtifactStore()
+        self.sandbox_runner = sandbox_runner or LocalSandboxRunner()
 
     def run(self, spec: VerifierSpec) -> VerifierResult:
         start = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        env = os.environ.copy()
-        if spec.env:
-            env.update(spec.env)
-
-        try:
-            completed = subprocess.run(
-                spec.command,
-                cwd=str(spec.cwd) if spec.cwd else None,
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=spec.timeout_seconds,
-            )
-            return_code = completed.returncode
-            stdout = completed.stdout or ""
-            stderr = completed.stderr or ""
-        except subprocess.TimeoutExpired as exc:
-            return_code = 124
-            stdout = exc.stdout or ""
-            stderr = (exc.stderr or "") + "\nTIMEOUT"
+        command = SandboxCommand(
+            command=spec.command,
+            timeout_seconds=spec.timeout_seconds,
+            cwd=spec.cwd,
+            env=spec.env,
+        )
+        result = self.sandbox_runner.run(command)
+        return_code = result.return_code
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
 
         end = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         raw_output = (
@@ -124,3 +117,4 @@ class VerifierRunner:
 
 def default_python_command(args: list[str]) -> list[str]:
     return [sys.executable] + args
+from .sandbox_runner import SandboxRunner, SandboxCommand, LocalSandboxRunner

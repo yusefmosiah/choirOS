@@ -1,6 +1,6 @@
 # ChoirOS Planning (v0)
 Status: ACTIVE
-Updated: 2026-01-17
+Updated: 2026-01-18
 
 ## Canonical references
 - docs/SELF_DEV_BOOTSTRAP.md (bootstrap issues + status)
@@ -18,6 +18,9 @@ Updated: 2026-01-17
 
 ## Next step (make it obvious)
 Stabilize developer/build ergonomics and environment consistency:
+- Phase 0 NATS hardening: per-user subject permissions + read-only web creds (DONE 2026-01-18).
+- Auth gateway stub + session issuance + passkey UI (DONE 2026-01-18).
+- Sandbox runner interface (local) wired into verifier runner (DONE 2026-01-18).
 - Decide package manager (npm vs yarn vs bun) and enforce lockfile policy.
 - Add a single `dev` entrypoint that bootstraps Python + Node + NATS.
 - Capture sandbox/deploy scaffolding docs (ops checklist + CI smoke).

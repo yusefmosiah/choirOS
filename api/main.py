@@ -3,13 +3,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routers import parse, artifacts
+from api.routers import parse, artifacts, auth
+from shared.auth_middleware import AuthMiddleware
 
 app = FastAPI(
     title="ChoirOS API",
     description="Backend for ChoirOS web desktop",
     version="0.1.0",
 )
+
+# Attach auth context when a session token is present.
+app.add_middleware(AuthMiddleware)
 
 # CORS for local development
 app.add_middleware(
@@ -28,6 +32,7 @@ app.add_middleware(
 # Mount routers
 app.include_router(parse.router, prefix="/api/parse", tags=["parse"])
 app.include_router(artifacts.router, prefix="/api/artifacts", tags=["artifacts"])
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 
 
 @app.get("/health")

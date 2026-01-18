@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Desktop } from './components/desktop/Desktop';
 import { connectNats, disconnectNats, onNatsStatusChange, subscribeUserEvents, type ChoirEvent } from './lib/nats';
+import { onSessionChange } from './lib/auth';
 import { useEventStore } from './stores/events';
 
 function App() {
@@ -22,11 +23,20 @@ function App() {
             addEvent(event.event_type, 'info');
         };
 
-        const start = async () => {
+        const start = async (forceReconnect = false) => {
             try {
+                if (forceReconnect) {
+                    if (unsubscribe) {
+                        unsubscribe();
+                        unsubscribe = undefined;
+                    }
+                    await disconnectNats();
+                }
                 await connectNats();
                 if (cancelled) return;
-                unsubscribe = await subscribeUserEvents(handleEvent);
+                if (!unsubscribe) {
+                    unsubscribe = await subscribeUserEvents(handleEvent);
+                }
             } catch (error) {
                 setNatsStatus('offline');
                 addEvent('NATS offline', 'error');
@@ -34,12 +44,18 @@ function App() {
         };
 
         start();
+        const stopSession = onSessionChange(() => {
+            if (!cancelled) {
+                start(true);
+            }
+        });
 
         return () => {
             cancelled = true;
             if (unsubscribe) unsubscribe();
             disconnectNats();
             stopStatus();
+            stopSession();
         };
     }, [addEvent, setNatsStatus]);
 

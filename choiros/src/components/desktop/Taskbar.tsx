@@ -5,7 +5,7 @@ import { useSourcesStore } from '../../stores/sources';
 import { APP_REGISTRY } from '../../lib/apps';
 import { isUrl, createArtifact, type ParseMode } from '../../lib/api';
 import { useAgent, type AgentMessage } from '../../hooks/useAgent';
-import { Upload, Link, Loader2, AlertCircle, Wifi, WifiOff } from 'lucide-react';
+import { Upload, Link, Loader2, AlertCircle, Wifi, WifiOff, KeyRound } from 'lucide-react';
 import { useEventStore } from '../../stores/events';
 import './Taskbar.css';
 
@@ -193,6 +193,16 @@ export function Taskbar() {
                         >
                             <Upload size={16} />
                             Upload Files
+                        </button>
+                        <button
+                            className="taskbar-menu-item"
+                            onClick={() => {
+                                openWindow('auth');
+                                setShowMenu(false);
+                            }}
+                        >
+                            <KeyRound size={16} />
+                            Passkeys & Sessions
                         </button>
                         <div className="taskbar-menu-divider" />
                         <div className="taskbar-menu-hint">
