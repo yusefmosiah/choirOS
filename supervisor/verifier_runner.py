@@ -59,17 +59,34 @@ class VerifierRunner:
         self,
         store: Optional[ArtifactStore] = None,
         sandbox_runner: Optional[SandboxRunner] = None,
+        sandbox_handle: Optional[SandboxHandle] = None,
     ) -> None:
         self.store = store or ArtifactStore()
-        self.sandbox_runner = sandbox_runner or LocalSandboxRunner()
+        if sandbox_runner is None:
+            from .sandbox_provider import get_sandbox_runner
+
+            sandbox_runner = get_sandbox_runner()
+        self.sandbox_runner = sandbox_runner
+        self.sandbox_handle = sandbox_handle
+
+    def set_sandbox(self, handle: Optional[SandboxHandle]) -> None:
+        self.sandbox_handle = handle
 
     def run(self, spec: VerifierSpec) -> VerifierResult:
         start = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        cwd = spec.cwd
+        if self.sandbox_handle and self.sandbox_handle.config.workspace_root:
+            workspace_root = Path(self.sandbox_handle.config.workspace_root)
+            if cwd is None:
+                cwd = workspace_root
+            elif not cwd.is_absolute():
+                cwd = workspace_root / cwd
         command = SandboxCommand(
             command=spec.command,
             timeout_seconds=spec.timeout_seconds,
-            cwd=spec.cwd,
+            cwd=cwd,
             env=spec.env,
+            sandbox=self.sandbox_handle,
         )
         result = self.sandbox_runner.run(command)
         return_code = result.return_code
@@ -117,4 +134,4 @@ class VerifierRunner:
 
 def default_python_command(args: list[str]) -> list[str]:
     return [sys.executable] + args
-from .sandbox_runner import SandboxRunner, SandboxCommand, LocalSandboxRunner
+from .sandbox_runner import SandboxRunner, SandboxCommand, SandboxHandle

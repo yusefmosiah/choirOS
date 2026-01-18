@@ -3,6 +3,8 @@ Updated: 2026-01-18
 Status: ACTIVE
 
 ## Specs
+- docs/specs/CHOIR_STORAGE_ROLLBACK_SPEC.md (DRAFT)
+- docs/specs/CHOIR_AUTH_RECOVERY_SPEC.md (DRAFT)
 - docs/specs/CHOIR_EVENT_CONTRACT_SPEC.md (DRAFT)
 - docs/specs/CHOIR_CAPABILITIES_SPEC.md
 - docs/specs/CHOIR_FULL_SYSTEM_DESIGN.md
@@ -35,10 +37,12 @@ Status: ACTIVE
 - docs/reviews/docs_reconciliation.md
 
 ## Handoffs and Reports
+- docs/handoff-2026-01-18.md
 - docs/handoff-2026-01-17.md
 - docs/handoff-2026-01-17b.md
 - docs/test_report-2026-01-17.md
 - docs/test_report-2026-01-17c.md
+- docs/test_report-2026-01-18.md
 - docs/CHANGELOG.md
 
 ## Project Notes

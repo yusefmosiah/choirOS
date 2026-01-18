@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from .db import get_store
+from .db import EventStore, get_store
 
 
 # Root of the git repo
@@ -201,13 +201,13 @@ def git_revert(sha: str, dry_run: bool = True) -> dict:
     }
 
 
-def checkpoint(message: Optional[str] = None) -> dict:
+def checkpoint(message: Optional[str] = None, store: Optional[EventStore] = None) -> dict:
     """
     Create a git checkpoint (add all + commit).
     
     Returns dict with commit info or error.
     """
-    store = get_store()
+    store = store or get_store()
     
     # Generate message if not provided
     if message is None:
@@ -265,6 +265,31 @@ def checkpoint(message: Optional[str] = None) -> dict:
         "message": message,
         "commit_sha": commit_sha,
         "changes": filtered_status,
+    }
+
+
+def diff_between(base: str, head: str = "HEAD", stat: bool = False) -> dict:
+    """Get a diff between two refs."""
+    if not base:
+        return {"success": False, "error": "Base ref is required"}
+
+    args = ["diff"]
+    if stat:
+        args.append("--stat")
+    args.append(f"{base}..{head}")
+
+    result = git_run(*args)
+    if result.returncode != 0:
+        return {
+            "success": False,
+            "error": result.stderr or "git diff failed",
+        }
+
+    return {
+        "success": True,
+        "base": base,
+        "head": head,
+        "diff": result.stdout,
     }
 
 

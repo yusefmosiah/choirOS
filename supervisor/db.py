@@ -1023,6 +1023,46 @@ class EventStore:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    # =========== Sync State ===========
+
+    def get_sync_state(self, key: str) -> Optional[str]:
+        """Get a sync_state value by key."""
+        cursor = self.conn.execute(
+            "SELECT value FROM sync_state WHERE key = ?",
+            (key,),
+        )
+        row = cursor.fetchone()
+        return row["value"] if row else None
+
+    def set_sync_state(self, key: str, value: str) -> None:
+        """Set a sync_state value by key (upsert)."""
+        self.conn.execute(
+            """INSERT INTO sync_state (key, value)
+               VALUES (?, ?)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+            (key, value),
+        )
+        self.conn.commit()
+
+    def delete_sync_state(self, key: str) -> None:
+        """Delete a sync_state key."""
+        self.conn.execute(
+            "DELETE FROM sync_state WHERE key = ?",
+            (key,),
+        )
+        self.conn.commit()
+
+    # =========== Rollback State ===========
+
+    def get_last_good_checkpoint(self) -> Optional[str]:
+        """Get the last known-good checkpoint commit SHA."""
+        return self.get_sync_state("last_good_checkpoint")
+
+    def set_last_good_checkpoint(self, commit_sha: str) -> None:
+        """Set the last known-good checkpoint commit SHA."""
+        if commit_sha:
+            self.set_sync_state("last_good_checkpoint", commit_sha)
+
     async def close_async(self):
         """Close database and NATS connections."""
         self.conn.close()
