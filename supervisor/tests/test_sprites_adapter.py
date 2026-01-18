@@ -39,7 +39,13 @@ class _SpritesHandler(BaseHTTPRequestHandler):
             self._send_json({"ok": True})
             return
         if self.path == "/sandboxes/sbx-1/exec":
-            self._send_json({"return_code": 0, "stdout": "ok", "stderr": ""})
+            if payload.get("detach") or payload.get("mode") == "background":
+                self._send_json({"process_id": "proc-1"})
+            else:
+                self._send_json({"return_code": 0, "stdout": "ok", "stderr": ""})
+            return
+        if self.path == "/sandboxes/sbx-1/processes/proc-1/stop":
+            self._send_json({"ok": True})
             return
         self._send_json({"error": "not found"}, status=404)
 
@@ -67,6 +73,7 @@ class TestSpritesAdapter(unittest.TestCase):
     def tearDownClass(cls) -> None:
         cls.server.shutdown()
         cls.thread.join()
+        cls.server.server_close()
 
     def setUp(self) -> None:
         _SpritesHandler.received.clear()
@@ -84,6 +91,9 @@ class TestSpritesAdapter(unittest.TestCase):
         runner.restore(handle, checkpoint.checkpoint_id)
         result = runner.run(SandboxCommand(command=["echo", "ok"], sandbox=handle))
         self.assertEqual(result.return_code, 0)
+        process = runner.start_process(SandboxCommand(command=["sleep", "10"], sandbox=handle))
+        self.assertEqual(process.process_id, "proc-1")
+        runner.stop_process(handle, process.process_id)
         runner.destroy(handle)
 
         paths = [item[0] for item in _SpritesHandler.received]

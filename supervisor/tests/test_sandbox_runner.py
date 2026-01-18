@@ -56,3 +56,13 @@ class TestSandboxRunner(unittest.TestCase):
             Path(result.stdout.strip()).resolve(),
             Path(self.workspace.name).resolve(),
         )
+
+    def test_start_and_stop_process(self) -> None:
+        handle = self.runner.create(self.config)
+        command = SandboxCommand(
+            command=[sys.executable, "-c", "import time; time.sleep(0.1)"],
+            sandbox=handle,
+        )
+        process = self.runner.start_process(command)
+        self.assertTrue(process.process_id)
+        self.runner.stop_process(handle, process.process_id)

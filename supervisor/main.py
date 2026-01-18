@@ -10,11 +10,14 @@ Manages:
 """
 
 import asyncio
+import json
 import os
 import signal
 import time
+import uuid
 from collections import deque
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 from pathlib import Path
 from typing import Optional
 
@@ -31,6 +34,15 @@ from .db import get_store
 from shared.auth import extract_session_token, get_auth_store
 from shared.auth_middleware import AuthMiddleware
 from .run_orchestrator import RunOrchestrator
+from .sandbox_config import build_sandbox_config
+from .sandbox_provider import get_sandbox_runner
+from .sandbox_runner import (
+    SandboxCommand,
+    SandboxHandle,
+    SandboxResources,
+    SandboxConfig,
+    SandboxNetworkPolicy,
+)
 
 
 def _get_project_root() -> Path:
@@ -62,6 +74,14 @@ WS_MAX_PROMPTS_PER_WINDOW = int(os.environ.get("WS_MAX_PROMPTS_PER_WINDOW", "5")
 # Global instances
 vite_manager = ViteManager()
 file_history = FileHistory()
+
+
+def _schedule_vite_restart(_: str) -> None:
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(vite_manager.restart())
+    except RuntimeError:
+        asyncio.run(vite_manager.restart())
 
 
 class WorkItemPayload(BaseModel):
@@ -101,6 +121,45 @@ class RunCommitRequestPayload(BaseModel):
     payload: dict
 
 
+class SandboxResourcesPayload(BaseModel):
+    cpu_cores: Optional[float] = None
+    memory_mb: Optional[int] = None
+    disk_mb: Optional[int] = None
+
+
+class SandboxCreatePayload(BaseModel):
+    workspace_id: Optional[str] = None
+    workspace_root: Optional[str] = None
+    env: Optional[dict[str, str]] = None
+    allow_internet: Optional[bool] = None
+    resources: Optional[SandboxResourcesPayload] = None
+    recreate: Optional[bool] = False
+
+
+class SandboxExecPayload(BaseModel):
+    command: list[str]
+    cwd: Optional[str] = None
+    env: Optional[dict[str, str]] = None
+    timeout_seconds: Optional[int] = 300
+    sandbox_id: Optional[str] = None
+    background: Optional[bool] = False
+
+
+class SandboxCheckpointPayload(BaseModel):
+    label: Optional[str] = None
+    sandbox_id: Optional[str] = None
+
+
+class SandboxRestorePayload(BaseModel):
+    checkpoint_id: str
+    sandbox_id: Optional[str] = None
+
+
+class SandboxProcessStopPayload(BaseModel):
+    process_id: str
+    sandbox_id: Optional[str] = None
+
+
 def _get_cors_settings() -> tuple[list[str], bool]:
     raw = os.environ.get("CORS_ALLOW_ORIGINS")
     if raw:
@@ -110,6 +169,46 @@ def _get_cors_settings() -> tuple[list[str], bool]:
     if "*" in origins:
         return ["*"], False
     return origins, True
+
+
+def _sandbox_state_key(user_id: str) -> str:
+    return f"sandbox_handle:{user_id}"
+
+
+def _load_sandbox_handle(store) -> Optional[SandboxHandle]:
+    raw = store.get_sync_state(_sandbox_state_key(store.user_id))
+    if not raw:
+        return None
+    data = json.loads(raw)
+    config_data = data.get("config") or {}
+    sandbox_id = data.get("sandbox_id")
+    if not sandbox_id:
+        return None
+    resources_data = config_data.get("resources")
+    network_data = config_data.get("network_policy")
+    resources = SandboxResources(**resources_data) if resources_data else None
+    network_policy = SandboxNetworkPolicy(**network_data) if network_data else None
+    config = SandboxConfig(
+        user_id=config_data.get("user_id"),
+        workspace_id=config_data.get("workspace_id"),
+        workspace_root=config_data.get("workspace_root"),
+        base_image=config_data.get("base_image"),
+        env=config_data.get("env"),
+        resources=resources,
+        network_policy=network_policy,
+    )
+    return SandboxHandle(sandbox_id=sandbox_id, config=config)
+
+
+def _save_sandbox_handle(store, handle: SandboxHandle) -> None:
+    store.set_sync_state(
+        _sandbox_state_key(store.user_id),
+        json.dumps({"sandbox_id": handle.sandbox_id, "config": asdict(handle.config)}),
+    )
+
+
+def _delete_sandbox_handle(store) -> None:
+    store.delete_sync_state(_sandbox_state_key(store.user_id))
 
 
 @asynccontextmanager
@@ -418,6 +517,135 @@ async def git_rollback(dry_run: bool = False):
     return result
 
 
+# =========== Sandbox Endpoints ===========
+
+@app.post("/sandbox/create")
+async def sandbox_create(payload: SandboxCreatePayload):
+    store = get_store()
+    runner = get_sandbox_runner()
+    existing = _load_sandbox_handle(store)
+
+    if existing and not payload.recreate:
+        return {"sandbox_id": existing.sandbox_id, "config": asdict(existing.config)}
+
+    if existing and payload.recreate:
+        try:
+            runner.destroy(existing)
+        except Exception:
+            pass
+        _delete_sandbox_handle(store)
+
+    workspace_id = payload.workspace_id or f"sandbox-{uuid.uuid4().hex}"
+    resources = None
+    if payload.resources:
+        resources = SandboxResources(
+            cpu_cores=payload.resources.cpu_cores,
+            memory_mb=payload.resources.memory_mb,
+            disk_mb=payload.resources.disk_mb,
+        )
+    config = build_sandbox_config(
+        user_id=store.user_id,
+        workspace_id=workspace_id,
+        workspace_root=payload.workspace_root,
+        env=payload.env,
+        allow_internet=payload.allow_internet,
+        resources=resources,
+    )
+    handle = runner.create(config)
+    _save_sandbox_handle(store, handle)
+    return {"sandbox_id": handle.sandbox_id, "config": asdict(handle.config)}
+
+
+@app.post("/sandbox/destroy")
+async def sandbox_destroy(sandbox_id: Optional[str] = None):
+    store = get_store()
+    runner = get_sandbox_runner()
+    handle = _load_sandbox_handle(store)
+    if not handle and not sandbox_id:
+        raise HTTPException(status_code=404, detail="Sandbox not found")
+    if handle and sandbox_id:
+        handle = SandboxHandle(sandbox_id=sandbox_id, config=handle.config)
+    elif sandbox_id:
+        raise HTTPException(status_code=404, detail="Sandbox config not found for provided id")
+    try:
+        runner.destroy(handle)
+    finally:
+        _delete_sandbox_handle(store)
+    return {"success": True}
+
+
+@app.post("/sandbox/exec")
+async def sandbox_exec(payload: SandboxExecPayload):
+    store = get_store()
+    runner = get_sandbox_runner()
+    handle = _load_sandbox_handle(store)
+    if not handle:
+        raise HTTPException(status_code=404, detail="Sandbox not found")
+    if payload.sandbox_id:
+        handle = SandboxHandle(sandbox_id=payload.sandbox_id, config=handle.config)
+
+    command = SandboxCommand(
+        command=payload.command,
+        cwd=Path(payload.cwd) if payload.cwd else None,
+        env=payload.env,
+        timeout_seconds=payload.timeout_seconds or 300,
+        sandbox=handle,
+    )
+
+    if payload.background:
+        process = runner.start_process(command)
+        return {"process_id": process.process_id, "command": process.command, "cwd": process.cwd}
+
+    result = runner.run(command)
+    return {
+        "return_code": result.return_code,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "timed_out": result.timed_out,
+    }
+
+
+@app.post("/sandbox/process/stop")
+async def sandbox_process_stop(payload: SandboxProcessStopPayload):
+    store = get_store()
+    runner = get_sandbox_runner()
+    handle = _load_sandbox_handle(store)
+    if not handle:
+        raise HTTPException(status_code=404, detail="Sandbox not found")
+    if payload.sandbox_id:
+        handle = SandboxHandle(sandbox_id=payload.sandbox_id, config=handle.config)
+    runner.stop_process(handle, payload.process_id)
+    return {"success": True, "process_id": payload.process_id}
+
+
+@app.post("/sandbox/checkpoint")
+async def sandbox_checkpoint(payload: SandboxCheckpointPayload):
+    store = get_store()
+    runner = get_sandbox_runner()
+    handle = _load_sandbox_handle(store)
+    if not handle:
+        raise HTTPException(status_code=404, detail="Sandbox not found")
+    if payload.sandbox_id:
+        handle = SandboxHandle(sandbox_id=payload.sandbox_id, config=handle.config)
+
+    checkpoint = runner.checkpoint(handle, label=payload.label)
+    store.set_sync_state(f"sandbox_checkpoint:{store.user_id}", checkpoint.checkpoint_id)
+    return asdict(checkpoint)
+
+
+@app.post("/sandbox/restore")
+async def sandbox_restore(payload: SandboxRestorePayload):
+    store = get_store()
+    runner = get_sandbox_runner()
+    handle = _load_sandbox_handle(store)
+    if not handle:
+        raise HTTPException(status_code=404, detail="Sandbox not found")
+    if payload.sandbox_id:
+        handle = SandboxHandle(sandbox_id=payload.sandbox_id, config=handle.config)
+
+    runner.restore(handle, payload.checkpoint_id)
+    return {"success": True, "checkpoint_id": payload.checkpoint_id}
+
 @app.websocket("/agent")
 async def agent_websocket(websocket: WebSocket):
     """WebSocket endpoint for agent communication."""
@@ -434,7 +662,7 @@ async def agent_websocket(websocket: WebSocket):
     await websocket.accept()
     store = get_store(session.user_id if session else None)
     agent_harness = AgentHarness(file_history=file_history, event_store=store)
-    orchestrator = RunOrchestrator(store=store)
+    orchestrator = RunOrchestrator(store=store, on_rollback=_schedule_vite_restart)
     recent_prompts = deque()
     verifier_config = PROJECT_ROOT / "config" / "verifiers.yaml"
 

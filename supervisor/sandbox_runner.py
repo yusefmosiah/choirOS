@@ -61,6 +61,13 @@ class SandboxCheckpoint:
 
 
 @dataclass(frozen=True)
+class SandboxProcess:
+    process_id: str
+    command: list[str]
+    cwd: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class SandboxResult:
     return_code: int
     stdout: str
@@ -84,12 +91,19 @@ class SandboxRunner:
     def restore(self, handle: SandboxHandle, checkpoint_id: str) -> None:
         raise NotImplementedError
 
+    def start_process(self, command: SandboxCommand) -> SandboxProcess:
+        raise NotImplementedError
+
+    def stop_process(self, handle: SandboxHandle, process_id: str) -> None:
+        raise NotImplementedError
+
 
 class LocalSandboxRunner(SandboxRunner):
     def __init__(self, root: Optional[Path] = None) -> None:
         self.root = root or (Path(".context") / "sandboxes")
         self.root.mkdir(parents=True, exist_ok=True)
         self._handles: dict[str, SandboxHandle] = {}
+        self._processes: dict[str, subprocess.Popen] = {}
 
     def _sandbox_dir(self, handle: SandboxHandle) -> Path:
         return self.root / handle.sandbox_id
@@ -136,6 +150,46 @@ class LocalSandboxRunner(SandboxRunner):
         checkpoints = self._load_checkpoints(handle)
         if not any(item["id"] == checkpoint_id for item in checkpoints):
             raise ValueError(f"Checkpoint not found: {checkpoint_id}")
+
+    def start_process(self, command: SandboxCommand) -> SandboxProcess:
+        env = os.environ.copy()
+        if command.sandbox and command.sandbox.config.env:
+            env.update(command.sandbox.config.env)
+        if command.env:
+            env.update(command.env)
+
+        cwd = command.cwd
+        if cwd is None and command.sandbox and command.sandbox.config.workspace_root:
+            cwd = Path(command.sandbox.config.workspace_root)
+
+        process = subprocess.Popen(
+            command.command,
+            cwd=str(cwd) if cwd else None,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        process_id = f"proc-{uuid.uuid4().hex}"
+        self._processes[process_id] = process
+        return SandboxProcess(
+            process_id=process_id,
+            command=command.command,
+            cwd=str(cwd) if cwd else None,
+        )
+
+    def stop_process(self, handle: SandboxHandle, process_id: str) -> None:
+        process = self._processes.pop(process_id, None)
+        if not process:
+            raise ValueError(f"Process not found: {process_id}")
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+        if process.stdout:
+            process.stdout.close()
 
     def run(self, command: SandboxCommand) -> SandboxResult:
         env = os.environ.copy()

@@ -10,14 +10,29 @@ from typing import Callable, Iterable, Optional, Awaitable
 from .db import EventStore
 from .git_ops import checkpoint, git_revert, get_head_sha
 from .verifier_runner import VerifierRunner, VerifierSpec
-from .sandbox_runner import SandboxConfig, SandboxNetworkPolicy, SandboxResources, SandboxHandle
+from .sandbox_runner import SandboxHandle
+from .sandbox_config import build_sandbox_config
 from .verifier_plan import select_verifier_plan, build_verifier_specs
 
 
 class RunOrchestrator:
-    def __init__(self, store: EventStore, verifier_runner: Optional[VerifierRunner] = None) -> None:
+    def __init__(
+        self,
+        store: EventStore,
+        verifier_runner: Optional[VerifierRunner] = None,
+        on_rollback: Optional[Callable[[str], None]] = None,
+    ) -> None:
         self.store = store
         self.verifier_runner = verifier_runner or VerifierRunner()
+        self.on_rollback = on_rollback
+
+    def _notify_rollback(self, run_id: str) -> None:
+        if not self.on_rollback:
+            return
+        try:
+            self.on_rollback(run_id)
+        except Exception:
+            pass
 
     def _ensure_last_good_checkpoint(self) -> None:
         if self.store.get_last_good_checkpoint():
@@ -36,51 +51,9 @@ class RunOrchestrator:
         if checkpoint_id:
             self.store.set_sync_state(self._sandbox_checkpoint_key(), checkpoint_id)
 
-    def _build_sandbox_config(self, run_id: str) -> SandboxConfig:
-        workspace_root = os.environ.get(
-            "CHOIR_SANDBOX_WORKSPACE_ROOT",
-            str(Path(__file__).parent.parent),
-        )
-        allow_internet = os.environ.get("CHOIR_SANDBOX_ALLOW_INTERNET", "1") == "1"
-
-        def _read_int_env(key: str) -> Optional[int]:
-            raw = os.environ.get(key)
-            if not raw:
-                return None
-            try:
-                return int(raw)
-            except ValueError:
-                return None
-
-        def _read_float_env(key: str) -> Optional[float]:
-            raw = os.environ.get(key)
-            if not raw:
-                return None
-            try:
-                return float(raw)
-            except ValueError:
-                return None
-
-        resources = SandboxResources(
-            cpu_cores=_read_float_env("CHOIR_SANDBOX_CPU_CORES"),
-            memory_mb=_read_int_env("CHOIR_SANDBOX_MEMORY_MB"),
-            disk_mb=_read_int_env("CHOIR_SANDBOX_DISK_MB"),
-        )
-        network_policy = SandboxNetworkPolicy(
-            allow_internet=allow_internet,
-        )
-        return SandboxConfig(
-            user_id=self.store.user_id,
-            workspace_id=run_id,
-            workspace_root=workspace_root,
-            env={"PYTHONPATH": str(Path(__file__).parent.parent)},
-            resources=resources,
-            network_policy=network_policy,
-        )
-
     def _create_sandbox(self, run_id: str) -> tuple[Optional[SandboxHandle], Optional[dict]]:
         try:
-            config = self._build_sandbox_config(run_id)
+            config = build_sandbox_config(user_id=self.store.user_id, workspace_id=run_id)
             handle = self.verifier_runner.sandbox_runner.create(config)
             self.verifier_runner.set_sandbox(handle)
             restore_result = None
@@ -259,6 +232,7 @@ class RunOrchestrator:
                                 "result": {"success": False, "checkpoint_id": last_sandbox_checkpoint, "error": str(exc)},
                             },
                         )
+                self._notify_rollback(run_id)
 
             response = {"run": self.store.get_run(run_id), "verifier_results": results}
             return response
@@ -442,6 +416,7 @@ class RunOrchestrator:
                                 "result": {"success": False, "checkpoint_id": last_sandbox_checkpoint, "error": str(exc)},
                             },
                         )
+                self._notify_rollback(run_id)
 
             response = {
                 "run": self.store.get_run(run_id),

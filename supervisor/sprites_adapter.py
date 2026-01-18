@@ -14,6 +14,7 @@ from .sandbox_runner import (
     SandboxCommand,
     SandboxConfig,
     SandboxHandle,
+    SandboxProcess,
     SandboxResult,
     SandboxRunner,
 )
@@ -69,6 +70,13 @@ class SpritesSandboxRunner(SandboxRunner):
                 return value
         return None
 
+    @staticmethod
+    def _extract_process_id(payload: dict) -> Optional[str]:
+        return SpritesSandboxRunner._extract_id(payload, "process") or SpritesSandboxRunner._extract_id(
+            payload,
+            "exec",
+        )
+
     def create(self, config: SandboxConfig) -> SandboxHandle:
         payload = asdict(config)
         response = self._request("POST", "/sandboxes", payload)
@@ -109,3 +117,32 @@ class SpritesSandboxRunner(SandboxRunner):
             stderr=str(response.get("stderr", "")),
             timed_out=bool(response.get("timed_out", False)),
         )
+
+    def start_process(self, command: SandboxCommand) -> SandboxProcess:
+        if not command.sandbox:
+            raise SpritesAPIError("Sprites runner requires sandbox handle on SandboxCommand")
+        payload = {
+            "command": command.command,
+            "cwd": str(command.cwd) if command.cwd else None,
+            "env": command.env or {},
+            "timeout_seconds": command.timeout_seconds,
+            "detach": True,
+            "mode": "background",
+        }
+        response = self._request("POST", f"/sandboxes/{command.sandbox.sandbox_id}/exec", payload)
+        process_id = self._extract_process_id(response)
+        if not process_id:
+            raise SpritesAPIError("Sprites exec did not return process id for background run")
+        return SandboxProcess(
+            process_id=process_id,
+            command=command.command,
+            cwd=str(command.cwd) if command.cwd else None,
+        )
+
+    def stop_process(self, handle: SandboxHandle, process_id: str) -> None:
+        payload = {"process_id": process_id}
+        try:
+            self._request("POST", f"/sandboxes/{handle.sandbox_id}/processes/{process_id}/stop", payload)
+        except SpritesAPIError:
+            # Fallback to exec stop endpoint if process route differs
+            self._request("POST", f"/sandboxes/{handle.sandbox_id}/exec/{process_id}/stop", payload)
