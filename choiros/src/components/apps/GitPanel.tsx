@@ -1,6 +1,6 @@
 // GitPanel App - Version Control UI
 import { useEffect, useState, useCallback } from 'react';
-import { GitBranch, GitCommit, RotateCcw, Save, RefreshCw, AlertCircle, Check, Clock } from 'lucide-react';
+import { GitBranch, GitCommit, RotateCcw, Save, RefreshCw, AlertCircle, Check, Clock, ShieldCheck } from 'lucide-react';
 import { authFetch } from '../../lib/auth';
 import './GitPanel.css';
 
@@ -23,6 +23,7 @@ interface GitState {
     head: string | null;
     status: GitStatus | null;
     commits: Commit[];
+    lastGood: string | null;
     isLoading: boolean;
     error: string | null;
 }
@@ -34,12 +35,14 @@ export function GitPanel() {
         head: null,
         status: null,
         commits: [],
+        lastGood: null,
         isLoading: true,
         error: null,
     });
     const [checkpointMessage, setCheckpointMessage] = useState('');
     const [isCheckpointing, setIsCheckpointing] = useState(false);
     const [isReverting, setIsReverting] = useState<string | null>(null);
+    const [isRollbacking, setIsRollbacking] = useState(false);
 
     const fetchGitState = useCallback(async () => {
         setState(prev => ({ ...prev, isLoading: true, error: null }));
@@ -56,11 +59,22 @@ export function GitPanel() {
 
             const statusData = await statusRes.json();
             const logData = await logRes.json();
+            let lastGood: string | null = null;
+            try {
+                const lastGoodRes = await authFetch(`${API_BASE}/git/last_good`);
+                if (lastGoodRes.ok) {
+                    const lastGoodData = await lastGoodRes.json();
+                    lastGood = lastGoodData.last_good || null;
+                }
+            } catch {
+                lastGood = null;
+            }
 
             setState({
                 head: statusData.head,
                 status: statusData.status,
                 commits: logData.commits,
+                lastGood,
                 isLoading: false,
                 error: null,
             });
@@ -80,10 +94,9 @@ export function GitPanel() {
     const handleCheckpoint = async () => {
         setIsCheckpointing(true);
         try {
-            const res = await authFetch(`${API_BASE}/git/checkpoint`, {
+            const params = checkpointMessage ? `?message=${encodeURIComponent(checkpointMessage)}` : '';
+            const res = await authFetch(`${API_BASE}/git/checkpoint${params}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: checkpointMessage || null }),
             });
 
             const data = await res.json();
@@ -111,10 +124,8 @@ export function GitPanel() {
 
         setIsReverting(sha);
         try {
-            const res = await authFetch(`${API_BASE}/git/revert`, {
+            const res = await authFetch(`${API_BASE}/git/revert?sha=${encodeURIComponent(sha)}&dry_run=false`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sha }),
             });
 
             const data = await res.json();
@@ -131,6 +142,36 @@ export function GitPanel() {
             }));
         } finally {
             setIsReverting(null);
+        }
+    };
+
+    const handleRollback = async () => {
+        if (!state.lastGood) {
+            return;
+        }
+        if (!confirm(`Rollback to last known-good commit ${state.lastGood}? This will discard changes after that checkpoint.`)) {
+            return;
+        }
+
+        setIsRollbacking(true);
+        try {
+            const res = await authFetch(`${API_BASE}/git/rollback?dry_run=false`, {
+                method: 'POST',
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                await fetchGitState();
+            } else {
+                setState(prev => ({ ...prev, error: data.error || 'Rollback failed' }));
+            }
+        } catch (err) {
+            setState(prev => ({
+                ...prev,
+                error: err instanceof Error ? err.message : 'Rollback failed',
+            }));
+        } finally {
+            setIsRollbacking(false);
         }
     };
 
@@ -192,6 +233,25 @@ export function GitPanel() {
                     )}
                 </div>
 
+                <div className="git-last-good">
+                    <div className="git-last-good-info">
+                        <ShieldCheck size={14} />
+                        <span>Last Good</span>
+                        <span className="git-last-good-sha">
+                            {state.lastGood ? state.lastGood.slice(0, 8) : '---'}
+                        </span>
+                    </div>
+                    <button
+                        className="git-rollback"
+                        onClick={handleRollback}
+                        disabled={!state.lastGood || isRollbacking}
+                        title={state.lastGood ? 'Rollback to last good checkpoint' : 'No last good checkpoint'}
+                    >
+                        <RotateCcw size={12} />
+                        {isRollbacking ? 'Rolling back...' : 'Rollback'}
+                    </button>
+                </div>
+
                 {state.status && !state.status.clean && (
                     <div className="git-changes">
                         {state.status.modified.map(f => (
@@ -248,16 +308,21 @@ export function GitPanel() {
                     <span>History</span>
                 </div>
                 <div className="git-commits">
-                    {state.commits.map((commit, idx) => (
-                        <div
-                            key={commit.sha}
-                            className={`git-commit ${idx === 0 ? 'current' : ''}`}
-                        >
+                    {state.commits.map((commit, idx) => {
+                        const isLastGood = state.lastGood === commit.sha;
+                        return (
+                            <div
+                                key={commit.sha}
+                                className={`git-commit ${idx === 0 ? 'current' : ''} ${isLastGood ? 'last-good' : ''}`}
+                            >
                             <div className="git-commit-icon">
                                 <GitCommit size={14} />
                             </div>
                             <div className="git-commit-info">
-                                <div className="git-commit-message">{commit.message}</div>
+                                <div className="git-commit-message">
+                                    {commit.message}
+                                    {isLastGood && <span className="git-commit-badge">Last good</span>}
+                                </div>
                                 <div className="git-commit-meta">
                                     <span className="git-commit-sha">{commit.sha.slice(0, 8)}</span>
                                     <span className="git-commit-date">
@@ -277,7 +342,8 @@ export function GitPanel() {
                                 </button>
                             )}
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
         </div>

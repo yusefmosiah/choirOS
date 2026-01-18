@@ -363,6 +363,14 @@ async def git_log(count: int = 10):
     }
 
 
+@app.get("/git/diff")
+async def git_diff(base: str, head: str = "HEAD", stat: bool = False):
+    """Get diff between two refs."""
+    from .git_ops import diff_between
+
+    return diff_between(base=base, head=head, stat=stat)
+
+
 @app.post("/git/checkpoint")
 async def git_checkpoint(message: Optional[str] = None):
     """Create a git checkpoint (add all + commit)."""
@@ -382,6 +390,31 @@ async def git_revert(sha: str, dry_run: bool = True):
     if result.get("success") and not dry_run and not STANDALONE:
         await vite_manager.restart()
 
+    return result
+
+
+@app.get("/git/last_good")
+async def git_last_good():
+    """Get the last known-good checkpoint SHA."""
+    store = get_store()
+    return {"last_good": store.get_last_good_checkpoint()}
+
+
+@app.post("/git/rollback")
+async def git_rollback(dry_run: bool = False):
+    """Rollback to the last known-good checkpoint."""
+    from .git_ops import git_revert
+
+    store = get_store()
+    last_good = store.get_last_good_checkpoint()
+    if not last_good:
+        return {"success": False, "error": "No last_good_checkpoint set"}
+
+    result = git_revert(last_good, dry_run=dry_run)
+    if result.get("success") and not dry_run and not STANDALONE:
+        await vite_manager.restart()
+
+    result["last_good"] = last_good
     return result
 
 

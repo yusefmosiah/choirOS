@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Optional, Awaitable
 
 from .db import EventStore
+from .git_ops import checkpoint, git_revert, get_head_sha
 from .verifier_runner import VerifierRunner, VerifierSpec
 from .verifier_plan import select_verifier_plan, build_verifier_specs
 
@@ -15,6 +16,13 @@ class RunOrchestrator:
     def __init__(self, store: EventStore, verifier_runner: Optional[VerifierRunner] = None) -> None:
         self.store = store
         self.verifier_runner = verifier_runner or VerifierRunner()
+
+    def _ensure_last_good_checkpoint(self) -> None:
+        if self.store.get_last_good_checkpoint():
+            return
+        head = get_head_sha()
+        if head:
+            self.store.set_last_good_checkpoint(head)
 
     def run(
         self,
@@ -25,6 +33,7 @@ class RunOrchestrator:
     ) -> dict:
         run = self.store.create_run(work_item_id=work_item_id, mood=mood, status="running")
         run_id = run["id"]
+        self._ensure_last_good_checkpoint()
 
         self.store.add_run_note(
             run_id,
@@ -74,12 +83,33 @@ class RunOrchestrator:
         )
 
         if all_passed:
+            checkpoint_result = checkpoint(
+                message=f"verified checkpoint: run {run_id}",
+                store=self.store,
+            )
+            if checkpoint_result.get("success") and checkpoint_result.get("commit_sha"):
+                self.store.set_last_good_checkpoint(checkpoint_result["commit_sha"])
+            self.store.add_run_note(
+                run_id,
+                "note.observation",
+                {"event": "checkpoint", "result": checkpoint_result},
+            )
             self.store.add_commit_request(
                 run_id,
                 {
                     "verifier_results": [asdict(result) for result in results],
                     "status": "ready_for_review",
                 },
+            )
+        else:
+            last_good = self.store.get_last_good_checkpoint()
+            rollback_result = None
+            if last_good:
+                rollback_result = git_revert(last_good, dry_run=False)
+            self.store.add_run_note(
+                run_id,
+                "note.observation",
+                {"event": "rollback", "last_good": last_good, "result": rollback_result},
             )
 
         return {"run": self.store.get_run(run_id), "verifier_results": results}
@@ -94,6 +124,7 @@ class RunOrchestrator:
         run = self.store.create_run(work_item_id=work_item_id, mood=mood, status="running")
         run_id = run["id"]
         start_seq = self.store.get_latest_seq()
+        self._ensure_last_good_checkpoint()
 
         self.store.add_run_note(
             run_id,
@@ -161,6 +192,17 @@ class RunOrchestrator:
         )
 
         if all_passed:
+            checkpoint_result = checkpoint(
+                message=f"verified checkpoint: run {run_id}",
+                store=self.store,
+            )
+            if checkpoint_result.get("success") and checkpoint_result.get("commit_sha"):
+                self.store.set_last_good_checkpoint(checkpoint_result["commit_sha"])
+            self.store.add_run_note(
+                run_id,
+                "note.observation",
+                {"event": "checkpoint", "result": checkpoint_result},
+            )
             self.store.add_commit_request(
                 run_id,
                 {
@@ -168,6 +210,16 @@ class RunOrchestrator:
                     "verifier_results": [asdict(result) for result in results],
                     "status": "ready_for_review",
                 },
+            )
+        else:
+            last_good = self.store.get_last_good_checkpoint()
+            rollback_result = None
+            if last_good:
+                rollback_result = git_revert(last_good, dry_run=False)
+            self.store.add_run_note(
+                run_id,
+                "note.observation",
+                {"event": "rollback", "last_good": last_good, "result": rollback_result},
             )
 
         return {
