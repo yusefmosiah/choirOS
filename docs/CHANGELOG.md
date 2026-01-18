@@ -8,10 +8,14 @@
 - NATS Phase 0 hardening: per-user subject permissions and read-only web credentials.
 - Sandbox runner interface wired into verifier runner.
 - NATS Phase 0 hardening doc (`docs/ops/NATS_PHASE0_HARDENING.md`).
+- Auth + recovery spec (`docs/specs/CHOIR_AUTH_RECOVERY_SPEC.md`).
+- Storage + rollback spec for base+overlay model (`docs/specs/CHOIR_STORAGE_ROLLBACK_SPEC.md`).
+- Jan 18 handoff (`docs/handoff-2026-01-18.md`).
 
 ### Changed
 - Frontend API calls now send session headers when available.
 - Supervisor uses authenticated NATS credentials in dev/test scripts.
+- Issue tracker updated with VC/SBX/QA/auth roadmap and sprites.dev sandbox selection.
 
 ## [2025-12-17] - choirOS Desktop v0 (Phase 2: Sources Workflow)
 
