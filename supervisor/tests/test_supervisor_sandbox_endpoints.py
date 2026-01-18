@@ -14,6 +14,7 @@ from supervisor.sandbox_runner import (
     SandboxConfig,
     SandboxHandle,
     SandboxProcess,
+    SandboxProxy,
     SandboxResult,
     SandboxRunner,
 )
@@ -53,6 +54,9 @@ class FakeSandboxRunner(SandboxRunner):
     def stop_process(self, handle: SandboxHandle, process_id: str) -> None:
         return None
 
+    def open_proxy(self, handle: SandboxHandle, port: int) -> SandboxProxy:
+        return SandboxProxy(url=f"http://sandbox.local:{port}", port=port)
+
 
 class TestSupervisorSandboxEndpoints(unittest.TestCase):
     def setUp(self) -> None:
@@ -86,6 +90,10 @@ class TestSupervisorSandboxEndpoints(unittest.TestCase):
 
             response = self.client.post("/sandbox/process/stop", json={"process_id": "proc-1"})
             self.assertEqual(response.status_code, 200)
+
+            response = self.client.post("/sandbox/proxy", json={"port": 5173})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json().get("url"), "http://sandbox.local:5173")
 
             response = self.client.post("/sandbox/checkpoint", json={"label": "ok"})
             self.assertEqual(response.status_code, 200)

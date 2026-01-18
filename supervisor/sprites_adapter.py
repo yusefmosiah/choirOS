@@ -15,6 +15,7 @@ from .sandbox_runner import (
     SandboxConfig,
     SandboxHandle,
     SandboxProcess,
+    SandboxProxy,
     SandboxResult,
     SandboxRunner,
 )
@@ -146,3 +147,14 @@ class SpritesSandboxRunner(SandboxRunner):
         except SpritesAPIError:
             # Fallback to exec stop endpoint if process route differs
             self._request("POST", f"/sandboxes/{handle.sandbox_id}/exec/{process_id}/stop", payload)
+
+    def open_proxy(self, handle: SandboxHandle, port: int) -> SandboxProxy:
+        payload = {"port": port}
+        try:
+            response = self._request("POST", f"/sandboxes/{handle.sandbox_id}/proxy", payload)
+        except SpritesAPIError:
+            response = self._request("POST", f"/sandboxes/{handle.sandbox_id}/ports/{port}/proxy", payload)
+        url = response.get("proxy_url") or response.get("url") or response.get("endpoint")
+        if not url:
+            raise SpritesAPIError("Sprites proxy did not return a URL")
+        return SandboxProxy(url=str(url), port=port)

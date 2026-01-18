@@ -160,6 +160,11 @@ class SandboxProcessStopPayload(BaseModel):
     sandbox_id: Optional[str] = None
 
 
+class SandboxProxyPayload(BaseModel):
+    port: int
+    sandbox_id: Optional[str] = None
+
+
 def _get_cors_settings() -> tuple[list[str], bool]:
     raw = os.environ.get("CORS_ALLOW_ORIGINS")
     if raw:
@@ -616,6 +621,19 @@ async def sandbox_process_stop(payload: SandboxProcessStopPayload):
         handle = SandboxHandle(sandbox_id=payload.sandbox_id, config=handle.config)
     runner.stop_process(handle, payload.process_id)
     return {"success": True, "process_id": payload.process_id}
+
+
+@app.post("/sandbox/proxy")
+async def sandbox_proxy(payload: SandboxProxyPayload):
+    store = get_store()
+    runner = get_sandbox_runner()
+    handle = _load_sandbox_handle(store)
+    if not handle:
+        raise HTTPException(status_code=404, detail="Sandbox not found")
+    if payload.sandbox_id:
+        handle = SandboxHandle(sandbox_id=payload.sandbox_id, config=handle.config)
+    proxy = runner.open_proxy(handle, payload.port)
+    return {"url": proxy.url, "port": proxy.port}
 
 
 @app.post("/sandbox/checkpoint")

@@ -47,6 +47,9 @@ class _SpritesHandler(BaseHTTPRequestHandler):
         if self.path == "/sandboxes/sbx-1/processes/proc-1/stop":
             self._send_json({"ok": True})
             return
+        if self.path == "/sandboxes/sbx-1/proxy":
+            self._send_json({"url": "http://proxy"})
+            return
         self._send_json({"error": "not found"}, status=404)
 
     def do_DELETE(self) -> None:  # noqa: N802
@@ -94,6 +97,8 @@ class TestSpritesAdapter(unittest.TestCase):
         process = runner.start_process(SandboxCommand(command=["sleep", "10"], sandbox=handle))
         self.assertEqual(process.process_id, "proc-1")
         runner.stop_process(handle, process.process_id)
+        proxy = runner.open_proxy(handle, 5173)
+        self.assertEqual(proxy.url, "http://proxy")
         runner.destroy(handle)
 
         paths = [item[0] for item in _SpritesHandler.received]

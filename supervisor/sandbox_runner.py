@@ -68,6 +68,12 @@ class SandboxProcess:
 
 
 @dataclass(frozen=True)
+class SandboxProxy:
+    url: str
+    port: Optional[int] = None
+
+
+@dataclass(frozen=True)
 class SandboxResult:
     return_code: int
     stdout: str
@@ -95,6 +101,9 @@ class SandboxRunner:
         raise NotImplementedError
 
     def stop_process(self, handle: SandboxHandle, process_id: str) -> None:
+        raise NotImplementedError
+
+    def open_proxy(self, handle: SandboxHandle, port: int) -> SandboxProxy:
         raise NotImplementedError
 
 
@@ -190,6 +199,9 @@ class LocalSandboxRunner(SandboxRunner):
             process.wait()
         if process.stdout:
             process.stdout.close()
+
+    def open_proxy(self, handle: SandboxHandle, port: int) -> SandboxProxy:
+        return SandboxProxy(url=f"http://localhost:{port}", port=port)
 
     def run(self, command: SandboxCommand) -> SandboxResult:
         env = os.environ.copy()
