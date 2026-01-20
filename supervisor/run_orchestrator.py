@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import logging
 import os
 from pathlib import Path
 from typing import Callable, Iterable, Optional, Awaitable
@@ -13,6 +14,8 @@ from .verifier_runner import VerifierRunner, VerifierSpec
 from .sandbox_runner import SandboxHandle
 from .sandbox_config import build_sandbox_config
 from .verifier_plan import select_verifier_plan, build_verifier_specs
+
+logger = logging.getLogger(__name__)
 
 
 class RunOrchestrator:
@@ -298,6 +301,37 @@ class RunOrchestrator:
             work_item = self.store.get_work_item(work_item_id) or {}
             required_verifiers = work_item.get("required_verifiers", [])
             risk_tier = work_item.get("risk_tier")
+
+            # BAML-powered task assessment
+            baml_assessment = None
+            prompt = work_item.get("prompt", "")
+            if prompt:
+                try:
+                    from .baml_client import b
+                    baml_assessment = await b.AssessTask(prompt=prompt)
+                    self.store.add_run_note(
+                        run_id,
+                        "note.observation",
+                        {
+                            "event": "baml.assessment",
+                            "complexity": baml_assessment.complexity,
+                            "requires_verification": baml_assessment.requires_verification,
+                            "risk_factors": baml_assessment.risk_factors,
+                            "estimated_steps": baml_assessment.estimated_steps,
+                        },
+                    )
+                    # Override risk_tier if BAML suggests verification not needed
+                    if baml_assessment.complexity == "TRIVIAL" and not baml_assessment.requires_verification:
+                        if not risk_tier:
+                            risk_tier = "low"
+                            logger.info(f"BAML assessment: TRIVIAL task, setting risk_tier=low")
+                except Exception as exc:
+                    logger.warning(f"BAML assessment failed: {exc}")
+                    self.store.add_run_note(
+                        run_id,
+                        "note.observation",
+                        {"event": "baml.assessment", "error": str(exc)},
+                    )
 
             plan = select_verifier_plan(
                 touched_paths=touched_paths,

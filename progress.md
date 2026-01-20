@@ -1,17 +1,19 @@
-# Progress (2026-01-18)
+# Progress (2026-01-20)
 
 ## Completed
 - Sandbox lifecycle endpoints (create/exec/process stop/proxy/checkpoint/restore/destroy).
 - FE bootstrap for sandboxed frontend (`/frontend/url` + redirect when `VITE_FRONTEND_SANDBOX=1`).
 - Terminal app wired to `/sandbox/exec` and `/sandbox/process/stop`.
-- Sprites adapter aligned to the published API contract (v1 sprites endpoints, exec query params, checkpoint/restore, kill session).
+- Sprites adapter aligned to the published API contract.
+- **BAML Phase 1**: `VerifierRunner` uses BAML for structured analysis (`VerifierOutcome`).
+- **BAML Phase 2**: Tool schemas + agent functions (`PlanAction`, `SynthesizeResponse`, `AssessTask`).
+- **BAML Phase 3**: `RunOrchestrator` uses BAML `AssessTask` for intelligent verification gating.
 
 ## Tests
-- Unit and integration tests run; see `docs/test_report-2026-01-18.md`.
+- Unit and integration tests run; 3/3 orchestrator tests passing.
 - Live sprites test passed with token from `api/.env`.
-- Live sprites test now validates exec + checkpoint/restore + proxy; background exec optional via `SPRITES_WS_EXEC_LIVE=1`.
+- BAML functions tested with live Claude 4.5 Opus via AWS Bedrock.
 
 ## Next Steps
-- Provide a valid `SPRITES_API_TOKEN` (or `SPRITES_TOKEN`) and re-run `supervisor.tests.test_sprites_live`.
-- Validate sprites API response fields in live mode; adjust adapter if any contract mismatches appear.
-- Wire terminal streaming output for background exec sessions (WS attach) once live exec is verified.
+- Wire terminal streaming output for background exec sessions.
+- Consider docs-updating as a green thread process (per user feedback).

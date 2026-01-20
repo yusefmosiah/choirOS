@@ -30,6 +30,24 @@ class LlmResponseParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AnalyzeVerifierOutput", llm_response=llm_response, mode="request")
         return typing.cast(types.VerifierOutcome, __result__)
 
+    def AssessTask(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> types.TaskAssessment:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AssessTask", llm_response=llm_response, mode="request")
+        return typing.cast(types.TaskAssessment, __result__)
+
+    def PlanAction(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> types.AgentPlan:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="PlanAction", llm_response=llm_response, mode="request")
+        return typing.cast(types.AgentPlan, __result__)
+
+    def SynthesizeResponse(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> types.AgentResponse:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="SynthesizeResponse", llm_response=llm_response, mode="request")
+        return typing.cast(types.AgentResponse, __result__)
+
     
 
 class LlmStreamParser:
@@ -43,5 +61,23 @@ class LlmStreamParser:
     ) -> stream_types.VerifierOutcome:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AnalyzeVerifierOutput", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.VerifierOutcome, __result__)
+
+    def AssessTask(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> stream_types.TaskAssessment:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AssessTask", llm_response=llm_response, mode="stream")
+        return typing.cast(stream_types.TaskAssessment, __result__)
+
+    def PlanAction(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> stream_types.AgentPlan:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="PlanAction", llm_response=llm_response, mode="stream")
+        return typing.cast(stream_types.AgentPlan, __result__)
+
+    def SynthesizeResponse(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> stream_types.AgentResponse:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="SynthesizeResponse", llm_response=llm_response, mode="stream")
+        return typing.cast(stream_types.AgentResponse, __result__)
 
     

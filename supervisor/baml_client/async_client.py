@@ -97,6 +97,51 @@ class BamlAsyncClient:
                 "command": command,"exit_code": exit_code,"stdout": stdout,"stderr": stderr,
             })
             return typing.cast(types.VerifierOutcome, __result__.cast_to(types, types, stream_types, False, __runtime__))
+    async def AssessTask(self, prompt: str,
+        baml_options: BamlCallOptions = {},
+    ) -> types.TaskAssessment:
+        # Check if on_tick is provided
+        if 'on_tick' in baml_options:
+            # Use streaming internally when on_tick is provided
+            __stream__ = self.stream.AssessTask(prompt=prompt,
+                baml_options=baml_options)
+            return await __stream__.get_final_response()
+        else:
+            # Original non-streaming code
+            __result__ = await self.__options.merge_options(baml_options).call_function_async(function_name="AssessTask", args={
+                "prompt": prompt,
+            })
+            return typing.cast(types.TaskAssessment, __result__.cast_to(types, types, stream_types, False, __runtime__))
+    async def PlanAction(self, user_prompt: str,system_context: str,available_tools: str,
+        baml_options: BamlCallOptions = {},
+    ) -> types.AgentPlan:
+        # Check if on_tick is provided
+        if 'on_tick' in baml_options:
+            # Use streaming internally when on_tick is provided
+            __stream__ = self.stream.PlanAction(user_prompt=user_prompt,system_context=system_context,available_tools=available_tools,
+                baml_options=baml_options)
+            return await __stream__.get_final_response()
+        else:
+            # Original non-streaming code
+            __result__ = await self.__options.merge_options(baml_options).call_function_async(function_name="PlanAction", args={
+                "user_prompt": user_prompt,"system_context": system_context,"available_tools": available_tools,
+            })
+            return typing.cast(types.AgentPlan, __result__.cast_to(types, types, stream_types, False, __runtime__))
+    async def SynthesizeResponse(self, user_prompt: str,tool_results: str,
+        baml_options: BamlCallOptions = {},
+    ) -> types.AgentResponse:
+        # Check if on_tick is provided
+        if 'on_tick' in baml_options:
+            # Use streaming internally when on_tick is provided
+            __stream__ = self.stream.SynthesizeResponse(user_prompt=user_prompt,tool_results=tool_results,
+                baml_options=baml_options)
+            return await __stream__.get_final_response()
+        else:
+            # Original non-streaming code
+            __result__ = await self.__options.merge_options(baml_options).call_function_async(function_name="SynthesizeResponse", args={
+                "user_prompt": user_prompt,"tool_results": tool_results,
+            })
+            return typing.cast(types.AgentResponse, __result__.cast_to(types, types, stream_types, False, __runtime__))
     
 
 
@@ -118,6 +163,42 @@ class BamlStreamClient:
           lambda x: typing.cast(types.VerifierOutcome, x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
+    def AssessTask(self, prompt: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlStream[stream_types.TaskAssessment, types.TaskAssessment]:
+        __ctx__, __result__ = self.__options.merge_options(baml_options).create_async_stream(function_name="AssessTask", args={
+            "prompt": prompt,
+        })
+        return baml_py.BamlStream[stream_types.TaskAssessment, types.TaskAssessment](
+          __result__,
+          lambda x: typing.cast(stream_types.TaskAssessment, x.cast_to(types, types, stream_types, True, __runtime__)),
+          lambda x: typing.cast(types.TaskAssessment, x.cast_to(types, types, stream_types, False, __runtime__)),
+          __ctx__,
+        )
+    def PlanAction(self, user_prompt: str,system_context: str,available_tools: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlStream[stream_types.AgentPlan, types.AgentPlan]:
+        __ctx__, __result__ = self.__options.merge_options(baml_options).create_async_stream(function_name="PlanAction", args={
+            "user_prompt": user_prompt,"system_context": system_context,"available_tools": available_tools,
+        })
+        return baml_py.BamlStream[stream_types.AgentPlan, types.AgentPlan](
+          __result__,
+          lambda x: typing.cast(stream_types.AgentPlan, x.cast_to(types, types, stream_types, True, __runtime__)),
+          lambda x: typing.cast(types.AgentPlan, x.cast_to(types, types, stream_types, False, __runtime__)),
+          __ctx__,
+        )
+    def SynthesizeResponse(self, user_prompt: str,tool_results: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlStream[stream_types.AgentResponse, types.AgentResponse]:
+        __ctx__, __result__ = self.__options.merge_options(baml_options).create_async_stream(function_name="SynthesizeResponse", args={
+            "user_prompt": user_prompt,"tool_results": tool_results,
+        })
+        return baml_py.BamlStream[stream_types.AgentResponse, types.AgentResponse](
+          __result__,
+          lambda x: typing.cast(stream_types.AgentResponse, x.cast_to(types, types, stream_types, True, __runtime__)),
+          lambda x: typing.cast(types.AgentResponse, x.cast_to(types, types, stream_types, False, __runtime__)),
+          __ctx__,
+        )
     
 
 class BamlHttpRequestClient:
@@ -133,6 +214,27 @@ class BamlHttpRequestClient:
             "command": command,"exit_code": exit_code,"stdout": stdout,"stderr": stderr,
         }, mode="request")
         return __result__
+    async def AssessTask(self, prompt: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="AssessTask", args={
+            "prompt": prompt,
+        }, mode="request")
+        return __result__
+    async def PlanAction(self, user_prompt: str,system_context: str,available_tools: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="PlanAction", args={
+            "user_prompt": user_prompt,"system_context": system_context,"available_tools": available_tools,
+        }, mode="request")
+        return __result__
+    async def SynthesizeResponse(self, user_prompt: str,tool_results: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="SynthesizeResponse", args={
+            "user_prompt": user_prompt,"tool_results": tool_results,
+        }, mode="request")
+        return __result__
     
 
 class BamlHttpStreamRequestClient:
@@ -146,6 +248,27 @@ class BamlHttpStreamRequestClient:
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="AnalyzeVerifierOutput", args={
             "command": command,"exit_code": exit_code,"stdout": stdout,"stderr": stderr,
+        }, mode="stream")
+        return __result__
+    async def AssessTask(self, prompt: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="AssessTask", args={
+            "prompt": prompt,
+        }, mode="stream")
+        return __result__
+    async def PlanAction(self, user_prompt: str,system_context: str,available_tools: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="PlanAction", args={
+            "user_prompt": user_prompt,"system_context": system_context,"available_tools": available_tools,
+        }, mode="stream")
+        return __result__
+    async def SynthesizeResponse(self, user_prompt: str,tool_results: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="SynthesizeResponse", args={
+            "user_prompt": user_prompt,"tool_results": tool_results,
         }, mode="stream")
         return __result__
     

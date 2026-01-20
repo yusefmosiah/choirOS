@@ -37,18 +37,93 @@ def get_checks(checks: typing.Dict[CheckName, Check]) -> typing.List[Check]:
 def all_succeeded(checks: typing.Dict[CheckName, Check]) -> bool:
     return all(check.status == "succeeded" for check in get_checks(checks))
 # #########################################################################
-# Generated enums (0)
+# Generated enums (1)
 # #########################################################################
 
+class ToolName(str, Enum):
+    ReadFile = "ReadFile"
+    WriteFile = "WriteFile"
+    EditFile = "EditFile"
+    Bash = "Bash"
+    GitCheckpoint = "GitCheckpoint"
+    GitStatus = "GitStatus"
+
 # #########################################################################
-# Generated classes (1)
+# Generated classes (15)
 # #########################################################################
+
+class AgentPlan(BaseModel):
+    thinking: str = Field(description='Step-by-step reasoning about the task')
+    tool_calls: typing.List["ToolCall"] = Field(description='Ordered list of tools to invoke')
+    confidence: float = Field(description='0.0 to 1.0 confidence in this plan')
+
+class AgentResponse(BaseModel):
+    summary: str = Field(description='Concise summary of what was done')
+    details: typing.List[str] = Field(description='Key observations or results')
+    next_steps: typing.Optional[str] = Field(default=None, description='Suggested follow-up actions, if any')
+
+class BashInput(BaseModel):
+    command: str = Field(description='Shell command to execute')
+    timeout: typing.Optional[int] = Field(default=None, description='Timeout in seconds (default 300)')
+
+class BashResult(BaseModel):
+    exit_code: typing.Optional[int] = None
+    output_file: typing.Optional[str] = None
+    output_preview: typing.Optional[str] = None
+    truncated: typing.Optional[bool] = None
+    error: typing.Optional[str] = None
+
+class EditFileInput(BaseModel):
+    path: str = Field(description='Path to file to edit')
+    edits: typing.List["FileEdit"] = Field(description='List of text replacements')
+    dry_run: typing.Optional[bool] = Field(default=None, description='If true, show diff without applying')
+
+class FileEdit(BaseModel):
+    old_text: str = Field(description='Exact text to find')
+    new_text: str = Field(description='Replacement text')
+
+class GitCheckpointInput(BaseModel):
+    message: typing.Optional[str] = Field(default=None, description='Commit message')
+
+class GitStatusInput(BaseModel):
+    log_count: typing.Optional[int] = Field(default=None, description='Number of recent commits to show (default 5)')
+
+class ReadFileInput(BaseModel):
+    path: str = Field(description='Path to file (relative or absolute)')
+    head: typing.Optional[int] = Field(default=None, description='Return only first N lines')
+    tail: typing.Optional[int] = Field(default=None, description='Return only last N lines')
+
+class ReadFileResult(BaseModel):
+    content: typing.Optional[str] = None
+    total_lines: typing.Optional[int] = None
+    returned_lines: typing.Optional[int] = None
+    error: typing.Optional[str] = None
+
+class TaskAssessment(BaseModel):
+    complexity: str = Field(description='One of: TRIVIAL, MODERATE, COMPLEX')
+    requires_verification: bool = Field(description='Should this task go through verification?')
+    risk_factors: typing.List[str] = Field(description='Potential issues to watch for')
+    estimated_steps: int = Field(description='Approximate number of tool calls needed')
+
+class ToolCall(BaseModel):
+    tool: ToolName = Field(description='Tool to invoke')
+    reasoning: str = Field(description='Why this tool is being called')
 
 class VerifierOutcome(BaseModel):
     status: str = Field(description='One of: PASS, FAIL, BLOCKER')
     summary: str = Field(description='Concise summary of what happened')
     details: typing.List[str] = Field(description='Key observations or errors found in the logs')
     confidence: float = Field(description='0.0 to 1.0 confidence in this assessment')
+
+class WriteFileInput(BaseModel):
+    path: str = Field(description='Path to file (relative or absolute)')
+    content: str = Field(description='Content to write')
+
+class WriteFileResult(BaseModel):
+    success: typing.Optional[bool] = None
+    path: typing.Optional[str] = None
+    bytes_written: typing.Optional[int] = None
+    error: typing.Optional[str] = None
 
 # #########################################################################
 # Generated type aliases (0)

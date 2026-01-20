@@ -16,8 +16,52 @@ from . import stream_types
 
 type_map = {
 
+    "types.AgentPlan": types.AgentPlan,
+    "stream_types.AgentPlan": stream_types.AgentPlan,
+
+    "types.AgentResponse": types.AgentResponse,
+    "stream_types.AgentResponse": stream_types.AgentResponse,
+
+    "types.BashInput": types.BashInput,
+    "stream_types.BashInput": stream_types.BashInput,
+
+    "types.BashResult": types.BashResult,
+    "stream_types.BashResult": stream_types.BashResult,
+
+    "types.EditFileInput": types.EditFileInput,
+    "stream_types.EditFileInput": stream_types.EditFileInput,
+
+    "types.FileEdit": types.FileEdit,
+    "stream_types.FileEdit": stream_types.FileEdit,
+
+    "types.GitCheckpointInput": types.GitCheckpointInput,
+    "stream_types.GitCheckpointInput": stream_types.GitCheckpointInput,
+
+    "types.GitStatusInput": types.GitStatusInput,
+    "stream_types.GitStatusInput": stream_types.GitStatusInput,
+
+    "types.ReadFileInput": types.ReadFileInput,
+    "stream_types.ReadFileInput": stream_types.ReadFileInput,
+
+    "types.ReadFileResult": types.ReadFileResult,
+    "stream_types.ReadFileResult": stream_types.ReadFileResult,
+
+    "types.TaskAssessment": types.TaskAssessment,
+    "stream_types.TaskAssessment": stream_types.TaskAssessment,
+
+    "types.ToolCall": types.ToolCall,
+    "stream_types.ToolCall": stream_types.ToolCall,
+
     "types.VerifierOutcome": types.VerifierOutcome,
     "stream_types.VerifierOutcome": stream_types.VerifierOutcome,
 
+    "types.WriteFileInput": types.WriteFileInput,
+    "stream_types.WriteFileInput": stream_types.WriteFileInput,
+
+    "types.WriteFileResult": types.WriteFileResult,
+    "stream_types.WriteFileResult": stream_types.WriteFileResult,
+
+
+    "types.ToolName": types.ToolName,
 
 }
