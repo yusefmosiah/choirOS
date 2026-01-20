@@ -40,6 +40,8 @@ Status: ACTIVE
 - All handoffs moved to `docs/archive/` — see issue tracker `docs/reviews/issues-2026-01-18.md` for current status.
 
 ## Project Notes
+- docs/CHOIR_CONTEXT.md
+- docs/agentic_computer_position_paper.md
 - docs/SELF_DEV_BOOTSTRAP.md
 - PLANNING.md
 - next_steps_checklist.md
