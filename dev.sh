@@ -1,6 +1,6 @@
 #!/bin/bash
 # ChoirOS Development Startup Script
-# Runs both frontend and backend in parallel
+# Runs frontend, backend, and supervisor in parallel
 
 set -e
 
@@ -10,6 +10,10 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# PID file for tracking running processes
+PID_FILE=".dev.sh.pids"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 MODE="start"
 SKIP_NATS=0
 KEEP_NATS=${KEEP_NATS:-0}
@@ -17,16 +21,17 @@ DOCKER_COMPOSE=""
 NATS_STARTED=0
 
 print_usage() {
-    echo "Usage: ./dev.sh [start|stop|status] [--no-nats]"
+    echo "Usage: ./dev.sh [start|stop|status|restart] [--no-nats]"
     echo "  start    Start frontend, backend, supervisor (default)"
-    echo "  stop     Stop NATS container started by docker compose"
-    echo "  status   Show NATS container status"
+    echo "  stop     Stop all dev processes and NATS container"
+    echo "  restart  Stop all processes and restart"
+    echo "  status   Show status of all dev processes"
     echo "  --no-nats  Skip starting NATS"
 }
 
 for arg in "$@"; do
     case "$arg" in
-        start|stop|status)
+        start|stop|status|restart)
             MODE="$arg"
             ;;
         --no-nats)
@@ -80,7 +85,7 @@ stop_nats() {
     $DOCKER_COMPOSE stop nats >/dev/null 2>&1 || true
 }
 
-show_status() {
+show_nats_status() {
     detect_docker_compose
     if [ -z "$DOCKER_COMPOSE" ]; then
         echo -e "${YELLOW}⚠ Docker Compose not available${NC}"
@@ -99,12 +104,107 @@ EOF
     fi
 }
 
+load_pids() {
+    if [ -f "$PID_FILE" ]; then
+        source "$PID_FILE"
+    else
+        FRONTEND_PID=""
+        BACKEND_PID=""
+        SUPERVISOR_PID=""
+    fi
+}
+
+save_pids() {
+    cat > "$PID_FILE" <<EOF
+FRONTEND_PID="$FRONTEND_PID"
+BACKEND_PID="$BACKEND_PID"
+SUPERVISOR_PID="$SUPERVISOR_PID"
+EOF
+}
+
+check_pid() {
+    local pid=$1
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+is_running() {
+    load_pids
+    check_pid "$FRONTEND_PID" || check_pid "$BACKEND_PID" || check_pid "$SUPERVISOR_PID"
+}
+
+stop_all() {
+    echo -e "${YELLOW}Stopping ChoirOS processes...${NC}"
+    load_pids
+
+    for pid in $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID; do
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null || true
+            echo "  Stopped PID $pid"
+        fi
+    done
+
+    rm -f "$PID_FILE"
+    echo -e "${GREEN}All processes stopped${NC}"
+}
+
+show_status() {
+    load_pids
+    echo -e "${GREEN}ChoirOS Status${NC}"
+    echo ""
+
+    local running=0
+
+    if check_pid "$FRONTEND_PID"; then
+        echo -e "  Frontend:   ${GREEN}running${NC} (PID: $FRONTEND_PID, port 5173)"
+        running=1
+    else
+        echo -e "  Frontend:   ${RED}stopped${NC}"
+    fi
+
+    if check_pid "$BACKEND_PID"; then
+        echo -e "  Backend:    ${GREEN}running${NC} (PID: $BACKEND_PID, port 8000)"
+        running=1
+    else
+        echo -e "  Backend:    ${RED}stopped${NC}"
+    fi
+
+    if check_pid "$SUPERVISOR_PID"; then
+        echo -e "  Supervisor: ${GREEN}running${NC} (PID: $SUPERVISOR_PID, port 8001)"
+        running=1
+    else
+        echo -e "  Supervisor: ${RED}stopped${NC}"
+    fi
+
+    echo ""
+    show_nats_status
+
+    if [ "$running" -eq 0 ]; then
+        echo ""
+        echo -e "Run ${YELLOW}./dev.sh start${NC} to start all services"
+    fi
+}
+
 if [ "$MODE" = "stop" ]; then
+    stop_all
     stop_nats
     exit 0
 fi
 
 if [ "$MODE" = "status" ]; then
+    show_status
+    exit 0
+fi
+
+if [ "$MODE" = "restart" ]; then
+    stop_all
+    echo ""
+fi
+
+if is_running; then
+    echo -e "${YELLOW}ChoirOS is already running${NC}"
     show_status
     exit 0
 fi
@@ -122,7 +222,9 @@ fi
 cleanup() {
     echo ""
     echo -e "${YELLOW}Shutting down...${NC}"
+    load_pids
     kill $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID 2>/dev/null
+    rm -f "$PID_FILE"
     if [ "$NATS_STARTED" -eq 1 ] && [ "$KEEP_NATS" -ne 1 ]; then
         stop_nats
     fi
@@ -166,6 +268,9 @@ cd choiros
 npm run dev &
 FRONTEND_PID=$!
 cd ..
+
+# Save PIDs
+save_pids
 
 echo ""
 echo -e "${GREEN}✅ ChoirOS is running!${NC}"
