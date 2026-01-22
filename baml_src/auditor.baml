@@ -44,6 +44,14 @@ function Audit(context: AuditorContext) -> AuditResult {
     3. If the user is claiming "X is true", ask "Why might X be false?"
     4. Provide specific citations or search queries to verify.
 
-    Output JSON.
+    Output JSON matching the following structure:
+    {
+      "critique": "string",
+      "blind_spots": ["string"],
+      "citations": ["string"],
+      "mood": "string"
+    }
+
+    {{ ctx.output_format }}
   "#
 }

@@ -798,6 +798,8 @@ async def agent_audit(request: AuditRequest):
             yield f"data: {json.dumps({'type': 'mood', 'content': result.mood})}\n\n"
             yield f"data: {json.dumps({'type': 'critique', 'content': result.critique})}\n\n"
 
+
+
             if result.blind_spots:
                 yield f"data: {json.dumps({'type': 'blind_spots', 'content': result.blind_spots})}\n\n"
 
@@ -807,6 +809,26 @@ async def agent_audit(request: AuditRequest):
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@app.get("/agent/audits")
+async def list_audits(limit: int = 50):
+    """Get recent auditor critiques."""
+    store = get_store()
+    events = store.get_events(event_type="auditor.critique", limit=limit)
+
+    # Parse payload strings into JSON
+    parsed_events = []
+    for e in events:
+        ev = dict(e)
+        if isinstance(ev.get("payload"), str):
+            try:
+                ev["payload"] = json.loads(ev["payload"])
+            except:
+                pass
+        parsed_events.append(ev)
+
+    return {"audits": parsed_events}
 
 
 def main():

@@ -67,10 +67,14 @@ class AuditorWorker:
             # Log findings
             logger.info(f"Audit Complete for {path}. Mood: {result.mood}")
 
-            # Store result as a note in DB (so frontend can see it)
-            # We don't have a 'auditor.result' event type in DB schema yet,
-            # but we can use 'run_notes' if we had a run_id, or just 'generic' note.
-            # For now, just logging to console is enough for Phase 3 verification.
+            # Store result as a note in DB
+            self.store.append("auditor.critique", {
+                "path": path,
+                "mood": result.mood,
+                "critique": result.critique,
+                "blind_spots": result.blind_spots,
+                "citations": result.citations
+            }, source="auditor")
 
         except Exception as e:
             logger.error(f"Error handling file write: {e}")
