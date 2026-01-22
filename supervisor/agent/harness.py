@@ -1,27 +1,23 @@
-"""
-Agent Harness - Main agent loop with Claude via AWS Bedrock.
 
-Receives prompts via WebSocket, calls Claude with tools, executes tool calls.
+"""
+Agent Harness - Main agent loop using BAML and AWS Bedrock.
+
+Receives prompts via WebSocket, plans actions using BAML, and executes tools.
 Logs all events to the SQLite event store.
+Streaming is handled via BAML's stream feature.
 """
 
 import json
-import os
-from typing import AsyncGenerator, Any, Optional
-
-import anthropic
+import logging
+from typing import AsyncGenerator, Any, Optional, List
 
 from .tools import AgentTools
 from ..db import get_store, EventStore
+from supervisor.baml_client import b
+from supervisor.baml_client.types import Message, AgentPlan, AgentToolCall
 
+logger = logging.getLogger("agent-harness")
 
-# Model to use - Cross-region inference profile required for newer models
-# MODEL_ID = "us.anthropic.claude-3-5-haiku-20241022-v1:0"
-# MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-MODEL_ID = "us.anthropic.claude-opus-4-5-20251101-v1:0"
-
-
-# System prompt for the agent
 SYSTEM_PROMPT = """You are the ChoirOS agent, operating inside a web desktop environment.
 
 Your capabilities:
@@ -40,149 +36,150 @@ When the user asks you to change the UI (colors, layout, etc.), you should:
 1. Read the relevant file to understand current state
 2. Edit the file with your changes
 3. The user will see the update via HMR
-
-Be concise in your responses. Focus on taking action."""
-
+"""
 
 class AgentHarness:
-    """Main agent harness that processes prompts and executes tools."""
+    """Main agent harness that processes prompts and executes tools using BAML."""
 
     def __init__(self, file_history=None, event_store: Optional[EventStore] = None):
-        """
-        Initialize the agent harness.
-
-        Args:
-            file_history: Optional FileHistory instance for undo support
-            event_store: Optional EventStore for persistence (uses global if not provided)
-        """
         self.store = event_store or get_store()
         self.tools = AgentTools(file_history=file_history, event_store=self.store)
         self.conversation_id: Optional[int] = None
-
-        # Initialize Anthropic client for AWS Bedrock
-        self.client = anthropic.AnthropicBedrock(
-            aws_region=os.environ.get("AWS_REGION", "us-east-1"),
-        )
+        self.message_history: List[Message] = []
 
     async def process(self, prompt: str) -> AsyncGenerator[dict[str, Any], None]:
         """
         Process a user prompt and yield responses.
-
-        Yields dict with keys:
-        - type: "thinking", "tool_use", "tool_result", "text", "error", "done"
-        - content: The actual content
+        Uses BAML streaming to send updates.
         """
         try:
             # Ensure we have a conversation
             if self.conversation_id is None:
                 self.conversation_id = self.store.start_conversation()
-            
+
             # Log user message
             await self.store.add_message_async(self.conversation_id, "user", prompt)
-            
-            messages = [{"role": "user", "content": prompt}]
+            self.message_history.append(Message(role="user", content=prompt))
 
-            yield {"type": "thinking", "content": "Processing your request..."}
+            # Initial "thinking" state
+            yield {"type": "thinking", "content": "Planning..."}
 
             while True:
-                # Call Claude
-                response = self.client.messages.create(
-                    model=MODEL_ID,
-                    max_tokens=4096,
-                    system=SYSTEM_PROMPT,
-                    tools=AgentTools.TOOL_DEFINITIONS,
-                    messages=messages,
+                # 1. Call BAML to Plan Action (Streaming)
+                # We collect the partial 'thinking' to yield it
+                current_thinking = ""
+                final_plan: Optional[AgentPlan] = None
+
+                # We need to construct the prompt with available tools listing
+                # Since BAML calls the LLM, we pass tool defs as a string for the prompt context
+                tool_defs_str = json.dumps([t["name"] for t in AgentTools.TOOL_DEFINITIONS], indent=2)
+
+                stream = b.stream.PlanAction(
+                    messages=self.message_history,
+                    system_context=SYSTEM_PROMPT,
+                    available_tools=tool_defs_str
                 )
 
-                # Process response content blocks
-                assistant_content = []
-                has_tool_use = False
+                async for chunk in stream:
+                    if chunk.thinking and len(chunk.thinking) > len(current_thinking):
+                        delta = chunk.thinking[len(current_thinking):]
+                        current_thinking = chunk.thinking
+                        # Emit thinking delta
+                        yield {"type": "thinking", "content": delta}
 
-                assistant_text_parts = []  # Collect text for logging
-                
-                for block in response.content:
-                    if block.type == "text":
-                        yield {"type": "text", "content": block.text}
-                        assistant_content.append({"type": "text", "text": block.text})
-                        assistant_text_parts.append(block.text)
+                    # We can also track if confidence or tool_calls appear roughly?
+                    # BAML stream yields partial objects.
 
-                    elif block.type == "tool_use":
-                        has_tool_use = True
-                        tool_name = block.name
-                        tool_input = block.input
-                        tool_use_id = block.id
+                # Get final result
+                final_plan = await stream.get_final_response()
 
-                        yield {
-                            "type": "tool_use",
-                            "content": {
-                                "tool": tool_name,
-                                "input": tool_input,
-                            }
+                # If we have a final response (no tools), we are done
+                if final_plan.final_response:
+                     yield {"type": "text", "content": final_plan.final_response}
+                     await self.store.add_message_async(
+                        self.conversation_id, "assistant", final_plan.final_response
+                     )
+                     self.message_history.append(Message(role="assistant", content=final_plan.final_response))
+                     break
+
+                # If no tool calls and no final response, something is wrong, but let's break to avoid loop
+                if not final_plan.tool_calls:
+                     logger.warning("No tool calls and no final response from agent.")
+                     break
+
+                # 2. Execute Tools
+                # We treat the plan as the assistant's "thought" + "tool request"
+                # In strict chat logic, we might need to record the assistant's turn.
+                # Here we'll simplify: The "Thinking" is the reasoning.
+
+                # We add the "thinking" as an assistant message?
+                # Or we just add the tool results.
+                # BAML doesn't manage the `messages` list automatically, we must do it.
+                # Standard practice: User -> Assistant (with tool_calls) -> User (with tool_results)
+
+                # Construct assistant message for history
+                # Note: Our simple Message schema (role, content) doesn't strictly support `tool_calls` field
+                # compatible with Anthropic API directly if we were passing it raw.
+                # But since we use BAML to format the prompt, we just need to represent it effectively.
+
+                # Let's format the assistant's turn as:
+                # "Thinking: <reasoning>\nCalling: <tools>"
+                assistant_content = f"Thinking: {final_plan.thinking}\n"
+                for tc in final_plan.tool_calls:
+                     assistant_content += f"Tool Call: {tc.tool_name}({tc.tool_args})\n"
+
+                self.message_history.append(Message(role="assistant", content=assistant_content))
+                await self.store.add_message_async(self.conversation_id, "assistant", assistant_content)
+
+                # Execute each tool
+                # Wait, PlanAction returns ALL tool calls for this turn concurrently?
+                # BAML returns a list.
+
+                for tc in final_plan.tool_calls:
+                    yield {
+                        "type": "tool_use",
+                        "content": {
+                            "tool": tc.tool_name,
+                            "input": tc.tool_args # It's a string, frontend might expect dict
                         }
+                    }
 
-                        assistant_content.append({
-                            "type": "tool_use",
-                            "id": tool_use_id,
-                            "name": tool_name,
-                            "input": tool_input,
-                        })
+                    # Parse args
+                    try:
+                        args = json.loads(tc.tool_args)
+                    except:
+                        args = {} # Should act as empty dict if parsing fails? or error
 
-                        # Execute the tool
-                        result = await self.tools.execute_tool(tool_name, tool_input)
-                        
-                        # Log tool call to event store
-                        await self.store.log_tool_call_async(
-                            self.conversation_id,
-                            tool_name,
-                            tool_input,
-                            result
-                        )
+                    # Execute
+                    result = await self.tools.execute_tool(tc.tool_name, args)
 
-                        yield {
-                            "type": "tool_result",
-                            "content": {
-                                "tool": tool_name,
-                                "result": result,
-                            }
+                    # Log
+                    await self.store.log_tool_call_async(
+                        self.conversation_id,
+                        tc.tool_name,
+                        args,
+                        result
+                    )
+
+                    yield {
+                        "type": "tool_result",
+                        "content": {
+                            "tool": tc.tool_name,
+                            "result": result
                         }
+                    }
 
-                        # Add assistant message and tool result for next turn
-                        messages.append({"role": "assistant", "content": assistant_content})
-                        messages.append({
-                            "role": "user",
-                            "content": [{
-                                "type": "tool_result",
-                                "tool_use_id": tool_use_id,
-                                "content": json.dumps(result),
-                            }]
-                        })
+                    # Append result to history
+                    # We attribute tool results to 'user' role usually in simple chat formats,
+                    # or 'system' or specific tool role if supported.
+                    # Our BAML Loop uses just User/Assistant/System usually.
+                    tool_result_str = f"Tool '{tc.tool_name}' Result: {json.dumps(result)}"
+                    self.message_history.append(Message(role="user", content=tool_result_str))
 
-                        # Reset for potential next tool call
-                        assistant_content = []
-
-                # If no tool use, we're done - log the final assistant response
-                if not has_tool_use:
-                    if assistant_text_parts:
-                        full_response = "\n".join(assistant_text_parts)
-                        await self.store.add_message_async(
-                            self.conversation_id, 
-                            "assistant", 
-                            full_response
-                        )
-                    break
-
-                # Check stop reason
-                if response.stop_reason == "end_turn":
-                    if assistant_text_parts:
-                        full_response = "\n".join(assistant_text_parts)
-                        await self.store.add_message_async(
-                            self.conversation_id,
-                            "assistant",
-                            full_response
-                        )
-                    break
+                # Loop continues to next PlanAction
 
             yield {"type": "done", "content": None}
 
         except Exception as e:
+            logger.error(f"Agent process error: {e}")
             yield {"type": "error", "content": str(e)}

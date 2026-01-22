@@ -111,6 +111,7 @@ load_pids() {
         FRONTEND_PID=""
         BACKEND_PID=""
         SUPERVISOR_PID=""
+        AUDITOR_PID=""
     fi
 }
 
@@ -119,6 +120,7 @@ save_pids() {
 FRONTEND_PID="$FRONTEND_PID"
 BACKEND_PID="$BACKEND_PID"
 SUPERVISOR_PID="$SUPERVISOR_PID"
+AUDITOR_PID="$AUDITOR_PID"
 EOF
 }
 
@@ -132,14 +134,14 @@ check_pid() {
 
 is_running() {
     load_pids
-    check_pid "$FRONTEND_PID" || check_pid "$BACKEND_PID" || check_pid "$SUPERVISOR_PID"
+    check_pid "$FRONTEND_PID" || check_pid "$BACKEND_PID" || check_pid "$SUPERVISOR_PID" || check_pid "$AUDITOR_PID"
 }
 
 stop_all() {
     echo -e "${YELLOW}Stopping ChoirOS processes...${NC}"
     load_pids
 
-    for pid in $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID; do
+    for pid in $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID $AUDITOR_PID; do
         if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
             kill "$pid" 2>/dev/null || true
             echo "  Stopped PID $pid"
@@ -176,6 +178,13 @@ show_status() {
         running=1
     else
         echo -e "  Supervisor: ${RED}stopped${NC}"
+    fi
+
+    if check_pid "$AUDITOR_PID"; then
+        echo -e "  Auditor:    ${GREEN}running${NC} (PID: $AUDITOR_PID)"
+        running=1
+    else
+        echo -e "  Auditor:    ${RED}stopped${NC}"
     fi
 
     echo ""
@@ -223,7 +232,7 @@ cleanup() {
     echo ""
     echo -e "${YELLOW}Shutting down...${NC}"
     load_pids
-    kill $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID 2>/dev/null
+    kill $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID $AUDITOR_PID 2>/dev/null
     rm -f "$PID_FILE"
     if [ "$NATS_STARTED" -eq 1 ] && [ "$KEEP_NATS" -ne 1 ]; then
         stop_nats
@@ -263,6 +272,10 @@ echo -e "${GREEN}Starting Supervisor (port 8001)...${NC}"
 SUPERVISOR_STANDALONE=1 python -m supervisor.main &
 SUPERVISOR_PID=$!
 
+echo -e "${GREEN}Starting Auditor Worker...${NC}"
+python supervisor/auditor_worker.py &
+AUDITOR_PID=$!
+
 echo -e "${GREEN}Starting Frontend (Vite on port 5173)...${NC}"
 cd choiros
 npm run dev &
@@ -283,4 +296,4 @@ echo -e "Press ${RED}Ctrl+C${NC} to stop"
 echo ""
 
 # Wait for any process to exit
-wait $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID
+wait $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID $AUDITOR_PID

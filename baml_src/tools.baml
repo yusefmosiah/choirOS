@@ -44,6 +44,11 @@ class GitStatusInput {
   log_count int? @description("Number of recent commits to show (default 5)")
 }
 
+class WebSearchInput {
+  query string @description("Search query")
+  max_results int? @description("Max links to return (default 5)")
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tool Call Abstraction
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55,6 +60,7 @@ enum ToolName {
   Bash @description("Execute shell command")
   GitCheckpoint @description("Create git commit")
   GitStatus @description("Get git status and history")
+  WebSearch @description("Search the web for information")
 }
 
 class ToolCall {
@@ -85,5 +91,10 @@ class BashResult {
   output_file string?
   output_preview string?
   truncated bool?
+  error string?
+}
+
+class WebSearchResult {
+  results string[] @description("List of search results with titles and snippets")
   error string?
 }

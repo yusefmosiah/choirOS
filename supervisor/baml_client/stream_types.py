@@ -23,18 +23,35 @@ class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
     value: StreamStateValueT
     state: typing_extensions.Literal["Pending", "Incomplete", "Complete"]
 # #########################################################################
-# Generated classes (15)
+# Generated classes (21)
 # #########################################################################
 
 class AgentPlan(BaseModel):
     thinking: typing.Optional[str] = Field(default=None, description='Step-by-step reasoning about the task')
-    tool_calls: typing.List["ToolCall"] = Field(description='Ordered list of tools to invoke')
+    tool_calls: typing.List["AgentToolCall"] = Field(description='Ordered list of tools to invoke')
+    final_response: typing.Optional[str] = Field(default=None, description='Final response to user if no tools needed')
     confidence: typing.Optional[float] = Field(default=None, description='0.0 to 1.0 confidence in this plan')
 
 class AgentResponse(BaseModel):
     summary: typing.Optional[str] = Field(default=None, description='Concise summary of what was done')
     details: typing.List[str] = Field(description='Key observations or results')
     next_steps: typing.Optional[str] = Field(default=None, description='Suggested follow-up actions, if any')
+
+class AgentToolCall(BaseModel):
+    tool_name: typing.Optional[str] = Field(default=None, description='Name of the tool to invoke')
+    tool_args: typing.Optional[str] = Field(default=None, description='JSON string of arguments for the tool')
+    reasoning: typing.Optional[str] = Field(default=None, description='Why this tool is being called')
+
+class AuditResult(BaseModel):
+    critique: typing.Optional[str] = Field(default=None, description='The dissenting opinion/critique')
+    blind_spots: typing.List[str] = Field(description='List of potential blind spots or missing context')
+    citations: typing.List[str] = Field(description='URLs or file paths cited in the critique')
+    mood: typing.Optional[str] = Field(default=None, description='The tone of the critique (e.g., \'Sharp\', \'Concerned\', \'Pedantic\')')
+
+class AuditorContext(BaseModel):
+    task_description: typing.Optional[str] = Field(default=None, description='What the user is currently working on')
+    recent_events: typing.List[str] = Field(description='Recent file edits and actions')
+    file_content: typing.Optional[str] = Field(default=None, description='Content of the file being audited')
 
 class BashInput(BaseModel):
     command: typing.Optional[str] = Field(default=None, description='Shell command to execute')
@@ -62,6 +79,10 @@ class GitCheckpointInput(BaseModel):
 class GitStatusInput(BaseModel):
     log_count: typing.Optional[int] = Field(default=None, description='Number of recent commits to show (default 5)')
 
+class Message(BaseModel):
+    role: typing.Optional[str] = None
+    content: typing.Optional[str] = None
+
 class ReadFileInput(BaseModel):
     path: typing.Optional[str] = Field(default=None, description='Path to file (relative or absolute)')
     head: typing.Optional[int] = Field(default=None, description='Return only first N lines')
@@ -88,6 +109,14 @@ class VerifierOutcome(BaseModel):
     summary: typing.Optional[str] = Field(default=None, description='Concise summary of what happened')
     details: typing.List[str] = Field(description='Key observations or errors found in the logs')
     confidence: typing.Optional[float] = Field(default=None, description='0.0 to 1.0 confidence in this assessment')
+
+class WebSearchInput(BaseModel):
+    query: typing.Optional[str] = Field(default=None, description='Search query')
+    max_results: typing.Optional[int] = Field(default=None, description='Max links to return (default 5)')
+
+class WebSearchResult(BaseModel):
+    results: typing.List[str] = Field(description='List of search results with titles and snippets')
+    error: typing.Optional[str] = None
 
 class WriteFileInput(BaseModel):
     path: typing.Optional[str] = Field(default=None, description='Path to file (relative or absolute)')

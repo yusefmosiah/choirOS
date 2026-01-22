@@ -36,6 +36,12 @@ class LlmResponseParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AssessTask", llm_response=llm_response, mode="request")
         return typing.cast(types.TaskAssessment, __result__)
 
+    def Audit(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> types.AuditResult:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="Audit", llm_response=llm_response, mode="request")
+        return typing.cast(types.AuditResult, __result__)
+
     def PlanAction(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> types.AgentPlan:
@@ -67,6 +73,12 @@ class LlmStreamParser:
     ) -> stream_types.TaskAssessment:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AssessTask", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.TaskAssessment, __result__)
+
+    def Audit(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> stream_types.AuditResult:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="Audit", llm_response=llm_response, mode="stream")
+        return typing.cast(stream_types.AuditResult, __result__)
 
     def PlanAction(
         self, llm_response: str, baml_options: BamlCallOptions = {},

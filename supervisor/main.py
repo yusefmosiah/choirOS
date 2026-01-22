@@ -43,6 +43,8 @@ from .sandbox_runner import (
     SandboxConfig,
     SandboxNetworkPolicy,
 )
+from .agent.auditor import UnilateralAuditor
+from fastapi.responses import StreamingResponse
 
 
 def _get_project_root() -> Path:
@@ -163,6 +165,12 @@ class SandboxProcessStopPayload(BaseModel):
 class SandboxProxyPayload(BaseModel):
     port: int
     sandbox_id: Optional[str] = None
+
+
+class AuditRequest(BaseModel):
+    task: str
+    content: Optional[str] = None
+    url: Optional[str] = None
 
 
 def _get_cors_settings() -> tuple[list[str], bool]:
@@ -760,6 +768,45 @@ async def agent_websocket(websocket: WebSocket):
 
     except WebSocketDisconnect:
         pass
+
+
+@app.post("/agent/audit")
+async def agent_audit(request: AuditRequest):
+    """Run the Unilateral Auditor and stream results."""
+
+    async def event_generator():
+        auditor = UnilateralAuditor()
+
+        # 1. If URL provided, fetch content (simulated for now or via tool)
+        content = request.content
+        if request.url:
+            # TODO: Use WebSearch tool or helper to fetch URL content?
+            # For now, just using URL as context
+            pass
+
+        yield f"data: {json.dumps({'type': 'thinking', 'content': 'Auditing content...'})}\n\n"
+
+        try:
+            # 2. Run Audit
+            result = await auditor.audit(
+                task_description=request.task,
+                recent_events=[],
+                file_content=content or f"Target URL: {request.url}"
+            )
+
+            # 3. Stream Response
+            yield f"data: {json.dumps({'type': 'mood', 'content': result.mood})}\n\n"
+            yield f"data: {json.dumps({'type': 'critique', 'content': result.critique})}\n\n"
+
+            if result.blind_spots:
+                yield f"data: {json.dumps({'type': 'blind_spots', 'content': result.blind_spots})}\n\n"
+
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 def main():

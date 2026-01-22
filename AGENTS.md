@@ -51,9 +51,18 @@ SUPERVISOR_STANDALONE=1 python -m supervisor.main  # Standalone mode
 
 ### Full Stack
 ```bash
-./dev.sh           # Start frontend, backend, supervisor, NATS
-./dev.sh --no-nats # Skip NATS container
-./dev.sh stop      # Stop NATS only
+./dev.sh              # Start frontend, backend, supervisor, NATS
+./dev.sh --no-nats    # Skip NATS container
+./dev.sh stop         # Stop all dev processes (frontend, backend, supervisor, NATS)
+./dev.sh restart      # Stop all and restart
+./dev.sh status       # Show status of all dev processes and NATS
+```
+
+### Sandbox Configuration
+```bash
+# Use sprites.dev for sandboxed execution
+echo "CHOIR_SANDBOX_PROVIDER=sprites" >> api/.env
+# Token already configured in api/.env as SPRITES_API_TOKEN
 ```
 
 ## Code Style Guidelines
@@ -98,6 +107,7 @@ SUPERVISOR_STANDALONE=1 python -m supervisor.main  # Standalone mode
 - Browser connects via WebSocket using `nats.ws`
 - Events published/subscribed on subjects matching event contract
 - Auth credentials fetched from supervisor endpoint
+- **Note**: Frontend shows "NATS offline" until authenticated via the Auth app (passkey login)
 
 ## Services
 - Backend: http://localhost:8000 (API docs at /docs)

@@ -22,6 +22,15 @@ type_map = {
     "types.AgentResponse": types.AgentResponse,
     "stream_types.AgentResponse": stream_types.AgentResponse,
 
+    "types.AgentToolCall": types.AgentToolCall,
+    "stream_types.AgentToolCall": stream_types.AgentToolCall,
+
+    "types.AuditResult": types.AuditResult,
+    "stream_types.AuditResult": stream_types.AuditResult,
+
+    "types.AuditorContext": types.AuditorContext,
+    "stream_types.AuditorContext": stream_types.AuditorContext,
+
     "types.BashInput": types.BashInput,
     "stream_types.BashInput": stream_types.BashInput,
 
@@ -40,6 +49,9 @@ type_map = {
     "types.GitStatusInput": types.GitStatusInput,
     "stream_types.GitStatusInput": stream_types.GitStatusInput,
 
+    "types.Message": types.Message,
+    "stream_types.Message": stream_types.Message,
+
     "types.ReadFileInput": types.ReadFileInput,
     "stream_types.ReadFileInput": stream_types.ReadFileInput,
 
@@ -54,6 +66,12 @@ type_map = {
 
     "types.VerifierOutcome": types.VerifierOutcome,
     "stream_types.VerifierOutcome": stream_types.VerifierOutcome,
+
+    "types.WebSearchInput": types.WebSearchInput,
+    "stream_types.WebSearchInput": stream_types.WebSearchInput,
+
+    "types.WebSearchResult": types.WebSearchResult,
+    "stream_types.WebSearchResult": stream_types.WebSearchResult,
 
     "types.WriteFileInput": types.WriteFileInput,
     "stream_types.WriteFileInput": stream_types.WriteFileInput,

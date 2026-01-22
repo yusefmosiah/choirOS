@@ -9,30 +9,44 @@
 // Agent Planning
 // ─────────────────────────────────────────────────────────────────────────────
 
+class Message {
+  role string
+  content string
+}
+
+class AgentToolCall {
+  tool_name string @description("Name of the tool to invoke")
+  tool_args string @description("JSON string of arguments for the tool")
+  reasoning string @description("Why this tool is being called")
+}
+
 class AgentPlan {
   thinking string @description("Step-by-step reasoning about the task")
-  tool_calls ToolCall[] @description("Ordered list of tools to invoke")
+  tool_calls AgentToolCall[] @description("Ordered list of tools to invoke")
+  final_response string? @description("Final response to user if no tools needed")
   confidence float @description("0.0 to 1.0 confidence in this plan")
 }
 
 function PlanAction(
-  user_prompt: string,
+  messages: Message[],
   system_context: string,
   available_tools: string
 ) -> AgentPlan {
   client ClaudeBedrock
   prompt #"
-    You are the ChoirOS agent. Given the user's request and system context,
-    plan the sequence of tool calls needed to complete the task.
-
     {{ system_context }}
 
     Available tools:
     {{ available_tools }}
 
-    User request: {{ user_prompt }}
+    {% for m in messages %}
+    {{ _.role(m.role) }}
+    {{ m.content }}
+    {% endfor %}
 
-    Think step-by-step, then output your plan.
+    Plan the next step.
+    If you need to use tools, output them in 'tool_calls'.
+    If you are done or need to ask a question, output 'final_response'.
 
     {{ ctx.output_format }}
   "#

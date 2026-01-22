@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from ..db import EventStore, get_store
+from .web_search import WebSearch
 
 
 # Detect project root - use PYTHONPATH if set, otherwise find relative to this file
@@ -34,7 +35,7 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class AgentTools:
-    """Implementation of the 4 agent tools."""
+    """Implementation of the 5 agent tools."""
 
     def __init__(self, file_history=None, event_store: Optional[EventStore] = None):
         """
@@ -49,6 +50,7 @@ class AgentTools:
         self.env = os.environ.copy()
         self.cwd = str(PROJECT_ROOT / "choiros")  # Default working directory
         self.app_dir = PROJECT_ROOT
+        self.web_search = WebSearch()
 
     # Tool definitions for Claude
     TOOL_DEFINITIONS = [
@@ -169,6 +171,25 @@ class AgentTools:
                     }
                 },
                 "required": []
+            }
+        },
+        {
+            "name": "web_search",
+            "description": "Search the web for information using Tavily.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Max links to return (default 5)",
+                        "default": 5
+                    }
+                },
+                "required": ["query"]
             }
         }
     ]
@@ -402,5 +423,9 @@ class AgentTools:
             return await self.git_checkpoint(**arguments)
         elif name == "git_status":
             return await self.git_status(**arguments)
+        elif name == "git_status":
+            return await self.git_status(**arguments)
+        elif name == "web_search":
+            return await self.web_search.search(**arguments)
         else:
             return {"error": f"Unknown tool: {name}"}

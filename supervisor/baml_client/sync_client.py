@@ -122,18 +122,32 @@ class BamlSyncClient:
                 "prompt": prompt,
             })
             return typing.cast(types.TaskAssessment, __result__.cast_to(types, types, stream_types, False, __runtime__))
-    def PlanAction(self, user_prompt: str,system_context: str,available_tools: str,
+    def Audit(self, context: types.AuditorContext,
+        baml_options: BamlCallOptions = {},
+    ) -> types.AuditResult:
+        # Check if on_tick is provided
+        if 'on_tick' in baml_options:
+            __stream__ = self.stream.Audit(context=context,
+                baml_options=baml_options)
+            return __stream__.get_final_response()
+        else:
+            # Original non-streaming code
+            __result__ = self.__options.merge_options(baml_options).call_function_sync(function_name="Audit", args={
+                "context": context,
+            })
+            return typing.cast(types.AuditResult, __result__.cast_to(types, types, stream_types, False, __runtime__))
+    def PlanAction(self, messages: typing.List["types.Message"],system_context: str,available_tools: str,
         baml_options: BamlCallOptions = {},
     ) -> types.AgentPlan:
         # Check if on_tick is provided
         if 'on_tick' in baml_options:
-            __stream__ = self.stream.PlanAction(user_prompt=user_prompt,system_context=system_context,available_tools=available_tools,
+            __stream__ = self.stream.PlanAction(messages=messages,system_context=system_context,available_tools=available_tools,
                 baml_options=baml_options)
             return __stream__.get_final_response()
         else:
             # Original non-streaming code
             __result__ = self.__options.merge_options(baml_options).call_function_sync(function_name="PlanAction", args={
-                "user_prompt": user_prompt,"system_context": system_context,"available_tools": available_tools,
+                "messages": messages,"system_context": system_context,"available_tools": available_tools,
             })
             return typing.cast(types.AgentPlan, __result__.cast_to(types, types, stream_types, False, __runtime__))
     def SynthesizeResponse(self, user_prompt: str,tool_results: str,
@@ -183,11 +197,23 @@ class BamlStreamClient:
           lambda x: typing.cast(types.TaskAssessment, x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
-    def PlanAction(self, user_prompt: str,system_context: str,available_tools: str,
+    def Audit(self, context: types.AuditorContext,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlSyncStream[stream_types.AuditResult, types.AuditResult]:
+        __ctx__, __result__ = self.__options.merge_options(baml_options).create_sync_stream(function_name="Audit", args={
+            "context": context,
+        })
+        return baml_py.BamlSyncStream[stream_types.AuditResult, types.AuditResult](
+          __result__,
+          lambda x: typing.cast(stream_types.AuditResult, x.cast_to(types, types, stream_types, True, __runtime__)),
+          lambda x: typing.cast(types.AuditResult, x.cast_to(types, types, stream_types, False, __runtime__)),
+          __ctx__,
+        )
+    def PlanAction(self, messages: typing.List["types.Message"],system_context: str,available_tools: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.BamlSyncStream[stream_types.AgentPlan, types.AgentPlan]:
         __ctx__, __result__ = self.__options.merge_options(baml_options).create_sync_stream(function_name="PlanAction", args={
-            "user_prompt": user_prompt,"system_context": system_context,"available_tools": available_tools,
+            "messages": messages,"system_context": system_context,"available_tools": available_tools,
         })
         return baml_py.BamlSyncStream[stream_types.AgentPlan, types.AgentPlan](
           __result__,
@@ -229,11 +255,18 @@ class BamlHttpRequestClient:
             "prompt": prompt,
         }, mode="request")
         return __result__
-    def PlanAction(self, user_prompt: str,system_context: str,available_tools: str,
+    def Audit(self, context: types.AuditorContext,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = self.__options.merge_options(baml_options).create_http_request_sync(function_name="Audit", args={
+            "context": context,
+        }, mode="request")
+        return __result__
+    def PlanAction(self, messages: typing.List["types.Message"],system_context: str,available_tools: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = self.__options.merge_options(baml_options).create_http_request_sync(function_name="PlanAction", args={
-            "user_prompt": user_prompt,"system_context": system_context,"available_tools": available_tools,
+            "messages": messages,"system_context": system_context,"available_tools": available_tools,
         }, mode="request")
         return __result__
     def SynthesizeResponse(self, user_prompt: str,tool_results: str,
@@ -265,11 +298,18 @@ class BamlHttpStreamRequestClient:
             "prompt": prompt,
         }, mode="stream")
         return __result__
-    def PlanAction(self, user_prompt: str,system_context: str,available_tools: str,
+    def Audit(self, context: types.AuditorContext,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = self.__options.merge_options(baml_options).create_http_request_sync(function_name="Audit", args={
+            "context": context,
+        }, mode="stream")
+        return __result__
+    def PlanAction(self, messages: typing.List["types.Message"],system_context: str,available_tools: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = self.__options.merge_options(baml_options).create_http_request_sync(function_name="PlanAction", args={
-            "user_prompt": user_prompt,"system_context": system_context,"available_tools": available_tools,
+            "messages": messages,"system_context": system_context,"available_tools": available_tools,
         }, mode="stream")
         return __result__
     def SynthesizeResponse(self, user_prompt: str,tool_results: str,
