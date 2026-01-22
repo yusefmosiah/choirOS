@@ -6,6 +6,7 @@ Status: ACTIVE
 - docs/specs/CHOIR_STORAGE_ROLLBACK_SPEC.md (DRAFT)
 - docs/specs/CHOIR_AUTH_RECOVERY_SPEC.md (DRAFT)
 - docs/specs/CHOIR_EVENT_CONTRACT_SPEC.md (DRAFT)
+- docs/specs/CHOIR_MACHINE_V0_SPEC.md (DRAFT)
 - docs/specs/CHOIR_CAPABILITIES_SPEC.md
 - docs/specs/CHOIR_FULL_SYSTEM_DESIGN.md
 - docs/specs/CHOIR_HEADLESS_1P_DESIGN.md
@@ -28,6 +29,10 @@ Status: ACTIVE
 ## Patterns
 - docs/patterns/AGENTIC_CONSULTING_PATTERNS.md
 - docs/patterns/RESEARCH_AS_VERIFICATION_PATTERN.md
+
+## Implementation Plans
+- docs/implementation_plans/MACHINE_V0_PLAN.md
+- docs/implementation_plans/UNILATERAL_AUDITOR.md
 
 ## Reviews
 - docs/reviews/issues-jan-15.md
