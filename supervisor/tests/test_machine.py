@@ -21,6 +21,7 @@ class TestMachine(unittest.TestCase):
 
     def test_single_writer_serializes(self) -> None:
         started: list[str] = []
+        finished: list[str] = []
         first_started = asyncio.Event()
         allow_finish = asyncio.Event()
 
@@ -29,20 +30,36 @@ class TestMachine(unittest.TestCase):
             if directive.prompt == "first":
                 first_started.set()
                 await allow_finish.wait()
+            finished.append(directive.prompt)
             return ModeRunResult(run_id=None, status="done", verifier_results=[])
 
         machine = Machine(store=self.store, executor=executor)
 
         async def run_test():
-            task1 = asyncio.create_task(machine.handle_prompt("first"))
-            await first_started.wait()
-            task2 = asyncio.create_task(machine.handle_prompt("second"))
-            await asyncio.sleep(0.05)
+            machine.start_loop()
+            # Enqueue two prompts
+            await machine.handle_prompt("first")
+            await machine.handle_prompt("second")
+            
+            # Wait for first to start
+            await asyncio.wait_for(first_started.wait(), timeout=1.0)
+            
+            # Verify serialization: "second" should not have started yet
             self.assertEqual(started, ["first"])
+            self.assertNotIn("second", started)
+            
+            # Allow first to finish
             allow_finish.set()
-            await task1
-            await task2
-            self.assertEqual(started, ["first", "second"])
+            
+            # Wait for both to be processed (poll until finished has 2 items)
+            for _ in range(20):
+                if len(finished) == 2:
+                    break
+                await asyncio.sleep(0.05)
+            
+            self.assertEqual(finished, ["first", "second"])
+            
+            await machine.stop_loop()
 
         asyncio.run(run_test())
 

@@ -914,12 +914,12 @@ class EventStore:
     def list_work_items(self, status: Optional[str] = None, limit: int = 50) -> list[dict]:
         if status:
             cursor = self.conn.execute(
-                "SELECT * FROM work_items WHERE status = ? ORDER BY created_at DESC LIMIT ?",
+                "SELECT * FROM work_items WHERE status = ? ORDER BY created_at ASC LIMIT ?",
                 (status, limit),
             )
         else:
             cursor = self.conn.execute(
-                "SELECT * FROM work_items ORDER BY created_at DESC LIMIT ?",
+                "SELECT * FROM work_items ORDER BY created_at ASC LIMIT ?",
                 (limit,),
             )
         return [self._deserialize_work_item(dict(row)) for row in cursor.fetchall()]

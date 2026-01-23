@@ -36,25 +36,77 @@ class Machine:
         self.executor = executor
         self.session_id = session_id
         self._writer_lock = asyncio.Lock()
+        self._running = False
+        self._loop_task: Optional[asyncio.Task] = None
+
+    def start_loop(self):
+        if self._running:
+            return
+        self._running = True
+        self._loop_task = asyncio.create_task(self._scheduler_loop())
+
+    async def stop_loop(self):
+        self._running = False
+        if self._loop_task:
+            self._loop_task.cancel()
+            try:
+                await self._loop_task
+            except asyncio.CancelledError:
+                pass
+            self._loop_task = None
+
+    async def _scheduler_loop(self):
+        while self._running:
+            try:
+                # Acquire lock for entire claim-execute cycle to ensure serialization
+                async with self._writer_lock:
+                    # 1. Poll for queued work (FIFO by created_at)
+                    items = self.store.list_work_items(status="queued", limit=1)
+                    if not items:
+                        # Release lock briefly before sleeping
+                        pass
+                    else:
+                        item = items[0]
+                        work_item_id = item["id"]
+                        prompt = item["description"]
+
+                        # 2. Determine mode (TODO: AHDB selector)
+                        mode_config = self._select_mode(prompt)
+
+                        directive = ModeDirective(
+                            mode_id=mode_config.mode_id,
+                            prompt=prompt,
+                            work_item_id=work_item_id,
+                            allow_write=mode_config.allow_write,
+                            session_id=self.session_id,
+                        )
+
+                        # 3. Mark as running, execute, then mark completed
+                        self.store.update_work_item(work_item_id, {"status": "running"})
+                        try:
+                            await self._run_directive(directive, emit_start=True)
+                            self.store.update_work_item(work_item_id, {"status": "completed"})
+                        except Exception as exec_err:
+                            self.store.update_work_item(work_item_id, {"status": "failed"})
+                            raise exec_err
+                        continue  # Check for more work immediately
+
+                await asyncio.sleep(0.1)  # Brief sleep when no work
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"Error in machine scheduler loop: {e}")
+                await asyncio.sleep(5)
 
     def _select_mode(self, prompt: str) -> ModeConfig:
         # TODO: Replace with AHDB-driven selection + guards.
         return get_mode_config("CALM")
 
-    async def handle_prompt(self, prompt: str, requested_mode: Optional[str] = None) -> ModeRunResult:
-        mode_config = get_mode_config(requested_mode) if requested_mode else self._select_mode(prompt)
+    async def handle_prompt(self, prompt: str, requested_mode: Optional[str] = None) -> str:
+        """Enqueue a prompt for execution. Returns work_item_id."""
         work_item = self.store.create_work_item(description=prompt, status="queued")
-        directive = ModeDirective(
-            mode_id=mode_config.mode_id,
-            prompt=prompt,
-            work_item_id=work_item["id"],
-            allow_write=mode_config.allow_write,
-            session_id=self.session_id,
-        )
-        if directive.allow_write:
-            async with self._writer_lock:
-                return await self._run_directive(directive, emit_start=True)
-        return await self._run_directive(directive, emit_start=True)
+        return work_item["id"]
 
     async def handle_event(self, event: Any) -> None:
         if event.event_type != "mode.start":

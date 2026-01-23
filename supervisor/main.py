@@ -761,6 +761,8 @@ async def agent_websocket(websocket: WebSocket):
     if NATS_ENABLED:
         listener_ready = await machine.listen_for_directives()
 
+    machine.start_loop()
+
     try:
         while True:
             # Receive prompt from ? bar
@@ -790,6 +792,9 @@ async def agent_websocket(websocket: WebSocket):
             recent_prompts.append(now)
 
             if NATS_ENABLED and listener_ready:
+                # TODO: This path bypasses the machine queue logic if NATS is on?
+                # For now, let's funnel everything through handle_prompt if we want the queue to be the source of truth.
+                # But NATS is "system" injection.
                 store.append(
                     "mode.start",
                     {
@@ -800,10 +805,17 @@ async def agent_websocket(websocket: WebSocket):
                     source="system",
                 )
             else:
-                await machine.handle_prompt(prompt)
+                work_item_id = await machine.handle_prompt(prompt)
+                await websocket.send_json({
+                    "type": "enqueued",
+                    "work_item_id": work_item_id,
+                    "content": "Command enqueued."
+                })
 
     except WebSocketDisconnect:
         pass
+    finally:
+        await machine.stop_loop()
 
 
 @app.post("/agent/audit")
