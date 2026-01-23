@@ -806,12 +806,14 @@ class EventStore:
         self.conn.commit()
         return seq
 
-    def log_ahdb_proposal(self, delta: dict, run_id: Optional[str] = None) -> int:
+    def log_ahdb_proposal(self, delta: dict, run_id: Optional[str] = None, metadata: Optional[dict] = None) -> int:
         """Log a proposed AHDB delta (does not update asserted state)."""
-        metadata = {"authority": "proposed"}
+        meta = {"authority": "proposed"}
         if run_id:
-            metadata["run_id"] = run_id
-        return self.log_ahdb_delta(delta, metadata)
+            meta["run_id"] = run_id
+        if metadata:
+            meta.update(metadata)
+        return self.log_ahdb_delta(delta, meta)
 
     def get_ahdb_state(self) -> dict:
         """Return the latest AHDB state vector."""

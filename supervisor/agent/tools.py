@@ -61,9 +61,37 @@ class AgentTools:
         self.app_dir = PROJECT_ROOT
         self.web_search = WebSearch()
         self.artifacts = ArtifactStore(event_store=self.store)
+        self.run_id: Optional[str] = None
+
+    def set_run_id(self, run_id: str) -> None:
+        self.run_id = run_id
 
     # Tool definitions for Claude
     TOOL_DEFINITIONS = [
+        {
+            "name": "propose_ahdb",
+            "description": "Propose an AHDB update (ASSERT/HYPOTHESIZE/DRIVE/BELIEVE).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "field": {
+                        "type": "string",
+                        "enum": ["assert", "hypothesize", "drive", "believe"],
+                        "description": "AHDB field to update"
+                    },
+                    "value": {
+                        "type": "object",
+                        "description": "The value object to set/merge"
+                    },
+                    "evidence": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of evidence strings or artifact hashes"
+                    }
+                },
+                "required": ["field", "value"]
+            }
+        },
         {
             "name": "read_file",
             "description": "Read file contents. Use head/tail for large files.",
@@ -554,6 +582,21 @@ class AgentTools:
         except Exception as e:
             return {"error": str(e)}
 
+    async def propose_ahdb(self, field: str, value: dict, evidence: list[str] = None) -> dict[str, Any]:
+        """Propose an AHDB update."""
+        if not self.store:
+            return {"error": "No event store available"}
+        if not self.run_id:
+            return {"error": "No active run ID"}
+
+        delta = {field: value}
+        metadata = {}
+        if evidence:
+            metadata["evidence"] = evidence
+
+        self.store.log_ahdb_proposal(delta, run_id=self.run_id, metadata=metadata)
+        return {"status": "proposed", "field": field}
+
     async def git_checkpoint(self, message: Optional[str] = None) -> dict[str, Any]:
         """Create a git checkpoint."""
         denial = self._assert_tool_allowed("git_checkpoint")
@@ -618,5 +661,7 @@ class AgentTools:
             return result
         elif name == "read_artifact":
             return await self.read_artifact(**arguments)
+        elif name == "propose_ahdb":
+            return await self.propose_ahdb(**arguments)
         else:
             return {"error": f"Unknown tool: {name}"}

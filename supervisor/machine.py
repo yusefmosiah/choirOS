@@ -131,6 +131,10 @@ class Machine:
         return result
 
     def promote_ahdb_proposals(self, run_id: str) -> int:
+        run = self.store.get_run(run_id)
+        if not run or run.get("status") != "verified":
+            return 0
+
         proposals = self.store.list_ahdb_proposals(run_id)
         promoted = 0
         for proposal in proposals:
@@ -139,7 +143,14 @@ class Machine:
             delta = proposal.get("delta")
             if not delta:
                 continue
-            self.store.log_ahdb_delta(delta, {"run_id": run_id, "authority": "asserted"})
+            self.store.log_ahdb_delta(
+                delta,
+                {
+                    "run_id": run_id,
+                    "authority": "asserted",
+                    "evidence_event_seq": proposal.get("event_seq"),
+                },
+            )
             promoted += 1
         if promoted:
             self.store.mark_ahdb_proposals_promoted(run_id)

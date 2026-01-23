@@ -48,6 +48,9 @@ class AgentHarness:
         self.mode_config = mode_config
         self.tools.mode_config = mode_config
 
+    def set_run_id(self, run_id: str) -> None:
+        self.tools.set_run_id(run_id)
+
     async def process(self, prompt: str) -> AsyncGenerator[dict[str, Any], None]:
         """
         Process a user prompt and yield responses.
