@@ -830,7 +830,7 @@ async def agent_audit(request: AuditRequest):
             )
 
             # 3. Stream Response
-            yield f"data: {json.dumps({'type': 'mood', 'content': result.mood})}\n\n"
+            yield f"data: {json.dumps({'type': 'mode', 'content': result.mood})}\n\n"
             yield f"data: {json.dumps({'type': 'critique', 'content': result.critique})}\n\n"
             if result.blind_spots:
                 yield f"data: {json.dumps({'type': 'blind_spots', 'content': result.blind_spots})}\n\n"
