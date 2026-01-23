@@ -38,6 +38,14 @@ Core events:
 - window.close
 - checkpoint
 - undo
+- mode.start
+- mode.stop
+- mode.update
+- mode.heartbeat
+
+Artifacts:
+- artifact.create
+- artifact.pointer
 
 Notes (AHDB-typed telemetry):
 - note.observation
@@ -61,6 +69,7 @@ Receipts (capabilities + verification):
 - receipt.verifier.attestations
 - receipt.discrepancy.report
 - receipt.commit
+- receipt.mode.transition
 - receipt.ahdb.delta
 - receipt.evidence.set.hash
 - receipt.retrieval

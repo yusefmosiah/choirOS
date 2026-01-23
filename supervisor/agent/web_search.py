@@ -1,7 +1,6 @@
 
 import os
-import httpx
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 
 class WebSearch:
     """Web search tool using Tavily API."""
@@ -25,6 +24,11 @@ class WebSearch:
             return {"error": "TAVILY_API_KEY not configured"}
 
         try:
+            try:
+                import httpx  # type: ignore
+            except Exception:
+                return {"error": "httpx not installed; web_search unavailable"}
+
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"{self.base_url}/search",

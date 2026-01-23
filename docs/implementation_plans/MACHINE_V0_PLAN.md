@@ -20,6 +20,7 @@ Files
 Deliverables
 - Add Machine loop that subscribes to NATS and emits mode directives.
 - Maintain per-user run registry and single-writer scheduling.
+- Add a run queue so UI commands do not block.
 - Create a minimal directive schema for mode.start/mode.stop/mode.update.
 
 Files
@@ -94,3 +95,13 @@ Files
 - Add unit tests for mode directives and scheduling rules.
 - Extend V-01 and V-02 to validate new event types and AHDB proposal rules.
 
+## Phase 8: Inner/outer split + multipass auditor
+Deliverables
+- Move auditor execution into a Mode worker (no direct research in Machine).
+- Implement a multi-pass auditor loop (retrieve → critique → refine → citations).
+- Emit artifact pointers for evidence sets and retrieval outputs.
+
+Files
+- supervisor/agent/auditor.py
+- supervisor/main.py (audit endpoint delegates to Mode start)
+- baml_src/auditor.baml

@@ -16,9 +16,12 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from .db import EventStore
 
 
 @dataclass(frozen=True)
@@ -52,17 +55,30 @@ class VerifierResult:
 
 
 class ArtifactStore:
-    def __init__(self, root: Optional[Path] = None) -> None:
+    def __init__(self, root: Optional[Path] = None, event_store: Optional["EventStore"] = None) -> None:
         if root is None:
             root = Path(".context") / "artifacts"
         self.root = root
         self.root.mkdir(parents=True, exist_ok=True)
+        self.event_store = event_store
 
     def write_bytes(self, data: bytes, suffix: str) -> tuple[str, Path]:
         digest = hashlib.sha256(data).hexdigest()
         path = self.root / f"{digest}{suffix}"
-        if not path.exists():
+        existed = path.exists()
+        if not existed:
             path.write_bytes(data)
+        if self.event_store and not existed:
+            self.event_store.append(
+                "artifact.create",
+                {
+                    "artifact_hash": digest,
+                    "path": str(path),
+                    "suffix": suffix,
+                    "size_bytes": len(data),
+                },
+                source="system",
+            )
         return digest, path
 
     def write_json(self, payload: dict, suffix: str = ".json") -> tuple[str, Path]:
@@ -78,7 +94,11 @@ class VerifierRunner:
         sandbox_handle: Optional[SandboxHandle] = None,
         analyze_with_baml: bool = True,
     ) -> None:
-        self.store = store or ArtifactStore()
+        if store is None:
+            from .db import get_store as _get_store
+
+            store = ArtifactStore(event_store=_get_store())
+        self.store = store
         if sandbox_runner is None:
             from .sandbox_provider import get_sandbox_runner
 

@@ -15,9 +15,12 @@ import os
 import uuid
 from pathlib import Path
 from typing import Any, Optional
+import difflib
 
 from ..db import EventStore, get_store
 from .web_search import WebSearch
+from ..mode_config import ModeConfig
+from ..verifier_runner import ArtifactStore
 
 
 # Detect project root - use PYTHONPATH if set, otherwise find relative to this file
@@ -37,7 +40,12 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 class AgentTools:
     """Implementation of the 5 agent tools."""
 
-    def __init__(self, file_history=None, event_store: Optional[EventStore] = None):
+    def __init__(
+        self,
+        file_history=None,
+        event_store: Optional[EventStore] = None,
+        mode_config: Optional[ModeConfig] = None,
+    ):
         """
         Initialize tools.
 
@@ -47,10 +55,12 @@ class AgentTools:
         """
         self.file_history = file_history
         self.store = event_store or get_store()
+        self.mode_config = mode_config
         self.env = os.environ.copy()
         self.cwd = str(PROJECT_ROOT / "choiros")  # Default working directory
         self.app_dir = PROJECT_ROOT
         self.web_search = WebSearch()
+        self.artifacts = ArtifactStore(event_store=self.store)
 
     # Tool definitions for Claude
     TOOL_DEFINITIONS = [
@@ -191,6 +201,25 @@ class AgentTools:
                 },
                 "required": ["query"]
             }
+        },
+        {
+            "name": "read_artifact",
+            "description": "Read artifact content by hash.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "artifact_hash": {
+                        "type": "string",
+                        "description": "Content hash of the artifact"
+                    },
+                    "max_bytes": {
+                        "type": "integer",
+                        "description": "Max bytes to return (default 2000)",
+                        "default": 2000
+                    }
+                },
+                "required": ["artifact_hash"]
+            }
         }
     ]
 
@@ -214,8 +243,36 @@ class AgentTools:
         except ValueError:
             return str(path)
 
+    def _emit_artifact_pointer(self, artifact_hash: str, path: str, kind: str, size_bytes: int) -> None:
+        if not self.store:
+            return
+        self.store.append(
+            "artifact.pointer",
+            {
+                "artifact_hash": artifact_hash,
+                "path": path,
+                "kind": kind,
+                "size_bytes": size_bytes,
+            },
+            source="system",
+        )
+
+    def _assert_tool_allowed(self, tool_name: str, requires_write: bool = False, requires_network: bool = False) -> Optional[dict[str, Any]]:
+        if not self.mode_config:
+            return None
+        if not self.mode_config.allows_tool(tool_name):
+            return {"error": f"Tool not allowed in mode {self.mode_config.mode_id}: {tool_name}"}
+        if requires_write and not self.mode_config.allow_write:
+            return {"error": f"Write access denied in mode {self.mode_config.mode_id}"}
+        if requires_network and not self.mode_config.allow_network:
+            return {"error": f"Network access denied in mode {self.mode_config.mode_id}"}
+        return None
+
     async def read_file(self, path: str, head: int | None = None, tail: int | None = None) -> dict[str, Any]:
         """Read file contents."""
+        denial = self._assert_tool_allowed("read_file")
+        if denial:
+            return denial
         try:
             file_path = self._resolve_path(path)
 
@@ -233,19 +290,35 @@ class AgentTools:
             elif tail is not None:
                 lines = lines[-tail:]
 
-            return {
+            result = {
                 "content": "\n".join(lines),
                 "total_lines": len(content.splitlines()),
                 "returned_lines": len(lines),
             }
+            if self.store:
+                self.store.append(
+                    "receipt.read",
+                    {
+                        "path": self._display_path(file_path),
+                        "bytes": len(content.encode()),
+                        "head": head,
+                        "tail": tail,
+                    },
+                    source="agent",
+                )
+            return result
 
         except Exception as e:
             return {"error": str(e)}
 
     async def write_file(self, path: str, content: str) -> dict[str, Any]:
         """Write content to a file."""
+        denial = self._assert_tool_allowed("write_file", requires_write=True)
+        if denial:
+            return denial
         try:
             file_path = self._resolve_path(path)
+            original = file_path.read_text() if file_path.exists() else ""
 
             # Save state for undo before writing
             if self.file_history:
@@ -259,12 +332,40 @@ class AgentTools:
 
             if self.store:
                 await self.store.log_file_write_async(self._display_path(file_path), content.encode())
+            diff = "\n".join(
+                difflib.unified_diff(
+                    original.splitlines(),
+                    content.splitlines(),
+                    fromfile=self._display_path(file_path),
+                    tofile=self._display_path(file_path),
+                    lineterm="",
+                )
+            )
+            if diff:
+                artifact_hash, _ = self.artifacts.write_bytes(diff.encode(), ".diff")
+                self._emit_artifact_pointer(
+                    artifact_hash,
+                    self._display_path(file_path),
+                    "diff",
+                    len(diff.encode()),
+                )
 
-            return {
+            result = {
                 "success": True,
                 "path": str(file_path),
                 "bytes_written": len(content.encode()),
             }
+            if self.store:
+                self.store.append(
+                    "receipt.patch",
+                    {
+                        "path": self._display_path(file_path),
+                        "bytes": len(content.encode()),
+                        "action": "write",
+                    },
+                    source="agent",
+                )
+            return result
 
         except Exception as e:
             return {"error": str(e)}
@@ -276,6 +377,9 @@ class AgentTools:
         dry_run: bool = False
     ) -> dict[str, Any]:
         """Apply text replacements to a file."""
+        denial = self._assert_tool_allowed("edit_file", requires_write=True)
+        if denial:
+            return denial
         try:
             file_path = self._resolve_path(path)
 
@@ -323,19 +427,50 @@ class AgentTools:
                 file_path.write_text(content)
                 if self.store:
                     await self.store.log_file_write_async(self._display_path(file_path), content.encode())
+                diff = "\n".join(
+                    difflib.unified_diff(
+                        original.splitlines(),
+                        content.splitlines(),
+                        fromfile=self._display_path(file_path),
+                        tofile=self._display_path(file_path),
+                        lineterm="",
+                    )
+                )
+                if diff:
+                    artifact_hash, _ = self.artifacts.write_bytes(diff.encode(), ".diff")
+                    self._emit_artifact_pointer(
+                        artifact_hash,
+                        self._display_path(file_path),
+                        "diff",
+                        len(diff.encode()),
+                    )
 
-            return {
+            result = {
                 "success": True,
                 "path": str(file_path),
                 "changes": changes,
                 "modified": content != original,
             }
+            if result.get("modified") and self.store:
+                self.store.append(
+                    "receipt.patch",
+                    {
+                        "path": self._display_path(file_path),
+                        "bytes": len(content.encode()),
+                        "action": "edit",
+                    },
+                    source="agent",
+                )
+            return result
 
         except Exception as e:
             return {"error": str(e)}
 
     async def bash(self, command: str, timeout: int = 300) -> dict[str, Any]:
         """Execute a shell command."""
+        denial = self._assert_tool_allowed("bash")
+        if denial:
+            return denial
         try:
             cmd_id = str(uuid.uuid4())[:8]
             log_path = LOG_DIR / f"cmd_{cmd_id}.txt"
@@ -371,19 +506,59 @@ class AgentTools:
 
             content = "".join(output_lines)
             preview = content[:500]
+            artifact_hash = None
+            if log_path.exists():
+                artifact_hash, _ = self.artifacts.write_bytes(log_path.read_bytes(), ".log")
+                self._emit_artifact_pointer(
+                    artifact_hash,
+                    str(log_path),
+                    "bash.log",
+                    log_path.stat().st_size,
+                )
 
             return {
                 "exit_code": proc.returncode,
                 "output_file": str(log_path),
                 "output_preview": preview,
                 "truncated": len(content) > 500,
+                "artifact_hash": artifact_hash,
             }
 
         except Exception as e:
             return {"error": str(e)}
 
+    async def read_artifact(self, artifact_hash: str, max_bytes: int = 2000) -> dict[str, Any]:
+        """Read artifact content by hash."""
+        denial = self._assert_tool_allowed("read_artifact")
+        if denial:
+            return denial
+        try:
+            candidates = sorted(self.artifacts.root.glob(f"{artifact_hash}*"))
+            if not candidates:
+                return {"error": f"Artifact not found: {artifact_hash}"}
+            path = candidates[0]
+            data = path.read_bytes()
+            truncated = len(data) > max_bytes
+            content = data[:max_bytes].decode(errors="replace")
+            if self.store:
+                self.store.append(
+                    "receipt.read",
+                    {
+                        "artifact_hash": artifact_hash,
+                        "path": str(path),
+                        "bytes": len(data),
+                    },
+                    source="agent",
+                )
+            return {"content": content, "bytes": len(data), "truncated": truncated}
+        except Exception as e:
+            return {"error": str(e)}
+
     async def git_checkpoint(self, message: Optional[str] = None) -> dict[str, Any]:
         """Create a git checkpoint."""
+        denial = self._assert_tool_allowed("git_checkpoint")
+        if denial:
+            return denial
         try:
             from ..git_ops import checkpoint
             result = checkpoint(message)
@@ -393,6 +568,9 @@ class AgentTools:
 
     async def git_status(self, log_count: int = 5) -> dict[str, Any]:
         """Get git status and recent commits."""
+        denial = self._assert_tool_allowed("git_status")
+        if denial:
+            return denial
         try:
             from ..git_ops import get_status, log, get_head_sha
             status = get_status()
@@ -423,9 +601,22 @@ class AgentTools:
             return await self.git_checkpoint(**arguments)
         elif name == "git_status":
             return await self.git_status(**arguments)
-        elif name == "git_status":
-            return await self.git_status(**arguments)
         elif name == "web_search":
-            return await self.web_search.search(**arguments)
+            denial = self._assert_tool_allowed("web_search", requires_network=True)
+            if denial:
+                return denial
+            result = await self.web_search.search(**arguments)
+            if self.store:
+                self.store.append(
+                    "receipt.net",
+                    {
+                        "query": arguments.get("query"),
+                        "max_results": arguments.get("max_results"),
+                    },
+                    source="agent",
+                )
+            return result
+        elif name == "read_artifact":
+            return await self.read_artifact(**arguments)
         else:
             return {"error": f"Unknown tool: {name}"}

@@ -55,6 +55,19 @@ class TestAHDBProjection(unittest.TestCase):
         cursor = self.store.conn.execute("SELECT COUNT(*) FROM ahdb_deltas")
         self.assertEqual(cursor.fetchone()[0], 1)
 
+    def test_proposed_delta_does_not_update_state(self) -> None:
+        delta = {
+            "assert": [{"id": "a1", "text": "Proposed assertion"}],
+        }
+        seq = self.store.log_ahdb_proposal(delta, run_id="run-2")
+        self.assertGreater(seq, 0)
+
+        state = self.store.get_ahdb_state()
+        self.assertNotIn("assert", state)
+
+        cursor = self.store.conn.execute("SELECT COUNT(*) FROM ahdb_proposals")
+        self.assertEqual(cursor.fetchone()[0], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

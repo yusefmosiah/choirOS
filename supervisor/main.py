@@ -34,6 +34,8 @@ from .db import get_store
 from shared.auth import extract_session_token, get_auth_store
 from shared.auth_middleware import AuthMiddleware
 from .run_orchestrator import RunOrchestrator
+from .machine import Machine, ModeRunResult
+from .mode_config import get_mode_config
 from .sandbox_config import build_sandbox_config
 from .sandbox_provider import get_sandbox_runner
 from .sandbox_runner import (
@@ -701,6 +703,63 @@ async def agent_websocket(websocket: WebSocket):
     recent_prompts = deque()
     verifier_config = PROJECT_ROOT / "config" / "verifiers.yaml"
 
+    async def execute_mode(directive) -> ModeRunResult:
+        mode_config = get_mode_config(directive.mode_id)
+        agent_harness.set_mode(mode_config)
+
+        async def execute_run(_: dict) -> bool:
+            success = True
+            async for response in agent_harness.process(directive.prompt):
+                if response.get("type") == "error":
+                    success = False
+                await websocket.send_json(response)
+            return success
+
+        result = await orchestrator.run_async(
+            work_item_id=directive.work_item_id,
+            execute_run=execute_run,
+            mood=directive.mode_id,
+            config_path=verifier_config,
+        )
+
+        run = result.get("run") or {}
+        status = run.get("status") or "unknown"
+        if status == "verified":
+            store.update_work_item(directive.work_item_id, {"status": "done"})
+        elif status == "failed":
+            store.update_work_item(directive.work_item_id, {"status": "failed"})
+
+        run_id = run.get("id")
+        if status == "verified" and run_id:
+            machine.promote_ahdb_proposals(run_id)
+
+        await websocket.send_json({
+            "type": "verification",
+            "content": {
+                "run": run,
+                "verifier_plan": result.get("verifier_plan"),
+                "results": [
+                    {"id": r.verifier_id, "status": r.status}
+                    for r in result.get("verifier_results", [])
+                ],
+            }
+        })
+
+        return ModeRunResult(
+            run_id=run_id,
+            status=status,
+            verifier_results=[
+                {"id": r.verifier_id, "status": r.status}
+                for r in result.get("verifier_results", [])
+            ],
+        )
+
+    session_id = str(uuid.uuid4())
+    machine = Machine(store=store, executor=execute_mode, session_id=session_id)
+    listener_ready = False
+    if NATS_ENABLED:
+        listener_ready = await machine.listen_for_directives()
+
     try:
         while True:
             # Receive prompt from ? bar
@@ -729,42 +788,18 @@ async def agent_websocket(websocket: WebSocket):
                 continue
             recent_prompts.append(now)
 
-            # Create a work item per prompt
-            work_item = store.create_work_item(description=prompt, status="queued")
-
-            async def execute_run(_: dict) -> bool:
-                success = True
-                async for response in agent_harness.process(prompt):
-                    if response.get("type") == "error":
-                        success = False
-                    await websocket.send_json(response)
-                return success
-
-            result = await orchestrator.run_async(
-                work_item_id=work_item["id"],
-                execute_run=execute_run,
-                mood="CALM",
-                config_path=verifier_config,
-            )
-
-            run = result.get("run") or {}
-            status = run.get("status")
-            if status == "verified":
-                store.update_work_item(work_item["id"], {"status": "done"})
-            elif status == "failed":
-                store.update_work_item(work_item["id"], {"status": "failed"})
-
-            await websocket.send_json({
-                "type": "verification",
-                "content": {
-                    "run": run,
-                    "verifier_plan": result.get("verifier_plan"),
-                    "results": [
-                        {"id": r.verifier_id, "status": r.status}
-                        for r in result.get("verifier_results", [])
-                    ],
-                }
-            })
+            if NATS_ENABLED and listener_ready:
+                store.append(
+                    "mode.start",
+                    {
+                        "mode": "CALM",
+                        "prompt": prompt,
+                        "session_id": session_id,
+                    },
+                    source="system",
+                )
+            else:
+                await machine.handle_prompt(prompt)
 
     except WebSocketDisconnect:
         pass
@@ -797,11 +832,10 @@ async def agent_audit(request: AuditRequest):
             # 3. Stream Response
             yield f"data: {json.dumps({'type': 'mood', 'content': result.mood})}\n\n"
             yield f"data: {json.dumps({'type': 'critique', 'content': result.critique})}\n\n"
-
-
-
             if result.blind_spots:
                 yield f"data: {json.dumps({'type': 'blind_spots', 'content': result.blind_spots})}\n\n"
+            if result.citations:
+                yield f"data: {json.dumps({'type': 'citations', 'content': result.citations})}\n\n"
 
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
 

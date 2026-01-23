@@ -155,8 +155,34 @@ export function Writer({ artifactId }: WriterProps) {
                                 [
                                     {
                                         type: "paragraph",
-                                        content: `Mood: ${data.content}`,
+                                        content: `Tone: ${data.content}`,
                                     }
+                                ],
+                                editor.document[editor.document.length - 1],
+                                "after"
+                            );
+                        } else if (data.type === "blind_spots") {
+                            const items = Array.isArray(data.content) ? data.content : [String(data.content)];
+                            editor.insertBlocks(
+                                [
+                                    { type: "paragraph", content: "⚠️ BLIND SPOTS:" },
+                                    ...items.map((item: string) => ({
+                                        type: "paragraph",
+                                        content: `- ${item}`,
+                                    })),
+                                ],
+                                editor.document[editor.document.length - 1],
+                                "after"
+                            );
+                        } else if (data.type === "citations") {
+                            const items = Array.isArray(data.content) ? data.content : [String(data.content)];
+                            editor.insertBlocks(
+                                [
+                                    { type: "paragraph", content: "🔗 SOURCES / QUERIES:" },
+                                    ...items.map((item: string) => ({
+                                        type: "paragraph",
+                                        content: `- ${item}`,
+                                    })),
                                 ],
                                 editor.document[editor.document.length - 1],
                                 "after"

@@ -121,6 +121,16 @@ class EventStore:
                 timestamp TEXT NOT NULL
             );
 
+            -- Proposed AHDB deltas (not asserted)
+            CREATE TABLE IF NOT EXISTS ahdb_proposals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_seq INTEGER REFERENCES events(seq),
+                run_id TEXT,
+                delta JSON NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
             -- Work items (persisted work queue)
             CREATE TABLE IF NOT EXISTS work_items (
                 id TEXT PRIMARY KEY,
@@ -357,6 +367,7 @@ class EventStore:
             DELETE FROM conversations;
             DELETE FROM ahdb_state;
             DELETE FROM ahdb_deltas;
+            DELETE FROM ahdb_proposals;
             DELETE FROM run_notes;
             DELETE FROM run_verifications;
             DELETE FROM run_commit_requests;
@@ -394,6 +405,7 @@ class EventStore:
             DELETE FROM conversations;
             DELETE FROM ahdb_state;
             DELETE FROM ahdb_deltas;
+            DELETE FROM ahdb_proposals;
             DELETE FROM run_notes;
             DELETE FROM run_verifications;
             DELETE FROM run_commit_requests;
@@ -488,7 +500,14 @@ class EventStore:
         elif event_type == "receipt.ahdb.delta":
             delta = self._extract_ahdb_delta(payload)
             if delta is not None:
-                self._apply_ahdb_delta(delta, timestamp, event_seq)
+                authority = None
+                if isinstance(payload, dict):
+                    authority = payload.get("authority")
+                if authority == "proposed":
+                    run_id = payload.get("run_id") if isinstance(payload, dict) else None
+                    self._apply_ahdb_proposal(delta, run_id, timestamp, event_seq)
+                else:
+                    self._apply_ahdb_delta(delta, timestamp, event_seq)
         elif event_type.startswith("note."):
             run_id = payload.get("run_id")
             body = payload.get("body", payload)
@@ -537,6 +556,19 @@ class EventStore:
                    VALUES (?, ?, ?)""",
                 (key, json.dumps(value), timestamp)
             )
+
+    def _apply_ahdb_proposal(
+        self,
+        delta: dict,
+        run_id: Optional[str],
+        timestamp: str,
+        event_seq: int,
+    ) -> None:
+        self.conn.execute(
+            """INSERT INTO ahdb_proposals (event_seq, run_id, delta, status, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (event_seq, run_id, json.dumps(delta), "proposed", timestamp),
+        )
 
     def _ensure_conversation(self, conversation_id: int, started_at: str) -> None:
         """Ensure a conversation row exists for materialization."""
@@ -766,9 +798,20 @@ class EventStore:
             payload.update(metadata)
         seq = self.append("receipt.ahdb.delta", payload, source="system")
         timestamp = datetime.now().isoformat()
-        self._apply_ahdb_delta(delta, timestamp, seq)
+        authority = payload.get("authority")
+        if authority == "proposed":
+            self._apply_ahdb_proposal(delta, payload.get("run_id"), timestamp, seq)
+        else:
+            self._apply_ahdb_delta(delta, timestamp, seq)
         self.conn.commit()
         return seq
+
+    def log_ahdb_proposal(self, delta: dict, run_id: Optional[str] = None) -> int:
+        """Log a proposed AHDB delta (does not update asserted state)."""
+        metadata = {"authority": "proposed"}
+        if run_id:
+            metadata["run_id"] = run_id
+        return self.log_ahdb_delta(delta, metadata)
 
     def get_ahdb_state(self) -> dict:
         """Return the latest AHDB state vector."""
@@ -777,6 +820,25 @@ class EventStore:
         for row in cursor.fetchall():
             state[row["key"]] = json.loads(row["value"])
         return state
+
+    def list_ahdb_proposals(self, run_id: Optional[str] = None) -> list[dict]:
+        if run_id:
+            cursor = self.conn.execute(
+                "SELECT * FROM ahdb_proposals WHERE run_id = ? ORDER BY id DESC",
+                (run_id,),
+            )
+        else:
+            cursor = self.conn.execute(
+                "SELECT * FROM ahdb_proposals ORDER BY id DESC"
+            )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def mark_ahdb_proposals_promoted(self, run_id: str) -> None:
+        self.conn.execute(
+            "UPDATE ahdb_proposals SET status = ? WHERE run_id = ? AND status = ?",
+            ("promoted", run_id, "proposed"),
+        )
+        self.conn.commit()
 
     # =========== Work Items ===========
 

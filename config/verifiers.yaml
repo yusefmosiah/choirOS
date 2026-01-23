@@ -106,7 +106,7 @@
       "description": "Fast supervisor unit suite",
       "moods": ["CALM", "SKEPTICAL", "BOLD"],
       "scopes": ["supervisor/"],
-      "command": "python -m unittest supervisor.tests.test_event_contract supervisor.tests.test_ahdb_projection supervisor.tests.test_runs supervisor.tests.test_verifier_plan supervisor.tests.test_verifier_runner supervisor.tests.test_mood_engine supervisor.tests.test_run_orchestrator supervisor.tests.test_tools"
+      "command": "python -m unittest supervisor.tests.test_event_contract supervisor.tests.test_ahdb_projection supervisor.tests.test_runs supervisor.tests.test_verifier_plan supervisor.tests.test_verifier_runner supervisor.tests.test_mood_engine supervisor.tests.test_run_orchestrator supervisor.tests.test_tools supervisor.tests.test_machine"
     }
   ]
 }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Optional
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -14,7 +15,7 @@ from shared.auth import (
     get_auth_store,
     extract_session_token,
 )
-from shared.tenancy import get_nats_credentials, get_nats_ws_url
+from shared.tenancy import get_nats_credentials, get_nats_ws_url, get_default_user_id
 
 router = APIRouter()
 
@@ -58,6 +59,13 @@ def require_session(request: Request) -> AuthSession:
     if not session:
         raise HTTPException(status_code=401, detail="Invalid session token")
     return session
+
+
+def optional_session(request: Request) -> Optional[AuthSession]:
+    token = extract_session_token(request.headers)
+    if not token:
+        return None
+    return get_auth_store().verify_session(token)
 
 
 @router.post("/passkeys/register/options")
@@ -181,8 +189,16 @@ def revoke_session(payload: SessionRevokeRequest, session: AuthSession = Depends
 
 
 @router.get("/nats/credentials")
-def get_nats_credentials_for_session(session: AuthSession = Depends(require_session)):
-    creds = get_nats_credentials(session.user_id, role="web")
+def get_nats_credentials_for_session(session: Optional[AuthSession] = Depends(optional_session)):
+    if session is None:
+        auth_required = os.environ.get("CHOIR_AUTH_REQUIRED", "0") == "1"
+        if auth_required:
+            raise HTTPException(status_code=401, detail="Missing session token")
+        user_id = get_default_user_id()
+    else:
+        user_id = session.user_id
+
+    creds = get_nats_credentials(user_id, role="web")
     if not creds:
         raise HTTPException(status_code=404, detail="No NATS credentials for user")
     return {
@@ -190,5 +206,5 @@ def get_nats_credentials_for_session(session: AuthSession = Depends(require_sess
         "user": creds.user,
         "password": creds.password,
         "subject_prefix": creds.subject_prefix,
-        "user_id": session.user_id,
+        "user_id": user_id,
     }

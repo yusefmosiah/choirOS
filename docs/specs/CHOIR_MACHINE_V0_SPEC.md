@@ -17,6 +17,7 @@ Owner: ChoirOS Core
 - Directive: a typed event emitted by the Machine that starts/stops/updates a Mode.
 - Receipt: a typed event that records capabilities used, evidence accessed, and verifier results.
 - Artifact: content stored outside git with a stable content hash; references are safe to share.
+- Inner/Outer system: the Machine is the outer control plane; Modes are inner workers.
 
 ## 2) Core invariants
 1) NATS is the source of truth; all state can be rebuilt from the event log.
@@ -49,6 +50,7 @@ Modes are not separate processes; they are separate configurations injected into
   - user prompts and work items
 - Emit directives to start/stop/update Modes.
 - Enforce single-writer scheduling.
+- Maintain a run queue so UI commands never block.
 
 ## 5) Mode responsibilities
 - Execute tasks within its capability boundaries.
@@ -98,6 +100,7 @@ Event type naming stays lower-case and dot-delimited.
 - At most one write-capable Mode is active.
 - One or more read-only Modes may run concurrently.
 - The Machine may pause/stop a Mode if a higher-priority directive arrives.
+- UI commands enqueue work items; the command bar stays responsive.
 
 ## 10) Security posture (v0)
 - Capability gating is enforced at the tool boundary, not by prompt alone.
@@ -119,4 +122,4 @@ The harness must never use a hardcoded system prompt.
 - Mode emits artifact pointers and AHDB proposed deltas.
 - Machine can promote a proposed AHDB delta only after a verifier receipt.
 - Single-writer scheduling is enforced.
-
+- The command bar can enqueue multiple work items without blocking the UI.

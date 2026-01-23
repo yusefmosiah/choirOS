@@ -13,39 +13,40 @@ from typing import AsyncGenerator, Any, Optional, List
 
 from .tools import AgentTools
 from ..db import get_store, EventStore
+from ..mode_config import ModeConfig, get_mode_config
+from ..prompt_builder import ModePromptBuilder
 from supervisor.baml_client import b
 from supervisor.baml_client.types import Message, AgentPlan, AgentToolCall
 
 logger = logging.getLogger("agent-harness")
 
-SYSTEM_PROMPT = """You are the ChoirOS agent, operating inside a web desktop environment.
-
-Your capabilities:
-- Read, write, and edit files in the /app/choiros directory
-- Execute shell commands
-- Modify the UI by editing React components, CSS, and configuration files
-
-The desktop shell is served by Vite with Hot Module Replacement (HMR). When you edit files, the changes will appear immediately in the user's browser.
-
-Key directories:
-- /app/choiros/src/components - React components
-- /app/choiros/src/styles - CSS files (theme.css, global.css)
-- /app/choiros/public - Static assets
-
-When the user asks you to change the UI (colors, layout, etc.), you should:
-1. Read the relevant file to understand current state
-2. Edit the file with your changes
-3. The user will see the update via HMR
-"""
-
 class AgentHarness:
     """Main agent harness that processes prompts and executes tools using BAML."""
 
-    def __init__(self, file_history=None, event_store: Optional[EventStore] = None):
+    def __init__(
+        self,
+        file_history=None,
+        event_store: Optional[EventStore] = None,
+        mode_config: Optional[ModeConfig] = None,
+        prompt_builder: Optional[ModePromptBuilder] = None,
+    ):
         self.store = event_store or get_store()
-        self.tools = AgentTools(file_history=file_history, event_store=self.store)
+        self.mode_config = mode_config or get_mode_config("CALM")
+        self.prompt_builder = prompt_builder or ModePromptBuilder()
+        self.tools = AgentTools(
+            file_history=file_history,
+            event_store=self.store,
+            mode_config=self.mode_config,
+        )
         self.conversation_id: Optional[int] = None
         self.message_history: List[Message] = []
+
+    def set_mode(self, mode_config: ModeConfig) -> None:
+        if self.mode_config.mode_id != mode_config.mode_id:
+            self.message_history = []
+            self.conversation_id = None
+        self.mode_config = mode_config
+        self.tools.mode_config = mode_config
 
     async def process(self, prompt: str) -> AsyncGenerator[dict[str, Any], None]:
         """
@@ -56,6 +57,22 @@ class AgentHarness:
             # Ensure we have a conversation
             if self.conversation_id is None:
                 self.conversation_id = self.store.start_conversation()
+
+            ahdb_state = self.store.get_ahdb_state()
+            system_context = self.prompt_builder.build(
+                mode=self.mode_config,
+                ahdb_state=ahdb_state,
+                context={"receipts": [], "artifacts": []},
+            )
+            self.store.append(
+                "receipt.context.footprint",
+                {
+                    "conversation_id": self.conversation_id,
+                    "mode": self.mode_config.mode_id,
+                    "ahdb_keys": sorted(ahdb_state.keys()),
+                },
+                source="system",
+            )
 
             # Log user message
             await self.store.add_message_async(self.conversation_id, "user", prompt)
@@ -72,11 +89,15 @@ class AgentHarness:
 
                 # We need to construct the prompt with available tools listing
                 # Since BAML calls the LLM, we pass tool defs as a string for the prompt context
-                tool_defs_str = json.dumps([t["name"] for t in AgentTools.TOOL_DEFINITIONS], indent=2)
+                allowed = self.mode_config.tool_allowlist
+                tool_defs_str = json.dumps(
+                    [t["name"] for t in AgentTools.TOOL_DEFINITIONS if t["name"] in allowed],
+                    indent=2,
+                )
 
                 stream = b.stream.PlanAction(
                     messages=self.message_history,
-                    system_context=SYSTEM_PROMPT,
+                    system_context=system_context,
                     available_tools=tool_defs_str
                 )
 

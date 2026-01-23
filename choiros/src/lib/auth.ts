@@ -298,9 +298,6 @@ export async function authenticatePasskey(userId: string, clientLabel?: string) 
 
 export async function fetchNatsCredentials(): Promise<NatsCredentials | null> {
     const token = getSessionToken();
-    if (!token) {
-        return null;
-    }
     if (cachedNatsCredentials && cachedSessionToken === token) {
         return cachedNatsCredentials;
     }
