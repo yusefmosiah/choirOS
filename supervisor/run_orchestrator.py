@@ -365,7 +365,7 @@ class RunOrchestrator:
 
             results = []
             for spec in verifier_specs:
-                result = self.verifier_runner.run(spec)
+                result = await self.verifier_runner.run_async(spec)
                 results.append(result)
                 self.store.add_run_verification(run_id, asdict(result))
 

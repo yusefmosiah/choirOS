@@ -26,7 +26,12 @@ export function Taskbar() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Track agent response for saving as artifact
-    const agentResponseRef = useRef<{ prompt: string; messages: string[] }>({ prompt: '', messages: [] });
+    const agentResponseRef = useRef<{
+        prompt: string;
+        messages: string[];
+        error?: string;
+        saved?: boolean;
+    }>({ prompt: '', messages: [], error: undefined, saved: false });
 
     const windows = useWindowStore((s) => s.windows);
     const focusWindow = useWindowStore((s) => s.focusWindow);
@@ -42,36 +47,50 @@ export function Taskbar() {
     const clearError = useSourcesStore((s) => s.clearError);
     const fetchArtifacts = useSourcesStore((s) => s.fetchArtifacts);
 
+    const saveAgentArtifact = async (content: string) => {
+        const { prompt } = agentResponseRef.current;
+        const name = `Agent: ${prompt.slice(0, 40)}${prompt.length > 40 ? '...' : ''}`;
+        const result = await createArtifact({ name, content, source_type: 'agent' });
+        await fetchArtifacts();
+        openWindow('writer', { title: result.name, artifactId: result.artifact_id });
+        showToast(`Saved: ${result.name}`, 'success', result.artifact_id);
+    };
+
+    const finalizeAgentArtifact = async (fallbackMessage?: string) => {
+        const { prompt, messages, error, saved } = agentResponseRef.current;
+        if (!prompt || saved) return;
+        agentResponseRef.current.saved = true;
+        const response =
+            messages.length > 0
+                ? messages.join('\n\n')
+                : error
+                  ? `Error: ${error}`
+                  : fallbackMessage || 'No response received.';
+        try {
+            const content = `# ${prompt}\n\n${response}`;
+            await saveAgentArtifact(content);
+        } catch {
+            showToast('Agent done (failed to save)', 'error');
+        } finally {
+            agentResponseRef.current = { prompt: '', messages: [], error: undefined, saved: false };
+        }
+    };
+
     // Agent WebSocket connection
     const { sendPrompt, isProcessing: isAgentProcessing, isConnected: isAgentConnected } = useAgent({
         onMessage: async (message: AgentMessage) => {
             if (message.type === 'text' && typeof message.content === 'string') {
-                // Accumulate text messages
                 agentResponseRef.current.messages.push(message.content);
                 showToast(message.content.slice(0, 80) + '...', 'info');
             } else if (message.type === 'tool_use' && typeof message.content === 'object') {
                 const tool = (message.content as { tool?: string })?.tool || 'tool';
                 showToast(`Using ${tool}...`, 'info');
             } else if (message.type === 'error') {
+                agentResponseRef.current.error = String(message.content);
                 showToast(String(message.content), 'error');
+                await finalizeAgentArtifact('Agent error.');
             } else if (message.type === 'done') {
-                // Save accumulated response as artifact
-                const { prompt, messages } = agentResponseRef.current;
-                if (messages.length > 0) {
-                    try {
-                        const name = `Agent: ${prompt.slice(0, 40)}${prompt.length > 40 ? '...' : ''}`;
-                        const content = `# ${prompt}\n\n${messages.join('\n\n')}`;
-                        const result = await createArtifact({ name, content, source_type: 'agent' });
-                        await fetchArtifacts(); // Refresh artifact list
-                        showToast(`Saved: ${result.name}`, 'success', result.artifact_id);
-                    } catch (e) {
-                        showToast('Agent done (failed to save)', 'error');
-                    }
-                } else {
-                    showToast('Agent completed', 'success');
-                }
-                // Reset for next prompt
-                agentResponseRef.current = { prompt: '', messages: [] };
+                await finalizeAgentArtifact('Agent completed without a response.');
             }
         },
     });
@@ -140,7 +159,7 @@ export function Taskbar() {
         // Send to agent
         if (isAgentConnected) {
             // Capture prompt for artifact naming
-            agentResponseRef.current = { prompt: trimmedInput, messages: [] };
+            agentResponseRef.current = { prompt: trimmedInput, messages: [], error: undefined, saved: false };
             sendPrompt(trimmedInput);
             setInput('');
             showToast('Sending to agent...', 'info');
