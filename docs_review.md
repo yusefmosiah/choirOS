@@ -1,197 +1,376 @@
-# ChoirOS Critical Review
-**Date:** January 2026
-**Reviewers:** Jules + AI Assistant
+# ChoirOS Deep Review: Current State, Vision, Contradictions, and Path Forward
 
-## Executive Summary
-
-ChoirOS has a strong conceptual foundation ("The Model is the Kernel") and a functional localized desktop environment. However, the implementation currently diverges significantly from the architectural vision, particularly regarding the "NATS as Source of Truth" thesis. The system is currently a "split-brain" architecture where the frontend (React) and backend (Supervisor/Python) operate with separate state models, bridged only by HTTP requests, rather than a shared event stream.
-
-The documentation presents an ambitious vision for an "Automatic Computer" - a personal mainframe that transforms AI from chat-based interfaces into persistent, background computational infrastructure. While philosophically rich and comprehensive, the docs reveal significant gaps between vision and implementation, with critical safety and security issues that make the system currently unsuitable for production use.
-
-## Critical Findings
-
-### 🚨 Major Architectural Flaws
-
-#### 0. **Event Stream Contract Mismatches (Critical for Correctness)**
-- **Subject hierarchy mismatch:** docs say subjects are `choiros.{user_id}.{source}.{type}`, but code uses `choiros.{source}.{user_id}.{suffix}` in both the supervisor and browser client. This will break expectations for subscribers that follow the docs.
-- **Stream naming mismatch:** architecture doc references a single `CHOIR` stream, while the NATS client uses `USER_EVENTS`, `AGENT_EVENTS`, and `SYSTEM_EVENTS` streams.
-- **Event types mismatch:** docs show dot-delimited types (`file.write`, `conversation.message`, `tool.call`), while code sends `FILE_WRITE`, `TOOL_CALL`, or plain `message` depending on the path. This inconsistency can fragment analytics and replay logic.
-- **Impact**: Any logic relying on event consistency, deterministic replay, or multi-user features will fail silently due to these mismatches.
-
-#### 1. **The "Split-Brain" Reality**
-- **Vision:** NATS JetStream is the "kernel bus" and source of truth. All components (UI, Agent, Filesystem) react to events.
-- **Reality:**
-  * **Frontend:** `choiros/src/stores/events.ts` is a local, in-memory Zustand store. It is ephemeral and disconnected from the backend.
-  * **Backend:** `supervisor/db.py` implements a persistent SQLite event store and attempts to publish to NATS (if enabled).
-  * **The Gap:** There is no wiring between the backend NATS stream and the frontend. `choiros/src/lib/nats.ts` exists but is unused. The `EventStream` UI component visualizes local, temporary alerts, not the system's actual event log.
-- **Evidence**: `supervisor/main.py:47` shows `NATS_ENABLED` flag defaults to "1" but `dev.sh:53` explicitly disables it (`NATS_ENABLED=0`)
-- **Impact**: Undermines entire architectural foundation - no reliable event log, no undo system, no state reconstruction
-- **Risk**: System cannot deliver on core promise of deterministic replay and time travel
-
-#### 2. **Security Model is Non-Existent**
-- **Issue**: No authentication, authorization, or sandboxing implemented
-- **Evidence**: `supervisor/main.py:113-118` shows CORS allows all origins (`allow_origins=["*"]`)
-- **Evidence**: No user isolation - single shared SQLite database, no per-user namespaces
-- **Impact**: Cannot safely deploy to production or multi-user environments
-- **Risk**: Complete system compromise possible through agent tool execution
-
-#### 3. **Git Integration is Dangerously Naive**
-- **Issue**: Git operations lack safety guards and proper isolation
-- **Evidence**: `supervisor/git_ops.py:207` uses `git reset --hard` without validation or backup
-- **Evidence**: No ignore patterns for generated files, build artifacts, or sensitive data
-- **Impact**: Users can lose work, accidentally commit secrets, or corrupt repository state
-- **Risk**: Irreversible data loss through revert operations
-
-### 🧩 Docs vs Code Discrepancies
-
-| Feature | Documentation (`ARCHITECTURE.md`) | Codebase Reality |
-| :--- | :--- | :--- |
-| **Source of Truth** | NATS JetStream is authoritative | SQLite (Supervisor) / RAM (Frontend & API) |
-| **Event Stream** | "NATS is the authoritative event log" | Frontend uses local Zustand; NATS client unused |
-| **Artifacts** | "Parsed content... stored in S3/R2" | In-memory Python dictionary |
-| **Deployment** | "In-app deploy pipeline" | `dev.sh` / `supervisor.sh` scripts only |
-| **Terminal** | Implemented App | Missing / Stub |
-| **Per-user filesystem** | `/users/{user_id}/.choir` layout | Single shared repo root |
-| **Event naming** | Dot-delimited (`file.write`) | Mixed case (`FILE_WRITE`, `file_write`) |
-
-### ⚠️ Implementation Gaps
-
-#### 4. **Persistence & State Inconsistency**
-- **Artifacts:** The `api` service (FastAPI) stores artifacts in a Python dictionary (`api/services/artifact_store.py`). This means all parsed content and agent outputs are lost if the API process restarts.
-- **Agent State:** The `supervisor` persists conversation history and tool calls to `state.sqlite`, which is good. However, this state is not accessible to the `api` service, creating two separate "brains" for the application.
-- **State Drift:** The frontend has no way to know if the backend state changes (e.g., if the agent writes a file) unless it explicitly polls or triggers the action itself.
-
-#### 5. **Agent System Lacks Proper Tooling**
-- **Issue**: Tool system is basic with no validation, sandboxing, or rollback capability
-- **Evidence**: `supervisor/agent/tools.py` (not shown but referenced) likely lacks proper error handling
-- **Evidence**: Agent can execute arbitrary shell commands and file modifications without constraints
-- **Impact**: Unreliable agent behavior, potential for destructive operations
-- **Risk**: System instability through agent-induced corruption
-
-#### 6. **Frontend Stubs and Mocks**
-- **Mail App**: `Mail.tsx` is fully mocked with `SAMPLE_EMAILS`. No backend integration exists.
-- **Terminal**: Listed in `Desktop.tsx` icons but seemingly not implemented in `components/apps`.
-- **Event Handling**: `EventStream.tsx` uses a local store that auto-clears events after 12 seconds. It is a notification system, not an event log visualizer as described in `ARCHITECTURE.md`.
-- **Mock Dependency**: UI elements rely heavily on mocks, giving a false sense of completeness.
-
-#### 7. **Deployment Pipeline is Incomplete**
-- **Issue**: Self-hosting and CI/CD capabilities mentioned but not implemented
-- **Evidence**: `docs/CURRENT_STATE.md:36` lists "CI/CD loop" as blocking gap
-- **Evidence**: No deployment automation, container orchestration, or infrastructure as code
-- **Impact**: Cannot reliably deploy or update production systems
-- **Risk**: Manual deployment errors, downtime, configuration drift
-
-### 🔍 Code Flaws / Gaps / Stubs
-
-#### 8. **Event Sourcing + Replay Holes**
-- **Event type normalization:** SQLite stores `file.write` while NATS replays store `file_write`. Filtering by type can silently fail across data sources.
-- **Partial replay support:** `rebuild_from_nats` only materializes file events; messages/tool calls are dropped on rebuild.
-- **Optional NATS fallback:** When NATS is unavailable, event log becomes SQLite-only but docs imply NATS-first; this can create divergent behavior between dev and production.
-
-#### 9. **Safety & Deployment Risks**
-- **`git reset --hard` endpoint:** only checks SHA length and can wipe local state without guardrails or preview.
-- **No generated-file ignore strategy:** docs call out ignore/safety needs, but git ops currently stage everything (`git add -A`).
-
-### 🔍 Design Questions
-
-#### 10. **Economic Model Premature**
-- **Question**: Citation economics and USDC/CHIP tokens before basic functionality works
-- **Issue**: Complex economic system built on unstable foundation
-- **Risk**: Economic incentives misaligned with actual value creation
-
-#### 8. **Scalability Architecture Unproven**
-- **Question**: Firecracker microVMs and TEEs specified but no implementation
-- **Issue**: Premature optimization for scale before product-market fit
-- **Risk**: Over-engineering delays delivery of core value
-
-#### 9. **User Experience Paradox**
-- **Issue**: "Pansynchronous" computing conceptually elegant but practically confusing
-- **Evidence**: No clear user mental model for background AI operations
-- **Risk**: Users don't understand what the system is doing or why
-
-### 📋 Documentation Quality Issues
-
-#### 10. **Philosophy Over Substance**
-- **Strength**: Rich conceptual framework and positioning
-- **Weakness**: Technical documentation lacks depth and implementation details
-- **Gap**: Missing API documentation, deployment guides, troubleshooting
-
-#### 11. **Inconsistent Terminology**
-- **Issue**: "Automatic Computer", "Personal Mainframe", "ChoirOS" used interchangeably
-- **Impact**: Confuses technical vs product vs architectural concepts
-- **Need**: Clear taxonomy and consistent naming
-
-#### 12. **Architecture Diagrams Misleading**
-- **Issue**: Complex layered diagrams show unimplemented components as functional
-- **Example**: TEE Cloud → MicroVM → Containers hierarchy not built
-- **Risk**: Creates false impression of system maturity
-
-## Recommendations
-
-### Phase 1: Closing the Loop (High Priority)
-- [ ] **Wire NATS to Frontend**
-    - [ ] Initialize `connectNats()` in `choiros/src/App.tsx` (or a high-level provider).
-    - [ ] Subscribe to `choiros.user.local.>` in `choiros/src/stores/events.ts`.
-    - [ ] Update `EventStream` to display real events from NATS instead of just local notifications.
-- [ ] **Unify State**
-    - [ ] Make `api` service use `state.sqlite` (or a shared DB service) instead of in-memory dictionaries for artifacts.
-    - [ ] Ensure `api` and `supervisor` share the same volume/storage path for persistence.
-
-### Phase 2: Security & Safety (Critical)
-1. **Disable dangerous git operations** until safety mechanisms implemented
-2. **Implement basic authentication** before any public deployment
-3. **Fix CORS configuration** - Replace `allow_origins=["*"]` with proper origin restrictions
-4. **Add comprehensive logging** for debugging and audit trails
-5. **Build proper sandboxing** for agent tool execution
-6. **Implement per-user isolation** and data separation
-
-### Phase 3: Persistence & Reliability
-- [ ] **Implement Artifact Persistence**
-    - [ ] Replace `api/services/artifact_store.py` in-memory dict with SQLite (or filesystem) backing.
-- [ ] **Implement File Watchers**
-    - [ ] Ensure the frontend `Files` app updates automatically when the Agent writes a file (via NATS event `file.write`).
-
-### Phase 4: De-Stubbing
-- [ ] **Implement Mail Backend**
-    - [ ] Create a `MailService` in `api` or `supervisor`.
-    - [ ] Connect `Mail.tsx` to fetch real emails (or at least persisted fake ones).
-- [ ] **Implement/Remove Terminal**
-    - [ ] Either implement the `Terminal` app or remove the icon from `Desktop.tsx`.
-
-### Phase 5: Hardening & Deployment
-1. **Create backup/restore mechanisms** for git operations
-2. **Add input validation** and error handling throughout
-3. **Configuration Management** - Move hardcoded URLs to config files
-4. **Implement CI/CD pipeline** for automated deployment
-5. **Prove core value proposition** with simplified, safe implementation
+**Date:** 2026-01-23  
+**Status:** Active review document (consolidated from multiple reviews)
 
 ---
 
-## ❓ Open Questions for the Docs Owners
+## Executive Summary
 
-1. Should the **canonical subject format** be `choiros.{user_id}.{source}.{type}` (docs) or `choiros.{source}.{user_id}.{type}` (code)?
-2. Do we want **one stream** or **three streams** in JetStream? If three, how should docs present replay semantics across streams?
-3. Is **NATS optional** in the short term, or should we enforce it as the single source of truth and block writes when disconnected?
-4. What is the **expected per-user filesystem layout** for local dev vs production? Is the repo root layout intentionally different?
-5. How should **Mail** and **Terminal** be labeled in-app to prevent user confusion while still demonstrating UI concepts?
-6. Git vs NATS JetStream — when to use which for revert?
-7. AWS CLI in inner sandbox — IAM scoping strategy?
-8. Subagent merge conflicts — event sourcing? CRDTs?
-9. How does container state relate to git commits?
+ChoirOS is in a **"hybrid" state** between a standard agent harness and the "Automatic Computer" vision. It has a sophisticated execution engine but the core "OS" invariants aren't yet enforced.
 
-## Conclusion
+**Working ("Walking Skeleton"):**
+- ✅ Event-sourced core (NATS/SQLite append-only log)
+- ✅ Sandboxed execution with git-based rollback
+- ✅ Transactional run → verify → checkpoint lifecycle
+- ✅ Mode-based capability gating (8 modes, budgets defined)
+- ✅ BAML-powered agent planning and verification analysis
+- ✅ AHDB state vector projected and injected into prompts
 
-ChoirOS has a compelling vision but suffers from dangerous gaps between aspiration and implementation. The system cannot currently deliver on its core promises safely or reliably. The "split-brain" architecture where frontend and backend operate with separate state models fundamentally undermines the "NATS as Source of Truth" thesis.
+**Half-way:**
+- ⚠️ Artifacts folder exists but not a unified content-addressed store (CAS)
+- ⚠️ Agent reads AHDB but lacks `propose_ahdb` tool to update its own register
+- ⚠️ Machine class exists but is thin wrapper over orchestrator
+- ⚠️ run_notes in DB but not yet "30-second summary" streams
 
-The most critical issue is **closing the loop**: wiring the frontend NATS client to the Supervisor's event stream. Until the UI is a function of the event log, the "Model is the Kernel" cannot be true. The project would benefit from a "boring but works" phase focusing on security, reliability, and basic functionality before pursuing the more ambitious aspects of the automatic computer paradigm.
+**Missing (core "OS" claim):**
+- ❌ AHDB-driven mode selection (guards not wired)
+- ❌ Receipts-as-authority enforcement
+- ❌ Background lanes / work queue
+- ❌ Context Graph for replay/visualization
+- ❌ AgentFS as canonical filesystem
 
-**Immediate Reality Check**: The system is currently a local React app with a Python backend that can edit its own source code - compelling for demos but dangerous for production without proper safeguards.
+---
 
-### Merged Assessment
-Both reviewers independently identified the same core issues:
-- **Event sourcing disconnect** (NATS disabled/split-brain)
-- **Security vulnerabilities** (CORS, auth, git safety)
-- **State inconsistency** (multiple "brains" with no coordination)
-- **Stubbed functionality** (Mail, Terminal, deployment)
+## 1. What's Implemented vs. Specced
 
-The path forward requires establishing solid technical foundations before advancing the philosophical and economic frameworks.
+### A. Machine Control Plane
+
+| Aspect | Implemented | Specced (Jan 23 docs) | Gap |
+|--------|-------------|----------------------|-----|
+| Single-writer scheduling | ✅ `_writer_lock` works | ✅ | None |
+| Mode selection | ❌ Stubbed: always CALM | AHDB + guards | `_select_mode` has TODO |
+| Work queue | ❌ Not implemented | Non-blocking UI queue | Command bar blocks |
+| NATS directive handling | ✅ Best-effort | Canonical event-driven | NATS optional |
+
+### B. Run Lifecycle & Verification
+
+| Aspect | Implemented | Specced | Gap |
+|--------|-------------|---------|-----|
+| Execute → Verify → Checkpoint | ✅ Works | ✅ | None |
+| Rollback on failure | ✅ Works | ✅ | None |
+| BAML task assessment | ✅ Works | ✅ | None |
+| Verifier → AHDB promotion | ❌ Manual only | Auto via receipts | **Key gap** |
+
+### C. Modes ("Moods")
+
+| Aspect | Implemented | Specced | Gap |
+|--------|-------------|---------|-----|
+| 8 modes defined | ✅ `mode_config.py` | ✅ | None |
+| Tool allowlists | ✅ Works | ✅ | None |
+| Budget enforcement | ⚠️ Defined, not enforced | Strict budgets | Not enforced at runtime |
+| Terminology | ❌ Mixed mood/mode | Consistent | DB column `mood`, events use `mode` |
+
+### D. AHDB (State Vector)
+
+| Aspect | Implemented | Specced | Gap |
+|--------|-------------|---------|-----|
+| Tables exist | ✅ state/deltas/proposals | ✅ | None |
+| Proposal → Assert flow | ⚠️ Manual `promote_ahdb_proposals` | Auto via verifier receipts | Not wired |
+| Evidence pointers | ❌ Not implemented | Required for assertions | Missing fields |
+| Injection into prompts | ✅ `ModePromptBuilder` | ✅ | None |
+
+### E. Event Sourcing
+
+| Aspect | Implemented | Specced | Gap |
+|--------|-------------|---------|-----|
+| SQLite event log | ✅ Works | Projection only | **Contradiction** |
+| NATS publishing | ⚠️ Best-effort | Canonical source | Not reliable |
+| Replay/projection rebuild | ❌ Not implemented | Required | No projector |
+| Event contract | ✅ Defined | ✅ | Payload schemas loose |
+
+---
+
+## 2. Key Contradictions (Docs vs. Code)
+
+### Contradiction 1: Source of Truth
+
+**Spec says:** "NATS is canonical event log; SQLite is projection only" (CHOIR_MACHINE_V0_SPEC.md)
+
+**Code does:** SQLite is the reliable write path; NATS is optional best-effort publish
+
+```python
+# db.py docstring claims NATS canonical, but reality:
+NATS_ENABLED = NATS_AVAILABLE and os.environ.get("NATS_ENABLED", "1") == "1"
+# And NATS publish failures are silently logged, not blocking
+```
+
+**Impact:** Replay, recovery, and "continuous compute" cannot be reliable until resolved.
+
+### Contradiction 2: Mood vs. Mode Terminology
+
+| Location | Uses |
+|----------|------|
+| `supervisor/mood_engine.py` | `MOOD_CALM`, `MoodInputs` |
+| `supervisor/db.py` (runs table) | Column: `mood` |
+| `supervisor/run_orchestrator.py` | Parameter: `mood` |
+| `supervisor/event_contract.py` | Event types: `mode.start`, `mode.stop` |
+| `supervisor/machine.py` | Payload field: `mode` (falls back to `mood`) |
+| `supervisor/auditor_worker.py` | Emits: `mood` field |
+
+**Impact:** Projections/visualizations will mis-join runs, directives, and audits.
+
+### Contradiction 3: AHDB Authority Rules (Paper vs. Code)
+
+**Spec says:** "Only receipt-backed deltas can be asserted; LLM output is never authority"
+
+**Code does:**
+```python
+# machine.py - promote_ahdb_proposals
+def promote_ahdb_proposals(self, run_id: str) -> int:
+    proposals = self.store.list_ahdb_proposals(run_id)
+    for proposal in proposals:
+        if proposal.get("status") != "proposed":
+            continue
+        delta = proposal.get("delta")
+        # No verification check! Just promotes.
+        self.store.log_ahdb_delta(delta, {"run_id": run_id, "authority": "asserted"})
+```
+
+**Impact:** AHDB either becomes meaningless or requires manual babysitting.
+
+### Contradiction 4: Event-Driven vs. Polling
+
+**Spec says:** "Event-driven lanes consume events; scaling = higher event rate"
+
+**Code does:** Auditor polls SQLite every 2 seconds
+```python
+# auditor_worker.py
+while self.running:
+    new_events = self.store.get_events(since_seq=self.last_seq, limit=10)
+    # ...
+    await asyncio.sleep(2)  # Polling, not event-driven
+```
+
+### Contradiction 5: AgentFS as Canonical Filesystem
+
+**Spec says:** "AgentFS is canonical sandbox filesystem; cross-mode sharing via artifacts only"
+
+**Code does:** Repo working directory is de facto canonical; sandbox used only for verifiers
+
+### Contradiction 6: "No Privilege Without Receipts"
+
+**Doctrine says:** Receipts must be checked before authorizing next step in Machine
+
+**Code does:** Receipts are emitted but nothing checks them before proceeding
+
+### Contradiction 7: Self-Dev Paradox
+
+**Doctrine says:** "Failed runs leave no code"
+
+**Reality:** Without Context Graph, debugging failures is hard—you need to see what happened, but the thing that shows you what happened isn't built yet
+
+---
+
+## 3. Primary Obstacles to the Vision
+
+### Obstacle 1: No Single Authoritative Substrate
+
+Two "almost canonical" substrates exist:
+- SQLite events + projections (canonical in practice for events)
+- Repo filesystem (canonical for code state)
+
+NATS and sandbox checkpoints exist but aren't authoritative.
+
+**Why it blocks:** Visualization/replay, background lanes, and verification-as-authority all require "I can reconstruct what happened."
+
+### Obstacle 2: Authority Pipeline Not Enforced
+
+The key invariant (*LLM output ≠ authority; only receipts are*) isn't enforced:
+- Verifiers run and store results
+- AHDB proposals exist
+- But nothing ties them together automatically
+
+**Why it blocks:** Either manual promotion (slow) or unsafe auto-promotion (breaks trust).
+
+### Obstacle 3: Missing Scheduler Primitives
+
+Machine has a writer lock but lacks:
+- Real work queue for UI to enqueue into
+- Prioritization (verify/anomaly > feature work)
+- Rate limits / budgets per lane
+- Cancellation/preemption
+
+**Why it blocks:** Background agency becomes "concurrent chaos" without queue + backpressure.
+
+### Obstacle 4: Inconsistent Vocabulary and Event Payload Schemas
+
+- mode vs. mood
+- Event types normalized, but payload schemas aren't rigid
+- Linking fields (`work_item_id`, `run_id`, `session_id`) not uniformly present
+
+**Why it blocks:** Cannot build legibility (graph, receipts, time slider) if linking keys are inconsistent.
+
+---
+
+## 4. Recommended Path Forward
+
+### Phase 0: Decide Truth + Normalize Terminology (S–M: 1–3h)
+
+1. **Pick SQLite-first as canonical for v0**
+   - Update CHOIR_MACHINE_V0_SPEC.md to match reality
+   - Reframe NATS as "optional transport / replication"
+   
+2. **Normalize terminology: use "mode" everywhere**
+   - Keep DB column `runs.mood` temporarily (migration later)
+   - Event payloads always emit `mode`, never `mood`
+   - Add `mode` alias in reads for backward compatibility
+
+### Phase 1: Close the AHDB Loop (M: 1–3h)
+
+**Two parts:**
+
+**A. Wire Verifier → Receipt → AHDB Promotion:**
+
+1. When `RunOrchestrator` completes verifiers:
+   - Emit typed receipt event: `receipt.verifier.attestations`
+   - Include `run_id`, verifier IDs, statuses, artifact pointers
+
+2. Change `Machine.promote_ahdb_proposals`:
+   - Require `run.status == "verified"` before promotion
+   - Link to evidence (`run_id` + receipt seq)
+
+3. When promoting:
+   - Write `receipt.ahdb.delta` with `authority="asserted"`
+
+**B. Add `propose_ahdb` tool to AgentTools:**
+
+The agent currently reads AHDB but cannot formally propose updates. Add:
+```python
+# In supervisor/agent/tools.py
+def propose_ahdb(self, field: str, value: dict, evidence: list[str]) -> dict:
+    """Propose an AHDB update (ASSERT/HYPOTHESIZE/DRIVE/BELIEVE)."""
+    self.store.create_ahdb_proposal(
+        run_id=self.current_run_id,
+        delta={field: value},
+        evidence=evidence,
+    )
+    return {"status": "proposed", "field": field}
+```
+
+This closes the loop: agent proposes → verifier validates → Machine promotes.
+
+### Phase 2: Make Work Queue Real (M–L: 1–2d)
+
+1. Treat `work_items` table as the queue
+   - UI enqueues with `status=queued`
+   - Machine loop claims next runnable item
+
+2. Add scheduler loop:
+   - Respects single-writer lock
+   - Emits `mode.start` from queue (not directly from prompt)
+
+3. `/agent` WebSocket returns immediately with "enqueued" + work item ID
+
+### Phase 3: Context Graph v0 / Legibility (L: 1–2d)
+
+Start with **time-sliced event projection** (simple version of Context Graph):
+
+**Nodes:**
+- work_item, run, mode events, verifier results, AHDB deltas, file.write, artifacts
+
+**Edges:**
+- run→work_item, receipts→run, deltas→run, artifacts→receipt
+
+**Key requirements:**
+1. **Consistent linking keys** (ensure every event includes `run_id`)
+2. **Simple time-slice query**: "show me what happened in the last run"
+3. **30-second summary stream**: surface run_notes as legible progress
+
+This breaks the **Self-Dev Paradox**: you can now debug failed runs by replaying the context graph.
+
+### Phase 4: Promote Machine OS (M–L: 1–2d)
+
+Move MoodEngine logic into Machine and make it the primary entry point:
+- Machine becomes the scheduler, not just a wrapper
+- Mode guards driven by AHDB state + receipts
+- All execution flows through Machine (not direct orchestrator calls)
+
+### Phase 5: AgentFS + Event-Driven Lanes (XL, defer)
+
+Only after above is stable:
+- Decide canonical filesystem model (AgentFS as CAS)
+- Move auditor to event consumption (not polling)
+- Add leases, rate limits, circuit breakers
+- Resolve NATS/SQLite divergence for complex projections
+
+---
+
+## 5. Immediate Doc Cleanup Tasks (The "Haircut")
+
+### Terminology Harmonization (High Priority)
+
+1. **Global rename: mood → mode** in code comments and new code
+   - Keep `mood_engine.py` filename (rename later)
+   - Keep DB column `runs.mood` (migration later)
+   - All new event payloads use `mode`
+
+2. **Retire "Phase 3 Agent Platform" language**
+   - Replace with "Automatic Computer" / "Machine OS" in docs
+
+### Doc Updates
+
+3. **Update docs/00_INDEX.md**
+   - Add glossary section defining mood/mode relationship
+   - Surface Jan 23 concepts (AHDB, Context Graph, Machine)
+
+4. **Update docs/ARCHITECTURE_OVERVIEW.md**
+   - Add storage/data-flow notes matching current_architecture_jan23
+
+5. **Update docs/current_architecture_jan23.md**
+   - Add banner: "Snapshot as of 2026-01-23; for stable overview see ARCHITECTURE_OVERVIEW.md"
+
+6. **Update docs/specs/CHOIR_MACHINE_V0_SPEC.md**
+   - Change "NATS is canonical" to "SQLite-first for local dev; NATS for optional replication"
+
+7. **Update progress.md**
+   - Fix "moods are now modes" to clarify terminology relationship
+
+---
+
+## 6. Tests Passing (Verified)
+
+```
+supervisor.tests.test_event_contract
+supervisor.tests.test_ahdb_projection  
+supervisor.tests.test_runs
+supervisor.tests.test_machine
+supervisor.tests.test_mood_engine
+```
+
+All 22 tests pass. NATS publish warnings are expected (disabled in tests).
+
+---
+
+## 7. File Locations for Key Components
+
+| Component | File |
+|-----------|------|
+| Machine control plane | `supervisor/machine.py` |
+| Run orchestrator | `supervisor/run_orchestrator.py` |
+| Mode configurations | `supervisor/mode_config.py` |
+| Event store + projections | `supervisor/db.py` |
+| Event contract | `supervisor/event_contract.py` |
+| Agent harness | `supervisor/agent/harness.py` |
+| Verifier runner | `supervisor/verifier_runner.py` |
+| Auditor worker | `supervisor/auditor_worker.py` |
+| NATS client | `supervisor/nats_client.py` |
+| Mood engine | `supervisor/mood_engine.py` |
+
+---
+
+## 8. Key Insight: The "Walking Skeleton" is Real
+
+The good news: ChoirOS has a **working transactional execution engine**. The run→verify→checkpoint loop works. BAML integration works. Mode gating works.
+
+The gap isn't "nothing works"—it's that the **OS invariants aren't enforced**:
+- Receipts are emitted but not checked
+- AHDB is read but not updated by the agent
+- Machine exists but doesn't schedule
+
+The path forward is **wiring**, not **rebuilding**. Each phase connects existing pieces:
+1. Verifier results → AHDB promotion (wiring)
+2. Work items → Machine scheduler (wiring)
+3. Events → Context Graph (wiring)
+
+This is why the effort estimates are hours/days, not weeks.
