@@ -59,3 +59,9 @@
 ## Notes
 - Architecture direction confirmed: Machine (outer) must not perform research; it spawns Mode workers for all retrieval/analysis.
 - Command bar should enqueue work items and remain responsive; execution moves to the Machine queue.
+
+## Next Steps (updated)
+- Implement work-queue scheduling and non-blocking command bar flow.
+- Move auditor execution into a Mode worker and implement multipass loop.
+- Build visualization graph that maps receipts, artifacts, and AHDB deltas.
+- Fix persistence: sandbox/worktree snapshots and projection rebuild on restart.
