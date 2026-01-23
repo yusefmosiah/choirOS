@@ -1114,6 +1114,79 @@ class EventStore:
         )
         self.conn.commit()
 
+    # =========== Run Timeline (Context Graph v0) ===========
+
+    def get_run_timeline(self, run_id: str) -> dict:
+        """
+        Get a unified timeline of all events/notes/verifications for a run.
+        
+        Returns:
+            {
+                "run": {...},
+                "notes": [...],
+                "verifications": [...],
+                "events": [...],  # events with run_id in payload
+            }
+        """
+        run = self.get_run(run_id)
+        if not run:
+            return {"run": None, "notes": [], "verifications": [], "events": []}
+
+        # Get notes
+        cursor = self.conn.execute(
+            "SELECT * FROM run_notes WHERE run_id = ? ORDER BY created_at ASC",
+            (run_id,),
+        )
+        notes = []
+        for row in cursor.fetchall():
+            note = dict(row)
+            note["body"] = json.loads(note.get("body") or "{}")
+            notes.append(note)
+
+        # Get verifications
+        cursor = self.conn.execute(
+            "SELECT * FROM run_verifications WHERE run_id = ? ORDER BY created_at ASC",
+            (run_id,),
+        )
+        verifications = []
+        for row in cursor.fetchall():
+            v = dict(row)
+            v["attestation"] = json.loads(v.get("attestation") or "{}")
+            verifications.append(v)
+
+        # Get events that reference this run_id in their payload
+        cursor = self.conn.execute(
+            """SELECT * FROM events 
+               WHERE json_extract(payload, '$.run_id') = ? 
+               ORDER BY seq ASC""",
+            (run_id,),
+        )
+        events = []
+        for row in cursor.fetchall():
+            event = dict(row)
+            event["payload"] = json.loads(event.get("payload") or "{}")
+            events.append(event)
+
+        return {
+            "run": run,
+            "notes": notes,
+            "verifications": verifications,
+            "events": events,
+        }
+
+    def get_run_notes(self, run_id: str) -> list[dict]:
+        """Get all notes for a run, ordered by creation time."""
+        cursor = self.conn.execute(
+            "SELECT * FROM run_notes WHERE run_id = ? ORDER BY created_at ASC",
+            (run_id,),
+        )
+        notes = []
+        for row in cursor.fetchall():
+            note = dict(row)
+            note["body"] = json.loads(note.get("body") or "{}")
+            notes.append(note)
+        return notes
+
     # =========== Rollback State ===========
 
     def get_last_good_checkpoint(self) -> Optional[str]:

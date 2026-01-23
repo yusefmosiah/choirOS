@@ -415,6 +415,16 @@ async def list_runs(status: Optional[str] = None, limit: int = 50):
     return {"runs": store.list_runs(status=status, limit=limit)}
 
 
+@app.get("/run/{run_id}/timeline")
+async def get_run_timeline(run_id: str):
+    """Get unified timeline of all events/notes/verifications for a run (Context Graph v0)."""
+    store = get_store()
+    timeline = store.get_run_timeline(run_id)
+    if timeline["run"] is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return timeline
+
+
 @app.post("/run/{run_id}/note")
 async def add_run_note(run_id: str, payload: RunNotePayload):
     store = get_store()

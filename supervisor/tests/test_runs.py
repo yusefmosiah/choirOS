@@ -73,6 +73,28 @@ class TestRunsAndWorkItems(unittest.TestCase):
         paths = self.store.get_event_paths_since(start_seq)
         self.assertIn("notes/demo.txt", paths)
 
+    def test_run_timeline(self) -> None:
+        item = self.store.create_work_item(description="Timeline test")
+        run = self.store.create_run(item["id"], mood="CALM")
+
+        self.store.add_run_note(run["id"], "note.status", {"status": "started"})
+        self.store.add_run_note(run["id"], "note.observation", {"body": "testing"})
+        self.store.add_run_verification(run["id"], {"result": "pass", "verifier": "V-01"})
+
+        timeline = self.store.get_run_timeline(run["id"])
+        self.assertEqual(timeline["run"]["id"], run["id"])
+        self.assertEqual(len(timeline["notes"]), 2)
+        self.assertEqual(len(timeline["verifications"]), 1)
+        self.assertEqual(timeline["notes"][0]["note_type"], "note.status")
+        self.assertEqual(timeline["notes"][1]["note_type"], "note.observation")
+        self.assertEqual(timeline["verifications"][0]["attestation"]["verifier"], "V-01")
+
+    def test_run_timeline_not_found(self) -> None:
+        timeline = self.store.get_run_timeline("nonexistent-run-id")
+        self.assertIsNone(timeline["run"])
+        self.assertEqual(timeline["notes"], [])
+        self.assertEqual(timeline["verifications"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

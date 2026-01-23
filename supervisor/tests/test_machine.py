@@ -107,6 +107,44 @@ class TestMachine(unittest.TestCase):
 
         asyncio.run(run_test())
 
+    def test_select_mode_from_ahdb(self) -> None:
+        """Test that mode selection is driven by AHDB state."""
+        modes_selected: list[str] = []
+
+        async def executor(directive):
+            modes_selected.append(directive.mode_id)
+            return ModeRunResult(run_id=None, status="done", verifier_results=[])
+
+        machine = Machine(store=self.store, executor=executor)
+
+        # Empty AHDB: no conjectures -> CURIOUS (seeking context)
+        config = machine._select_mode("test prompt")
+        self.assertEqual(config.mode_id, "CURIOUS")
+
+        # Set conjectures present -> CALM (normal operation)
+        self.store.log_ahdb_delta(
+            {"conjectures": ["c1", "c2"]},
+            {"run_id": "init", "authority": "asserted"},
+        )
+        config = machine._select_mode("test prompt")
+        self.assertEqual(config.mode_id, "CALM")
+
+        # Set crash_detected in AHDB -> CONTRITE
+        self.store.log_ahdb_delta(
+            {"crash_detected": True},
+            {"run_id": "test", "authority": "asserted"},
+        )
+        config = machine._select_mode("test prompt")
+        self.assertEqual(config.mode_id, "CONTRITE")
+
+        # Clear crash, set repeated failures -> SKEPTICAL
+        self.store.log_ahdb_delta(
+            {"crash_detected": False, "repeated_verifier_failures": True},
+            {"run_id": "test2", "authority": "asserted"},
+        )
+        config = machine._select_mode("test prompt")
+        self.assertEqual(config.mode_id, "SKEPTICAL")
+
 
 if __name__ == "__main__":
     unittest.main()

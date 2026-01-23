@@ -9,6 +9,7 @@ from typing import Awaitable, Callable, Optional, Any
 from .db import EventStore
 from .event_contract import build_subject
 from .mode_config import ModeConfig, get_mode_config
+from .mood_engine import MoodInputs, select_initial_mood
 
 
 @dataclass(frozen=True)
@@ -100,8 +101,31 @@ class Machine:
                 await asyncio.sleep(5)
 
     def _select_mode(self, prompt: str) -> ModeConfig:
-        # TODO: Replace with AHDB-driven selection + guards.
-        return get_mode_config("CALM")
+        """Select mode based on AHDB state vector."""
+        ahdb = self.store.get_ahdb_state()
+        
+        # Map AHDB state to MoodInputs
+        # AHDB keys: crash_detected, has_demo, conjectures, repeated_failures, etc.
+        inputs = MoodInputs(
+            crash_detected=ahdb.get("crash_detected", False),
+            has_demo=ahdb.get("has_demo", True),
+            conjectures_present=bool(ahdb.get("conjectures", [])),
+            repeated_verifier_failures=ahdb.get("repeated_verifier_failures", False),
+            about_to_cross_privilege_boundary=ahdb.get("privilege_boundary", False),
+            preference_missing=ahdb.get("preference_missing", False),
+            ambiguity_blocking=ahdb.get("ambiguity_blocking", False),
+            user_idk=ahdb.get("user_idk", False),
+            verifiers_regress=ahdb.get("verifiers_regress", False),
+            hyperthesis_high=ahdb.get("hyperthesis_high", False),
+            mitigations_installed=ahdb.get("mitigations_installed", False),
+            verified_and_bounded=ahdb.get("verified_and_bounded", False),
+            suspected_reward_hack=ahdb.get("suspected_reward_hack", False),
+            state_consistent=ahdb.get("state_consistent", True),
+            previous_mood=ahdb.get("previous_mood"),
+        )
+        
+        mode_id = select_initial_mood(inputs)
+        return get_mode_config(mode_id)
 
     async def handle_prompt(self, prompt: str, requested_mode: Optional[str] = None) -> str:
         """Enqueue a prompt for execution. Returns work_item_id."""
