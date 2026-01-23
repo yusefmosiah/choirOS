@@ -1,5 +1,5 @@
 # Docs Index
-Updated: 2026-01-18
+Updated: 2026-01-23
 Status: ACTIVE
 
 ## Specs
@@ -50,6 +50,7 @@ Status: ACTIVE
 
 ## Project Notes
 - docs/CHOIR_CONTEXT.md
+- docs/current_architecture_jan23.md
 - docs/agentic_computer_position_paper.md
 - docs/SELF_DEV_BOOTSTRAP.md
 - PLANNING.md

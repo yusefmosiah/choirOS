@@ -69,3 +69,19 @@
 
 ## Next Session Checklist
 1) Implement AgentFS backend in local sandbox runner (canonical FS).\n2) Wire Sprites sync to/from AgentFS DB.\n3) Implement work-queue scheduler + non-blocking command bar flow.\n4) Move auditor into Mode worker + multipass loop.\n5) Start visualization graph using NATS + artifacts.
+
+# Progress (2026-01-23c)
+
+## Completed
+- Command bar now saves agent prompt/response into a persistent artifact and opens Writer on completion.
+- Artifact store is file-backed (`artifacts/` + `index.json`) and survives restarts.
+- Async verifier path uses `await run_async` to avoid `asyncio.run()` in an event loop.
+
+## Tests
+- Manual UI: command bar -> Writer window opens; artifact file created on disk.
+- Manual API: `POST /api/artifacts` returns filesystem-backed path.
+
+## Next Steps
+- Decide event source-of-truth (NATS-only vs SQLite-first) and implement projector if moving to NATS-only.
+- Migrate/clean legacy in-memory artifacts (normalize names/paths) and add a simple backfill tool.
+- Reduce event stream noise and add backpressure/batching on WS stream.

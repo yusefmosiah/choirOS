@@ -1,5 +1,14 @@
 # Changelog
 
+## [2026-01-23] - Artifact Persistence + Writer Auto-Open
+
+### Added
+- File-backed artifact store with `artifacts/` directory + `index.json` index.
+- Command bar saves agent prompt/response to artifacts and opens Writer on completion.
+
+### Changed
+- Async verifier execution now awaits `run_async` in async orchestration paths.
+
 ## [2026-01-18] - Dev Ergonomics Track (Phase 0 Hardening)
 
 ### Added
