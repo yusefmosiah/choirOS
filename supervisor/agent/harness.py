@@ -40,6 +40,7 @@ class AgentHarness:
         )
         self.conversation_id: Optional[int] = None
         self.message_history: List[Message] = []
+        self.current_run_id: Optional[str] = None
 
     def set_mode(self, mode_config: ModeConfig) -> None:
         if self.mode_config.mode_id != mode_config.mode_id:

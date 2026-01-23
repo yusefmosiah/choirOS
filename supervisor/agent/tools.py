@@ -61,6 +61,7 @@ class AgentTools:
         self.app_dir = PROJECT_ROOT
         self.web_search = WebSearch()
         self.artifacts = ArtifactStore(event_store=self.store)
+        self.current_run_id: Optional[str] = None
 
     # Tool definitions for Claude
     TOOL_DEFINITIONS = [
@@ -219,6 +220,29 @@ class AgentTools:
                     }
                 },
                 "required": ["artifact_hash"]
+            }
+        },
+        {
+            "name": "propose_ahdb",
+            "description": "Propose an update to the AHDB (Authentically Horizontal Data Base). Requires verification.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "field": {
+                        "type": "string",
+                        "description": "The state field to update (e.g., 'user.email')"
+                    },
+                    "value": {
+                        "type": "object",
+                        "description": "The new value for the field (JSON object)"
+                    },
+                    "evidence": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of evidence strings (e.g. filenames, URLs) supporting this proposal"
+                    }
+                },
+                "required": ["field", "value", "evidence"]
             }
         }
     ]
@@ -554,6 +578,32 @@ class AgentTools:
         except Exception as e:
             return {"error": str(e)}
 
+    async def propose_ahdb(self, field: str, value: dict[str, Any], evidence: list[str]) -> dict[str, Any]:
+        """Propose an AHDB update (ASSERT/HYPOTHESIZE/DRIVE/BELIEVE)."""
+        denial = self._assert_tool_allowed("propose_ahdb")
+        if denial:
+            return denial
+        
+        if not self.current_run_id:
+            return {"error": "No active run ID found (internal error)"}
+            
+        try:
+            if not self.store:
+                return {"error": "No event store connected"}
+
+            self.store.create_ahdb_proposal(
+                run_id=self.current_run_id,
+                delta={field: value},
+                evidence=evidence,
+            )
+            return {
+                "status": "proposed",
+                "field": field,
+                "note": "This proposal will be verified by the system before being asserted."
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
     async def git_checkpoint(self, message: Optional[str] = None) -> dict[str, Any]:
         """Create a git checkpoint."""
         denial = self._assert_tool_allowed("git_checkpoint")
@@ -618,5 +668,7 @@ class AgentTools:
             return result
         elif name == "read_artifact":
             return await self.read_artifact(**arguments)
+        elif name == "propose_ahdb":
+            return await self.propose_ahdb(**arguments)
         else:
             return {"error": f"Unknown tool: {name}"}

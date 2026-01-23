@@ -707,7 +707,8 @@ async def agent_websocket(websocket: WebSocket):
         mode_config = get_mode_config(directive.mode_id)
         agent_harness.set_mode(mode_config)
 
-        async def execute_run(_: dict) -> bool:
+        async def execute_run(run_obj: dict) -> bool:
+            agent_harness.current_run_id = run_obj.get("id")
             success = True
             async for response in agent_harness.process(directive.prompt):
                 if response.get("type") == "error":

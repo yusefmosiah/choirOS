@@ -2,6 +2,13 @@
 Updated: 2026-01-23
 Status: ACTIVE
 
+## Glossary & Terminology
+- **Mode** (formerly "Mood"): A deterministic, capability-bounded configuration for the agent harness.
+- **Machine**: The supervisor control plane orchestrating modes.
+- **AHDB**: Authentically Horizontal Data Base; the agent's internal state vector (ASSERT/HYPOTHESIZE/DRIVE/BELIEVE).
+- **Receipt**: An event recording capability usage or verification results.
+- **SQLite-first**: Local development uses SQLite as the canonical event store; NATS is optional transport.
+
 ## Specs
 - docs/specs/CHOIR_STORAGE_ROLLBACK_SPEC.md (DRAFT)
 - docs/specs/CHOIR_AUTH_RECOVERY_SPEC.md (DRAFT)

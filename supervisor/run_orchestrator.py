@@ -87,9 +87,9 @@ class RunOrchestrator:
         work_item_id: str,
         execute_run: Callable[[dict], bool],
         verifier_specs: Iterable[VerifierSpec],
-        mood: str = "CALM",
+        mode: str = "CALM",
     ) -> dict:
-        run = self.store.create_run(work_item_id=work_item_id, mood=mood, status="running")
+        run = self.store.create_run(work_item_id=work_item_id, mood=mode, status="running")
         run_id = run["id"]
         self._ensure_last_good_checkpoint()
         sandbox_handle = None
@@ -98,7 +98,7 @@ class RunOrchestrator:
         self.store.add_run_note(
             run_id,
             "note.status",
-            {"status": "running", "mood": mood, "stage": "execute"},
+            {"status": "running", "mode": mode, "stage": "execute"},
         )
 
         try:
@@ -137,7 +137,7 @@ class RunOrchestrator:
                 self.store.add_run_note(
                     run_id,
                     "note.status",
-                    {"status": "failed", "mood": "SKEPTICAL", "stage": "verify"},
+                    {"status": "failed", "mode": "SKEPTICAL", "stage": "verify"},
                 )
                 response = {"run": self.store.get_run(run_id), "verifier_results": []}
                 return response
@@ -146,7 +146,7 @@ class RunOrchestrator:
             self.store.add_run_note(
                 run_id,
                 "note.status",
-                {"status": "verifying", "mood": mood, "stage": "verify"},
+                {"status": "verifying", "mode": mode, "stage": "verify"},
             )
 
             results = []
@@ -161,7 +161,17 @@ class RunOrchestrator:
             self.store.add_run_note(
                 run_id,
                 "note.status",
-                {"status": final_status, "mood": "SKEPTICAL", "stage": "adjudicate"},
+                                {"status": final_status, "mode": "SKEPTICAL", "stage": "adjudicate"},
+            )
+
+            self.store.append(
+                "receipt.verifier.attestations",
+                {
+                    "run_id": run_id,
+                    "status": final_status,
+                    "results": [asdict(r) for r in results],
+                },
+                source="system",
             )
 
             if all_passed:
@@ -246,10 +256,10 @@ class RunOrchestrator:
         self,
         work_item_id: str,
         execute_run: Callable[[dict], Awaitable[bool]],
-        mood: str = "CALM",
+        mode: str = "CALM",
         config_path: Optional[Path] = None,
     ) -> dict:
-        run = self.store.create_run(work_item_id=work_item_id, mood=mood, status="running")
+        run = self.store.create_run(work_item_id=work_item_id, mood=mode, status="running")
         run_id = run["id"]
         start_seq = self.store.get_latest_seq()
         self._ensure_last_good_checkpoint()
@@ -263,7 +273,7 @@ class RunOrchestrator:
         self.store.add_run_note(
             run_id,
             "note.status",
-            {"status": "running", "mood": mood, "stage": "execute"},
+            {"status": "running", "mode": mode, "stage": "execute"},
         )
 
         try:
@@ -335,7 +345,7 @@ class RunOrchestrator:
 
             plan = select_verifier_plan(
                 touched_paths=touched_paths,
-                mood=mood,
+                mode=mode,
                 required_verifiers=required_verifiers,
                 risk_tier=risk_tier,
                 config_path=config_path,
@@ -347,7 +357,7 @@ class RunOrchestrator:
                 self.store.add_run_note(
                     run_id,
                     "note.status",
-                    {"status": "failed", "mood": "SKEPTICAL", "stage": "verify"},
+                    {"status": "failed", "mode": "SKEPTICAL", "stage": "verify"},
                 )
                 response = {
                     "run": self.store.get_run(run_id),
@@ -360,7 +370,7 @@ class RunOrchestrator:
             self.store.add_run_note(
                 run_id,
                 "note.status",
-                {"status": "verifying", "mood": mood, "stage": "verify"},
+                {"status": "verifying", "mode": mode, "stage": "verify"},
             )
 
             results = []
@@ -375,7 +385,17 @@ class RunOrchestrator:
             self.store.add_run_note(
                 run_id,
                 "note.status",
-                {"status": final_status, "mood": "SKEPTICAL", "stage": "adjudicate"},
+                {"status": final_status, "mode": "SKEPTICAL", "stage": "adjudicate"},
+            )
+
+            self.store.append(
+                "receipt.verifier.attestations",
+                {
+                    "run_id": run_id,
+                    "status": final_status,
+                    "results": [asdict(r) for r in results],
+                },
+                source="system",
             )
 
             if all_passed:
