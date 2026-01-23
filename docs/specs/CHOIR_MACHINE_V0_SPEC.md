@@ -26,6 +26,7 @@ Owner: ChoirOS Core
 4) Only one write-capable Mode may run at a time.
 5) AHDB ASSERT updates require receipts/attestations; LLM output alone is never authority.
 6) All cross-mode sharing is via artifact pointers or diff artifacts.
+7) AgentFS is the canonical sandbox filesystem state.
 
 ## 3) Mode model
 ModeConfig (conceptual):
@@ -123,3 +124,4 @@ The harness must never use a hardcoded system prompt.
 - Machine can promote a proposed AHDB delta only after a verifier receipt.
 - Single-writer scheduling is enforced.
 - The command bar can enqueue multiple work items without blocking the UI.
+- AgentFS sessions restore sandbox state after restart.

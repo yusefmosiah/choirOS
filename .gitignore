@@ -42,3 +42,4 @@ artifacts/
 # Project specific
 .opencode/
 .ralphy/
+.context/

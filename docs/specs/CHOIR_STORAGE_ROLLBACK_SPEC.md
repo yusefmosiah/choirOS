@@ -3,7 +3,7 @@ Updated: 2026-01-18
 Status: DRAFT
 
 ## Scope
-Define a base + overlay storage model for user-customizable frontends running inside sprites. Map this to VC-01 (version control primitives) and SBX-01 (sandbox lifecycle + snapshot/restore).
+Define a base + overlay storage model for user-customizable frontends running inside sprites. Map this to VC-01 (version control primitives) and SBX-01 (sandbox lifecycle + snapshot/restore). AgentFS is the canonical sandbox filesystem state.
 
 ## Goals
 - Keep a single canonical base app while allowing per-user customizations.
@@ -20,6 +20,7 @@ Define a base + overlay storage model for user-customizable frontends running in
 - Base app: a canonical git repo + commit SHA (immutable once published).
 - Overlay: per-user delta stored as a commit, patch, or bundle.
 - Sprite workspace: a materialized filesystem of base + overlay.
+- AgentFS: canonical sandbox filesystem state stored as SQLite DB.
 
 Rehydration = checkout base + apply overlay.
 
@@ -59,10 +60,16 @@ Option B: Content-addressed bundle
    - Apply `overlay_ref` (git merge/cherry-pick or patch apply).
 3. Start dev/build server inside sprite.
 
+## AgentFS Integration
+- AgentFS DB is canonical for sandbox filesystem state.
+- Sprites are a temporary execution substrate; sync to/from AgentFS.
+- AgentFS sessions are stored under `.context/agentfs/` and excluded from git.
+
 ### Checkpoints
 - Use sprite checkpoints for environment + filesystem speedups.
 - Do not rely on checkpoints as the source of truth for code state.
 - Code source of truth is base + overlay in storage.
+- AgentFS DB is the source of truth for sandbox filesystem state.
 
 ## Verification + Rollback
 

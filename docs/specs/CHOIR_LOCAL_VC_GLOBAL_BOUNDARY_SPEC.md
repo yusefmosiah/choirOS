@@ -25,6 +25,7 @@ Properties:
 - fast iteration
 - strict sandboxing / capability modes
 - local checkpoints and rollback
+- AgentFS-backed filesystem is canonical for sandbox state
 
 ### Plane B — SOCIAL EPISTEMICS (multi-user)
 Scope:

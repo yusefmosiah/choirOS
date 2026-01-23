@@ -64,4 +64,8 @@
 - Implement work-queue scheduling and non-blocking command bar flow.
 - Move auditor execution into a Mode worker and implement multipass loop.
 - Build visualization graph that maps receipts, artifacts, and AHDB deltas.
-- Fix persistence: sandbox/worktree snapshots and projection rebuild on restart.
+- Fix persistence: AgentFS canonical filesystem integration + snapshot/restore semantics.
+- Add AgentFS integration spec updates to storage + boundary docs.
+
+## Next Session Checklist
+1) Implement AgentFS backend in local sandbox runner (canonical FS).\n2) Wire Sprites sync to/from AgentFS DB.\n3) Implement work-queue scheduler + non-blocking command bar flow.\n4) Move auditor into Mode worker + multipass loop.\n5) Start visualization graph using NATS + artifacts.
