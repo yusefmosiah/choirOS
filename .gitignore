@@ -43,3 +43,4 @@ artifacts/
 .opencode/
 .ralphy/
 .context/
+.dev.sh.pids
