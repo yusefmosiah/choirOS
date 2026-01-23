@@ -85,3 +85,15 @@
 - Decide event source-of-truth (NATS-only vs SQLite-first) and implement projector if moving to NATS-only.
 - Migrate/clean legacy in-memory artifacts (normalize names/paths) and add a simple backfill tool.
 - Reduce event stream noise and add backpressure/batching on WS stream.
+
+# Progress (2026-01-23d) - Phase 0 Terminology Normalization
+
+## Completed
+- Renamed "Mood" to "Mode" in specs and documentation (e.g., `CHOIR_MODES_SPEC.md`).
+- Clarified architecture: SQLite-first for local dev; NATS optional.
+- Updated Machine spec to reflect the "Hybrid" state (SQLite as source of truth for v0).
+- Normalizing event payloads to use `mode` instead of `mood` (code updates in progress).
+
+## Notes
+- DB column `runs.mood` is retained for backward compatibility / existing data.
+- BAML definition `auditor.baml` retains `mood` property but mapped to `mode` at runtime emission.

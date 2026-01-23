@@ -15,7 +15,7 @@ Status: ACTIVE
 - docs/specs/CHOIR_FULL_SYSTEM_DESIGN.md
 - docs/specs/CHOIR_HEADLESS_1P_DESIGN.md
 - docs/specs/CHOIR_LOCAL_VC_GLOBAL_BOUNDARY_SPEC.md
-- docs/specs/CHOIR_MOODS_SPEC.md
+- docs/specs/CHOIR_MODES_SPEC.md
 - docs/specs/HUMAN_INTERRUPT_LANE_SPEC.md
 - docs/specs/RUN_OUTPUT_POLICY_SPEC.md
 - docs/specs/THE_AUTOMATIC_COMPUTER_SECURITY_MODELS.md
@@ -68,3 +68,9 @@ Status: ACTIVE
 ## Ops
 - docs/ops/ARCH_RESEARCH_ROADMAP.md
 - docs/ops/NATS_PHASE0_HARDENING.md
+
+## Glossary (v0)
+- **Mode**: A deterministic, capability-bounded configuration (formerly "Mood"). Controls tools, budgets, and policies.
+- **Machine**: The outer control plane that orchestrates Modes.
+- **AHDB**: The state vector (Assert/Hypothesize/Drive/Believe).
+- **Receipt**: Typed evidence of work or verification.

@@ -4,7 +4,7 @@ Date: 2026-01-22
 Owner: ChoirOS Core
 
 ## Decision summary
-- NATS is the canonical event log; SQLite is a projection only.
+- SQLite-first for local dev; NATS for optional replication.
 - The Machine is a light-control agent with no direct tools; it orchestrates Modes.
 - Modes share one harness with mode-config injection (prompt + tools + budgets + policies).
 - Single-writer: only one write-capable Mode runs at a time; other Modes are read-only.
@@ -20,7 +20,7 @@ Owner: ChoirOS Core
 - Inner/Outer system: the Machine is the outer control plane; Modes are inner workers.
 
 ## 2) Core invariants
-1) NATS is the source of truth; all state can be rebuilt from the event log.
+1) SQLite is the source of truth for local dev; NATS is optional.
 2) The Machine does not read files, write code, or access the network directly.
 3) Modes operate under explicit capability gates enforced by the tool layer.
 4) Only one write-capable Mode may run at a time.

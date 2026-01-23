@@ -1,17 +1,17 @@
-# CHOIR MOODS SPEC (v0)
+# CHOIR MODES SPEC (v0)
 
-This spec defines **MOODS**: deterministic scaffold configurations that govern how Choir operates at runtime. A MOOD is an appropriate level of anthropomorphism: human-legible, memetically sticky, and mechanically enforceable.
+This spec defines **MODES**: deterministic scaffold configurations that govern how Choir operates at runtime. A MODE is an appropriate level of anthropomorphism: human-legible, memetically sticky, and mechanically enforceable.
 
-MOODS are *not* “multiple agents.” They are **modes** of a single platform runtime. Parallelism is used selectively for retrieval/verification, but correctness and safety come from MOOD gating.
+MODES are *not* “multiple agents.” They are **modes** of a single platform runtime. Parallelism is used selectively for retrieval/verification, but correctness and safety come from MODE gating.
 
 ---
 
 ## 0) Definitions
 
-### 0.1 MOOD (configuration bundle)
-A MOOD is a typed profile:
+### 0.1 MODE (configuration bundle)
+A MODE is a typed profile:
 
-MOOD :=
+MODE :=
 - TOOLS: allowed syscall/tool surface
 - DATA SCOPE: what stores are readable/writable
 - MODEL POLICY: allowed models, escalation ladder, token budgets
@@ -27,7 +27,7 @@ The platform maintains a small, typed **state vector**:
 - HYPERTHESIS: bounded blind spots (edge of testability / unsaid story)
 - CONJECTURES: (claim, test, edge, ΔO, scope)
 
-MOODS interpret this state vector into permitted actions.
+MODES interpret this state vector into permitted actions.
 
 ### 0.3 Authority rule
 - ASSERT may reference **PROMOTED atoms only** (promoted bindings, promoted evidence pointers).
@@ -36,19 +36,19 @@ MOODS interpret this state vector into permitted actions.
 
 ---
 
-## 1) Mood engine principles
+## 1) Mode engine principles
 
-1) **Deterministic**: mood selection is rule-based and guard-driven.
-2) **Least privilege**: default mood minimizes tool surface.
+1) **Deterministic**: mode selection is rule-based and guard-driven.
+2) **Least privilege**: default mode minimizes tool surface.
 3) **Crash-safe**: system can restart from receipts + AHDB projection; “landing the plane” is optional.
-4) **No-vibes transitions**: mood changes require explicit triggers (guards).
+4) **No-vibes transitions**: mode changes require explicit triggers (guards).
 5) **Token-respectful**: avoid waste; parallelize evidence/verification, not full end-to-end rerolls.
 
 ---
 
-## 2) Mood palette (v0)
+## 2) Mode palette (v0)
 
-v0 defines 8 moods. Systems may start with 5 and add the rest.
+v0 defines 8 modes. Systems may start with 5 and add the rest.
 
 ### 2.1 CALM (default execution)
 Purpose: execute one bounded step toward the 30-second demo / current work item.
@@ -269,7 +269,7 @@ BUDGETS:
 - small
 
 STOP RULES:
-- once state is consistent → return to previous mood or CURIOUS
+- once state is consistent → return to previous mode or CURIOUS
 
 RECEIPTS:
 - ProjectionRebuildReceipt, AHDBDelta
@@ -345,11 +345,11 @@ RECEIPTS:
 
 ---
 
-## 3) Mood transition guards (deterministic)
+## 3) Mode transition guards (deterministic)
 
-Mood selection is rule-based. Example guards:
+Mode selection is rule-based. Example guards:
 
-### 3.1 Entry guards (selecting initial mood)
+### 3.1 Entry guards (selecting initial mode)
 - If AHDB missing 30-sec demo OR conjectures absent → CURIOUS
 - If repeated verifier failures exist → SKEPTICAL
 - If about to cross privilege boundary (publish/promote/sign) → PARANOID or DEFERENTIAL
@@ -364,14 +364,14 @@ Mood selection is rule-based. Example guards:
 - Any → DEFERENTIAL if: missing preference/policy would change next move materially
 
 ### 3.3 Crash-safe guard
-- Any mood → CONTRITE if the process restarts without a clean handoff
-- CONTRITE → previous mood if state projection is consistent, else → CURIOUS
+- Any mode → CONTRITE if the process restarts without a clean handoff
+- CONTRITE → previous mode if state projection is consistent, else → CURIOUS
 
 ---
 
-## 4) Mood-specific capability gating
+## 4) Mode-specific capability gating
 
-Each mood has an allowlist of tool categories. The policy engine enforces:
+Each mode has an allowlist of tool categories. The policy engine enforces:
 - tool allowlists
 - data store allowlists
 - network allowlists
@@ -388,20 +388,20 @@ This allows rich “agentic” behavior without requiring multiple agents.
 ### 5.1 What can update ASSERT
 Only verifier attestations and promotion status can justify ASSERT updates.
 
-Mood effects:
-- SKEPTICAL: primary mood for ASSERT promotion/demotion
+Mode effects:
+- SKEPTICAL: primary mode for ASSERT promotion/demotion
 - PARANOID: may force demotion if risk too high
 - CALM/BOLD: can propose candidates but not finalize without attestations
 
 ### 5.2 What can update HYPOTHESIZE
-Any mood may propose hypotheses, but:
+Any mode may propose hypotheses, but:
 - must include discriminating test + budget
 - CURIOUS is preferred for hypothesis generation
 - SKEPTICAL preferred for hypothesis resolution
 
 ### 5.3 What can update DRIVE
 DRIVE changes are explicit and versioned:
-- DEFERENTIAL is the preferred mood for preference elicitation
+- DEFERENTIAL is the preferred mode for preference elicitation
 - Director may set defaults; user can override
 
 ### 5.4 What can update BELIEVE
@@ -414,11 +414,11 @@ BELIEVE is largely derived from capabilities and environment constraints:
 
 ## 6) Observability requirements (receipts)
 
-All moods must emit:
+All modes must emit:
 - ContextFootprint (what was accessed)
 - AHDBDelta (what changed)
 
-Additional receipts by mood:
+Additional receipts by mode:
 - CALM/BOLD: PatchReceipt + VerifierResults
 - CURIOUS: EvidenceSetHash + RetrievalReceipt + ConjectureSet
 - SKEPTICAL: VerifierAttestations + DiscrepancyReport
@@ -431,16 +431,16 @@ Additional receipts by mood:
 
 ## 7) Implementation notes (v0)
 
-1) Start with 5 moods: CALM, CURIOUS, SKEPTICAL, PARANOID, CONTRITE.
-2) Encode mood selection as a state machine with guards, not as an LLM choice.
-3) Make mood configs versioned artifacts; log mood transitions as events.
-4) Ensure all privileged actions depend on mood + policy tokens.
+1) Start with 5 modes: CALM, CURIOUS, SKEPTICAL, PARANOID, CONTRITE.
+2) Encode mode selection as a state machine with guards, not as an LLM choice.
+3) Make mode configs versioned artifacts; log mode transitions as events.
+4) Ensure all privileged actions depend on mode + policy tokens.
 
 ---
 
 ## 8) Prompt-ready doctrine block (optional)
 
-MOODS ARE CONFIG, NOT VIBES.
+MODES ARE CONFIG, NOT VIBES.
 - CALM: execute
 - CURIOUS: inquire
 - SKEPTICAL: verify
