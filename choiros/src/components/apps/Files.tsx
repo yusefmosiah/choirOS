@@ -1,5 +1,5 @@
 // Files App - Browse sources and files
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useSourcesStore } from '../../stores/sources';
 import { useWindowStore } from '../../stores/windows';
 import {
@@ -32,12 +32,6 @@ export function Files() {
     useEffect(() => {
         fetchArtifacts();
     }, [fetchArtifacts]);
-
-    useEffect(() => {
-        if (selectedId && !artifacts.some((artifact) => artifact.id === selectedId)) {
-            setSelectedId(null);
-        }
-    }, [artifacts, selectedId]);
 
     const handleOpen = (artifactId: string) => {
         openWindow('writer', { artifactId });
@@ -116,6 +110,38 @@ export function Files() {
         () => artifacts.find((artifact) => artifact.id === selectedId) ?? null,
         [artifacts, selectedId]
     );
+
+    const handleListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (filteredArtifacts.length === 0) return;
+        const currentIndex = filteredArtifacts.findIndex(
+            (artifact) => artifact.id === selectedId
+        );
+        if (event.key === 'ArrowDown') {
+            const nextIndex =
+                currentIndex === -1
+                    ? 0
+                    : Math.min(currentIndex + 1, filteredArtifacts.length - 1);
+            setSelectedId(filteredArtifacts[nextIndex].id);
+            event.preventDefault();
+        }
+        if (event.key === 'ArrowUp') {
+            const nextIndex = currentIndex <= 0 ? 0 : currentIndex - 1;
+            setSelectedId(filteredArtifacts[nextIndex].id);
+            event.preventDefault();
+        }
+        if (event.key === 'Home') {
+            setSelectedId(filteredArtifacts[0].id);
+            event.preventDefault();
+        }
+        if (event.key === 'End') {
+            setSelectedId(filteredArtifacts[filteredArtifacts.length - 1].id);
+            event.preventDefault();
+        }
+        if (event.key === 'Enter' && selectedId) {
+            handleOpen(selectedId);
+            event.preventDefault();
+        }
+    };
 
     return (
         <div className="files">
@@ -223,64 +249,132 @@ export function Files() {
                     <p className="files-empty-hint">Try a different search term.</p>
                 </div>
             ) : (
-                <div className="files-list">
-                    {filteredArtifacts.map((artifact) => (
-                        <div
-                            key={artifact.id}
-                            className={`file-item${
-                                selectedId === artifact.id ? ' is-selected' : ''
-                            }`}
-                            onDoubleClick={() => handleOpen(artifact.id)}
-                            onClick={() => setSelectedId(artifact.id)}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(event) => {
-                                if (event.key === 'Enter') {
-                                    handleOpen(artifact.id);
-                                }
-                            }}
-                        >
-                            <span className="file-icon">
-                                {getSourceIcon(artifact.source_type)}
-                            </span>
-                            <div className="file-info">
-                                <span className="file-name">{artifact.name}</span>
-                                <span className="file-meta">
-                                    <Clock size={12} />
-                                    {formatDate(artifact.created_at)}
-                                    <span className="file-meta-divider">•</span>
-                                    <FileText size={12} />
-                                    {artifact.mime_type || 'Unknown type'}
-                                    <span className="file-meta-divider">•</span>
-                                    {artifact.source_type}
+                <div className="files-content">
+                    <div
+                        className="files-list"
+                        role="listbox"
+                        tabIndex={0}
+                        onKeyDown={handleListKeyDown}
+                        aria-label="Files list"
+                    >
+                        {filteredArtifacts.map((artifact) => (
+                            <div
+                                key={artifact.id}
+                                className={`file-item${
+                                    selectedId === artifact.id ? ' is-selected' : ''
+                                }`}
+                                onDoubleClick={() => handleOpen(artifact.id)}
+                                onClick={() => setSelectedId(artifact.id)}
+                                role="option"
+                                aria-selected={selectedId === artifact.id}
+                                tabIndex={-1}
+                            >
+                                <span className="file-icon">
+                                    {getSourceIcon(artifact.source_type)}
                                 </span>
-                            </div>
-                            <div className="file-actions">
-                                {artifact.source_url && (
-                                    <a
-                                        href={artifact.source_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="file-link"
-                                        onClick={(e) => e.stopPropagation()}
-                                        title="Open source URL"
+                                <div className="file-info">
+                                    <span className="file-name">{artifact.name}</span>
+                                    <span className="file-path">{artifact.path}</span>
+                                    <span className="file-meta">
+                                        <Clock size={12} />
+                                        {formatDate(artifact.created_at)}
+                                        <span className="file-meta-divider">•</span>
+                                        <FileText size={12} />
+                                        {artifact.mime_type || 'Unknown type'}
+                                        <span className="file-meta-divider">•</span>
+                                        {artifact.source_type}
+                                    </span>
+                                </div>
+                                <div className="file-actions">
+                                    {artifact.source_url && (
+                                        <a
+                                            href={artifact.source_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="file-link"
+                                            onClick={(e) => e.stopPropagation()}
+                                            title="Open source URL"
+                                        >
+                                            <ExternalLink size={14} />
+                                        </a>
+                                    )}
+                                    <button
+                                        className="file-delete"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            deleteArtifact(artifact.id);
+                                        }}
+                                        title="Delete"
                                     >
-                                        <ExternalLink size={14} />
-                                    </a>
-                                )}
-                                <button
-                                    className="file-delete"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        deleteArtifact(artifact.id);
-                                    }}
-                                    title="Delete"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
+                    <div className="files-detail">
+                        {selectedArtifact ? (
+                            <>
+                                <div className="files-detail-header">
+                                    <span className="files-detail-icon">
+                                        {getSourceIcon(selectedArtifact.source_type)}
+                                    </span>
+                                    <div>
+                                        <div className="files-detail-title">
+                                            {selectedArtifact.name}
+                                        </div>
+                                        <div className="files-detail-path">
+                                            {selectedArtifact.path}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="files-detail-section">
+                                    <div className="files-detail-label">Type</div>
+                                    <div className="files-detail-value">
+                                        {selectedArtifact.mime_type || 'Unknown type'}
+                                    </div>
+                                </div>
+                                <div className="files-detail-section">
+                                    <div className="files-detail-label">Source</div>
+                                    <div className="files-detail-value">
+                                        {selectedArtifact.source_type}
+                                    </div>
+                                </div>
+                                <div className="files-detail-section">
+                                    <div className="files-detail-label">Added</div>
+                                    <div className="files-detail-value">
+                                        {formatDate(selectedArtifact.created_at)}
+                                    </div>
+                                </div>
+                                {selectedArtifact.source_url && (
+                                    <div className="files-detail-section">
+                                        <div className="files-detail-label">Source URL</div>
+                                        <a
+                                            className="files-detail-link"
+                                            href={selectedArtifact.source_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
+                                            {selectedArtifact.source_url}
+                                        </a>
+                                    </div>
+                                )}
+                                <div className="files-detail-section">
+                                    <div className="files-detail-label">Preview</div>
+                                    <div className="files-detail-preview">
+                                        {selectedArtifact.content_preview || 'No preview available.'}
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="files-detail-empty">
+                                <p>Select a file to see details</p>
+                                <p className="files-empty-hint">
+                                    Use ↑/↓ to move through the list.
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
