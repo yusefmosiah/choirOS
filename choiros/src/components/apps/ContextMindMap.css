@@ -1,0 +1,103 @@
+.mindmap-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    overflow: hidden;
+}
+
+.mindmap-container.loading, .mindmap-container.empty {
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+}
+
+.mindmap-svg-container {
+    flex: 1;
+    overflow: hidden;
+    cursor: grab;
+}
+
+.mindmap-svg-container:active {
+    cursor: grabbing;
+}
+
+.node-circle {
+    fill: var(--bg-secondary);
+    stroke: var(--border-color);
+    stroke-width: 2px;
+    transition: all 0.3s ease;
+}
+
+.node-circle:hover {
+    fill: var(--accent-primary);
+    stroke: var(--accent-highlight);
+    r: 25px; /* scale up slightly */
+}
+
+.node-circle.root {
+    fill: var(--accent-primary);
+    stroke: var(--accent-highlight);
+}
+
+.node-circle.category {
+    fill: var(--bg-tertiary);
+}
+
+/* Specific colors for categories */
+.node-circle.category:nth-of-type(1) { stroke: #fcd34d; } /* AHDB */
+.node-circle.category:nth-of-type(2) { stroke: #f87171; } /* Files */
+.node-circle.category:nth-of-type(3) { stroke: #4ade80; } /* Chat */
+
+.node-circle.ahdb { stroke: #fcd34d; }
+.node-circle.file { stroke: #f87171; }
+.node-circle.message { stroke: #4ade80; }
+
+.node-text {
+    font-size: 12px;
+    fill: var(--text-primary);
+    pointer-events: none;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+.node-text.root {
+    font-size: 14px;
+    font-weight: bold;
+    fill: white;
+}
+
+.link {
+    stroke: var(--border-color);
+    stroke-width: 1.5px;
+}
+
+.mindmap-controls {
+    height: 60px;
+    padding: 10px 20px;
+    background-color: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.mindmap-slider {
+    width: 100%;
+    accent-color: var(--accent-primary);
+}
+
+.mindmap-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.mindmap-info span {
+    background: var(--bg-tertiary);
+    padding: 2px 8px;
+    border-radius: 4px;
+}

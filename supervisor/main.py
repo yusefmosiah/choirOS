@@ -448,6 +448,35 @@ async def get_ahdb_state():
     return {"ahdb": store.get_ahdb_state()}
 
 
+@app.get("/context/history")
+async def context_history(conversation_id: Optional[str] = None, limit: int = 100):
+    store = get_store()
+    events = store.get_events(event_type="receipt.context.footprint", limit=limit)
+
+    results = []
+    for event in events:
+        ev = dict(event)
+        payload = ev.get("payload")
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except:
+                continue
+
+        if not isinstance(payload, dict):
+            continue
+
+        if conversation_id is not None:
+            c_id = payload.get("conversation_id")
+            if str(c_id) != str(conversation_id):
+                continue
+
+        ev["payload"] = payload
+        results.append(ev)
+
+    return {"history": results}
+
+
 # =========== Git Endpoints ===========
 
 @app.get("/git/status")
