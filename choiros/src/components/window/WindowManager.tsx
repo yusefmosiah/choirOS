@@ -11,7 +11,7 @@ import { Auditor } from '../apps/Auditor';
 import { ContextHeatmap } from '../apps/ContextHeatmap';
 
 // App component mapping
-const APP_COMPONENTS: Record<string, React.ComponentType<{ artifactId?: string }>> = {
+const APP_COMPONENTS: Record<string, React.ComponentType<Record<string, unknown>>> = {
     writer: Writer,
     files: Files,
     mail: MailApp,
@@ -47,12 +47,12 @@ export function WindowManager() {
                 .filter((win) => !win.isMinimized)
                 .map((windowState) => {
                     const AppComponent = APP_COMPONENTS[windowState.appId];
-                    const artifactId = windowState.props?.artifactId as string | undefined;
+                    const appProps = (windowState.props ?? {}) as Record<string, unknown>;
 
                     return (
                         <Window key={windowState.id} windowState={windowState}>
                             {AppComponent ? (
-                                <AppComponent artifactId={artifactId} />
+                                <AppComponent {...appProps} />
                             ) : (
                                 <PlaceholderApp appId={windowState.appId} />
                             )}

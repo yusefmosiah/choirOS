@@ -5,18 +5,82 @@ import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { SuggestionMenuController, getDefaultReactSlashMenuItems } from "@blocknote/react";
 import { en } from "@blocknote/core/locales";
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getArtifact } from '../../lib/api';
+import { authFetch } from '../../lib/auth';
+import { useAgent, type AgentMessage } from '../../hooks/useAgent';
+import { useWindowStore } from '../../stores/windows';
 import './Writer.css';
 
 interface WriterProps {
     artifactId?: string;
+    filePath?: string;
+    initialPrompt?: string;
 }
 
-export function Writer({ artifactId }: WriterProps) {
+export function Writer({ artifactId, filePath, initialPrompt }: WriterProps) {
     const [initialContent, setInitialContent] = useState<string | undefined>(undefined);
     const [isLoading, setIsLoading] = useState(!!artifactId);
     const [title, setTitle] = useState<string>('');
+    const [conversation, setConversation] = useState<Array<{ id: string; role: 'user' | 'assistant' | 'system'; content: string }>>([]);
+    const [draftPrompt, setDraftPrompt] = useState('');
+    const hasSentInitialPrompt = useRef(false);
+    const openWindow = useWindowStore((s) => s.openWindow);
+    const windows = useWindowStore((s) => s.windows);
+    const focusWindow = useWindowStore((s) => s.focusWindow);
+    const restoreWindow = useWindowStore((s) => s.restoreWindow);
+    const { sendPrompt, isProcessing, isConnected } = useAgent({
+        onMessage: (message: AgentMessage) => {
+            if (message.type === 'text' && typeof message.content === 'string') {
+                setConversation((prev) => [
+                    ...prev,
+                    { id: crypto.randomUUID(), role: 'assistant', content: message.content },
+                ]);
+            } else if (message.type === 'tool_use' && typeof message.content === 'object') {
+                const tool = (message.content as { tool?: string })?.tool || 'tool';
+                setConversation((prev) => [
+                    ...prev,
+                    { id: crypto.randomUUID(), role: 'system', content: `Using ${tool}...` },
+                ]);
+            } else if (message.type === 'error') {
+                setConversation((prev) => [
+                    ...prev,
+                    { id: crypto.randomUUID(), role: 'system', content: String(message.content) },
+                ]);
+            }
+        },
+    });
+
+    const ensureContextHeatmap = useCallback(() => {
+        const existing = Array.from(windows.values()).find((win) => win.appId === 'contextHeatmap');
+        if (existing) {
+            if (existing.isMinimized) {
+                restoreWindow(existing.id);
+            }
+            focusWindow(existing.id);
+            return;
+        }
+        openWindow('contextHeatmap');
+    }, [windows, openWindow, focusWindow, restoreWindow]);
+
+    const handleSendPrompt = useCallback((prompt: string) => {
+        const trimmed = prompt.trim();
+        if (!trimmed) return;
+        if (!isConnected) {
+            setConversation((prev) => [
+                ...prev,
+                { id: crypto.randomUUID(), role: 'system', content: 'Agent not connected.' },
+            ]);
+            return;
+        }
+        ensureContextHeatmap();
+        setConversation((prev) => [
+            ...prev,
+            { id: crypto.randomUUID(), role: 'user', content: trimmed },
+        ]);
+        sendPrompt(trimmed);
+        setDraftPrompt('');
+    }, [isConnected, sendPrompt, ensureContextHeatmap]);
 
     // Load artifact content if artifactId is provided
     useEffect(() => {
@@ -34,6 +98,27 @@ export function Writer({ artifactId }: WriterProps) {
                 });
         }
     }, [artifactId]);
+
+    useEffect(() => {
+        if (!filePath) {
+            return;
+        }
+        setIsLoading(true);
+        const url = `${import.meta.env.VITE_SUPERVISOR_URL || 'http://localhost:8001'}/observability/file?path=${encodeURIComponent(filePath)}`;
+        authFetch(url)
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw new Error('Failed to load file');
+                }
+                const data = await response.json() as { content: string; path: string };
+                setInitialContent(data.content);
+                setTitle(data.path);
+            })
+            .catch((err) => {
+                console.error('[Writer] Failed to load file:', err);
+            })
+            .finally(() => setIsLoading(false));
+    }, [filePath]);
 
     // Create editor instance with custom placeholder
     const editor = useCreateBlockNote({
@@ -65,6 +150,13 @@ export function Writer({ artifactId }: WriterProps) {
             }
         }
     }, [initialContent, editor]);
+
+    useEffect(() => {
+        if (!hasSentInitialPrompt.current && initialPrompt) {
+            hasSentInitialPrompt.current = true;
+            handleSendPrompt(initialPrompt);
+        }
+    }, [initialPrompt, handleSendPrompt]);
 
     // Custom slash menu items
     const getMenuItems = (query: string) => {
@@ -221,21 +313,61 @@ export function Writer({ artifactId }: WriterProps) {
                     <span className="writer-title">{title}</span>
                 </div>
             )}
-            <BlockNoteView
-                editor={editor}
-                slashMenu={false}  // Disable default "/" trigger
-                theme="dark"
-                onChange={() => {
-                    // Debounced auto-save will come in Phase 4
-                    console.log('[Writer] Content updated');
-                }}
-            >
-                {/* Custom "?" triggered menu */}
-                <SuggestionMenuController
-                    triggerCharacter="?"
-                    getItems={async (query) => getMenuItems(query)}
-                />
-            </BlockNoteView>
+            <div className="writer-body">
+                <div className="writer-chat">
+                    <div className="writer-chat-header">
+                        <span>Conversation</span>
+                        <span className={`writer-chat-status ${isConnected ? 'connected' : 'disconnected'}`}>
+                            {isConnected ? 'Agent online' : 'Agent offline'}
+                        </span>
+                    </div>
+                    <div className="writer-chat-messages">
+                        {conversation.length === 0 ? (
+                            <div className="writer-chat-empty">Start a conversation to capture agent context.</div>
+                        ) : (
+                            conversation.map((message) => (
+                                <div key={message.id} className={`writer-chat-message ${message.role}`}>
+                                    <div className="writer-chat-role">{message.role}</div>
+                                    <div className="writer-chat-content">{message.content}</div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                    <form
+                        className="writer-chat-input"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            handleSendPrompt(draftPrompt);
+                        }}
+                    >
+                        <input
+                            type="text"
+                            value={draftPrompt}
+                            onChange={(event) => setDraftPrompt(event.target.value)}
+                            placeholder={isProcessing ? 'Agent thinking...' : 'Ask the agent...'}
+                            disabled={isProcessing}
+                        />
+                        <button type="submit" disabled={isProcessing || !draftPrompt.trim()}>
+                            Send
+                        </button>
+                    </form>
+                </div>
+                <div className="writer-editor">
+                    <BlockNoteView
+                        editor={editor}
+                        slashMenu={false}
+                        theme="dark"
+                        onChange={() => {
+                            console.log('[Writer] Content updated');
+                        }}
+                    >
+                        <SuggestionMenuController
+                            triggerCharacter="?"
+                            getItems={async (query) => getMenuItems(query)}
+                        />
+                    </BlockNoteView>
+                </div>
+            </div>
         </div>
     );
 }

@@ -202,6 +202,11 @@ class ContextHeatmapResponse(BaseModel):
     event_count: int
 
 
+class FileReadResponse(BaseModel):
+    path: str
+    content: str
+
+
 def _get_cors_settings() -> tuple[list[str], bool]:
     raw = os.environ.get("CORS_ALLOW_ORIGINS")
     if raw:
@@ -211,6 +216,17 @@ def _get_cors_settings() -> tuple[list[str], bool]:
     if "*" in origins:
         return ["*"], False
     return origins, True
+
+
+def _resolve_project_file(path: str) -> Path:
+    raw_path = Path(path)
+    resolved = raw_path if raw_path.is_absolute() else PROJECT_ROOT / raw_path
+    resolved = resolved.resolve()
+    if PROJECT_ROOT not in resolved.parents and resolved != PROJECT_ROOT:
+        raise HTTPException(status_code=403, detail="Path is outside project root")
+    if not resolved.exists() or not resolved.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    return resolved
 
 
 def _sandbox_state_key(user_id: str) -> str:
@@ -842,6 +858,16 @@ async def context_heatmap(since_seq: int = 0, until_seq: Optional[int] = None, l
         raise HTTPException(status_code=400, detail="until_seq must be >= since_seq")
     store = get_store()
     return store.build_context_heatmap(since_seq=since_seq, until_seq=until_seq, limit=limit)
+
+
+@app.get("/observability/file", response_model=FileReadResponse)
+async def read_project_file(path: str):
+    if not path:
+        raise HTTPException(status_code=400, detail="path is required")
+    resolved = _resolve_project_file(path)
+    content = resolved.read_text()
+    relative_path = resolved.relative_to(PROJECT_ROOT) if resolved.is_relative_to(PROJECT_ROOT) else resolved
+    return {"path": str(relative_path), "content": content}
 
 
 @app.post("/agent/audit")

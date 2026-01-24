@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pause, Play, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronRight, Pause, Play, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import { authFetch } from '../../lib/auth';
+import { useWindowStore } from '../../stores/windows';
 import './ContextHeatmap.css';
 
 const API_BASE = import.meta.env.VITE_SUPERVISOR_URL || 'http://localhost:8001';
@@ -87,6 +88,8 @@ export function ContextHeatmap() {
     const [limit, setLimit] = useState(500);
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['context-root']));
+    const openWindow = useWindowStore((s) => s.openWindow);
 
     const fetchSnapshot = useCallback(
         async (targetSeq?: number | null) => {
@@ -125,6 +128,14 @@ export function ContextHeatmap() {
         }, 4000);
         return () => window.clearInterval(interval);
     }, [fetchSnapshot, isLive]);
+
+    useEffect(() => {
+        setExpandedNodes((prev) => {
+            const next = new Set(prev);
+            next.add('context-root');
+            return next;
+        });
+    }, [snapshot?.nodes.length]);
 
     const nodePositions = useMemo(() => {
         if (!snapshot) {
@@ -173,6 +184,46 @@ export function ContextHeatmap() {
         .filter((node) => node.type !== 'root')
         .sort((a, b) => b.heat - a.heat)
         .slice(0, 8) ?? [];
+
+    const hierarchy = useMemo(() => {
+        if (!snapshot) {
+            return [];
+        }
+        const groups = new Map<string, HeatmapNode[]>();
+        snapshot.nodes
+            .filter((node) => node.type !== 'root')
+            .forEach((node) => {
+                const group = groups.get(node.type) ?? [];
+                group.push(node);
+                groups.set(node.type, group);
+            });
+        return Array.from(groups.entries()).map(([type, nodes]) => ({
+            id: `group:${type}`,
+            label: TYPE_LABELS[type] ?? type,
+            type,
+            children: nodes.sort((a, b) => a.label.localeCompare(b.label)),
+        }));
+    }, [snapshot]);
+
+    const toggleNode = (nodeId: string) => {
+        setExpandedNodes((prev) => {
+            const next = new Set(prev);
+            if (next.has(nodeId)) {
+                next.delete(nodeId);
+            } else {
+                next.add(nodeId);
+            }
+            return next;
+        });
+    };
+
+    const handleFileOpen = (node: HeatmapNode) => {
+        const filePath = node.metadata?.path as string | undefined;
+        if (!filePath) {
+            return;
+        }
+        openWindow('writer', { title: node.label, filePath });
+    };
 
     return (
         <div className="context-heatmap">
@@ -302,6 +353,54 @@ export function ContextHeatmap() {
                                         </div>
                                     </div>
                                 ))
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="context-heatmap-section">
+                        <div className="context-heatmap-section-title">Hierarchy</div>
+                        <div className="context-heatmap-tree">
+                            <button
+                                type="button"
+                                className="context-heatmap-tree-node"
+                                onClick={() => toggleNode('context-root')}
+                            >
+                                {expandedNodes.has('context-root') ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                <span>Context</span>
+                            </button>
+                            {expandedNodes.has('context-root') && (
+                                <div className="context-heatmap-tree-children">
+                                    {hierarchy.map((group) => (
+                                        <div key={group.id}>
+                                            <button
+                                                type="button"
+                                                className="context-heatmap-tree-node"
+                                                onClick={() => toggleNode(group.id)}
+                                            >
+                                                {expandedNodes.has(group.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                <span>{group.label}</span>
+                                            </button>
+                                            {expandedNodes.has(group.id) && (
+                                                <div className="context-heatmap-tree-children">
+                                                    {group.children.map((node) => (
+                                                        <button
+                                                            key={node.id}
+                                                            type="button"
+                                                            className="context-heatmap-tree-leaf"
+                                                            onClick={() => {
+                                                                if (node.type === 'file') {
+                                                                    handleFileOpen(node);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <span>{node.label}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                         </div>
                     </div>

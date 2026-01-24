@@ -165,6 +165,38 @@
     color: #94a3b8;
 }
 
+.context-heatmap-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.context-heatmap-tree-node,
+.context-heatmap-tree-leaf {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    color: #e2e8f0;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 4px 0;
+    text-align: left;
+}
+
+.context-heatmap-tree-node:hover,
+.context-heatmap-tree-leaf:hover {
+    color: #f8fafc;
+}
+
+.context-heatmap-tree-children {
+    margin-left: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
 .context-heatmap-input {
     display: flex;
     flex-direction: column;

@@ -22,7 +22,7 @@ interface WindowManagerState {
 }
 
 interface WindowStore extends WindowManagerState {
-    openWindow: (appId: string, props?: { title?: string; artifactId?: string }) => string;
+    openWindow: (appId: string, props?: { title?: string; artifactId?: string; filePath?: string; initialPrompt?: string }) => string;
     closeWindow: (id: string) => void;
     focusWindow: (id: string) => void;
     minimizeWindow: (id: string) => void;
@@ -113,7 +113,7 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
             isMinimized: false,
             isMaximized: false,
             isFocused: true,
-            props: props.artifactId ? { artifactId: props.artifactId } : undefined,
+            props: Object.keys(props).length > 0 ? { ...props } : undefined,
         };
         // Unfocus all other windows
         const newWindows = new Map(windows);
