@@ -86,4 +86,5 @@ The `dev.sh` script is the "Control Center" for local development.
 
 All services run in parallel. In Docker-based deployment, the Supervisor acts as the parent process that spawns the others, but in local dev (`SUPERVISOR_STANDALONE=1`), they run independently.
 
-See `docs/current_architecture_jan23.md` for a deeper, current-state walkthrough.
+See `docs/MASTER_DOC.md` for the canonical architecture spine and
+`docs/archive/snapshots/current_architecture_jan23.md` for the historical snapshot.

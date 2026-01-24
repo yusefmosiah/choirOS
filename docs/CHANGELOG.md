@@ -19,7 +19,7 @@
 - NATS Phase 0 hardening doc (`docs/ops/NATS_PHASE0_HARDENING.md`).
 - Auth + recovery spec (`docs/specs/CHOIR_AUTH_RECOVERY_SPEC.md`).
 - Storage + rollback spec for base+overlay model (`docs/specs/CHOIR_STORAGE_ROLLBACK_SPEC.md`).
-- Jan 18 handoff (`docs/handoff-2026-01-18.md`).
+- Jan 18 handoff (`docs/archive/handoffs/handoff-2026-01-18.md`).
 
 ### Changed
 - Frontend API calls now send session headers when available.
