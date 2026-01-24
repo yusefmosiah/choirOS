@@ -315,15 +315,15 @@ Only after above is stable:
    - Surface Jan 23 concepts (AHDB, Context Graph, Machine)
 
 4. **Update docs/ARCHITECTURE_OVERVIEW.md**
-   - Add storage/data-flow notes matching current_architecture_jan23
+   - Add storage/data-flow notes matching archive snapshot (current_architecture_jan23)
 
-5. **Update docs/current_architecture_jan23.md**
+5. **Update docs/archive/snapshots/current_architecture_jan23.md**
    - Add banner: "Snapshot as of 2026-01-23; for stable overview see ARCHITECTURE_OVERVIEW.md"
 
 6. **Update docs/specs/CHOIR_MACHINE_V0_SPEC.md**
    - Change "NATS is canonical" to "SQLite-first for local dev; NATS for optional replication"
 
-7. **Update progress.md**
+7. **Update docs/notes/progress.md**
    - Fix "moods are now modes" to clarify terminology relationship
 
 ---
