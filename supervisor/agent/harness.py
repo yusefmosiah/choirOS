@@ -33,6 +33,7 @@ class AgentHarness:
         self.store = event_store or get_store()
         self.mode_config = mode_config or get_mode_config("CALM")
         self.prompt_builder = prompt_builder or ModePromptBuilder()
+        self.file_history = file_history
         self.tools = AgentTools(
             file_history=file_history,
             event_store=self.store,
@@ -64,12 +65,22 @@ class AgentHarness:
                 ahdb_state=ahdb_state,
                 context={"receipts": [], "artifacts": []},
             )
+            recent_files = []
+            if self.file_history:
+                recent_files = self.file_history.get_recent_files(limit=5)
+
+            recent_messages = []
+            if self.conversation_id:
+                recent_messages = self.store.get_conversation_messages(self.conversation_id, limit=3)
+
             self.store.append(
                 "receipt.context.footprint",
                 {
                     "conversation_id": self.conversation_id,
                     "mode": self.mode_config.mode_id,
-                    "ahdb_keys": sorted(ahdb_state.keys()),
+                    "ahdb_state": ahdb_state,
+                    "recent_files": recent_files,
+                    "recent_messages": recent_messages,
                 },
                 source="system",
             )

@@ -98,6 +98,20 @@ class FileHistory:
         """Return total number of snapshots across all files."""
         return sum(len(q) for q in self._history.values())
 
+    def get_recent_files(self, limit: int = 10) -> list[str]:
+        """Return a list of unique recently modified file paths."""
+        # Aggregate all snapshots
+        all_snapshots = []
+        for path, snapshots in self._history.items():
+            if snapshots:
+                # Use the most recent snapshot for this file
+                all_snapshots.append((snapshots[-1], path))
+
+        # Sort by timestamp descending
+        all_snapshots.sort(key=lambda x: x[0].timestamp, reverse=True)
+
+        return [path for _, path in all_snapshots[:limit]]
+
     def clear(self) -> None:
         """Clear all history."""
         self._history.clear()

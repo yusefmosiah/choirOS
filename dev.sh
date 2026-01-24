@@ -257,7 +257,11 @@ fi
 
 # Set PYTHONPATH to project root for absolute imports
 export PYTHONPATH="${PWD}"
-export NATS_ENABLED=1
+if [ "$SKIP_NATS" -eq 1 ]; then
+    export NATS_ENABLED=0
+else
+    export NATS_ENABLED=1
+fi
 export NATS_USER=${NATS_USER:-choiros_supervisor}
 export NATS_PASSWORD=${NATS_PASSWORD:-local_supervisor}
 
