@@ -8,6 +8,7 @@ import { GitPanel } from '../apps/GitPanel';
 import { AuthApp } from '../apps/Auth';
 import { Terminal } from '../apps/Terminal';
 import { Auditor } from '../apps/Auditor';
+import { ContextHeatmap } from '../apps/ContextHeatmap';
 
 // App component mapping
 const APP_COMPONENTS: Record<string, React.ComponentType<{ artifactId?: string }>> = {
@@ -18,6 +19,7 @@ const APP_COMPONENTS: Record<string, React.ComponentType<{ artifactId?: string }
     auth: AuthApp,
     terminal: Terminal,
     auditor: Auditor,
+    contextHeatmap: ContextHeatmap,
 };
 
 // Placeholder component for apps not yet implemented

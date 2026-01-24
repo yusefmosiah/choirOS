@@ -39,6 +39,7 @@ const DEFAULT_SIZES: Record<string, { width: number; height: number }> = {
     files: { width: 700, height: 500 },
     terminal: { width: 700, height: 450 },
     git: { width: 500, height: 600 },
+    contextHeatmap: { width: 1100, height: 720 },
 };
 
 // App titles
@@ -47,6 +48,7 @@ const APP_TITLES: Record<string, string> = {
     files: 'Files',
     terminal: 'Terminal',
     git: 'Git',
+    contextHeatmap: 'Context Heatmap',
 };
 
 export const useWindowStore = create<WindowStore>((set, get) => ({

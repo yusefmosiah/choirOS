@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, TYPE_CHECKING
 import hashlib
+import math
 
 # Conditional import: NATS is optional for local dev
 try:
@@ -312,6 +313,202 @@ class EventStore:
             )
 
         return [dict(row) for row in cursor.fetchall()]
+
+    def get_events_between(
+        self,
+        since_seq: int = 0,
+        until_seq: Optional[int] = None,
+        limit: int = 500
+    ) -> list[dict]:
+        if until_seq is None:
+            cursor = self.conn.execute(
+                "SELECT * FROM events WHERE seq > ? ORDER BY seq LIMIT ?",
+                (since_seq, limit)
+            )
+        else:
+            cursor = self.conn.execute(
+                "SELECT * FROM events WHERE seq > ? AND seq <= ? ORDER BY seq LIMIT ?",
+                (since_seq, until_seq, limit)
+            )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def build_context_heatmap(
+        self,
+        since_seq: int = 0,
+        until_seq: Optional[int] = None,
+        limit: int = 500
+    ) -> dict:
+        latest_seq = self.get_latest_seq() or 0
+        if until_seq is None:
+            until_seq = latest_seq
+        events = self.get_events_between(since_seq, until_seq, limit)
+
+        root_id = "context-root"
+        nodes: dict[str, dict] = {
+            root_id: {
+                "id": root_id,
+                "label": "Context",
+                "type": "root",
+                "event_count": 0,
+                "last_seq": 0,
+                "last_timestamp": None,
+                "score": 0.0,
+                "metadata": {},
+            }
+        }
+        edges: dict[tuple[str, str, str], dict] = {}
+
+        def bump_edge(source: str, target: str, edge_type: str, weight: float) -> None:
+            key = (source, target, edge_type)
+            if key not in edges:
+                edges[key] = {
+                    "source": source,
+                    "target": target,
+                    "type": edge_type,
+                    "weight": 0.0,
+                }
+            edges[key]["weight"] += weight
+
+        def update_node(
+            node_id: str,
+            label: str,
+            node_type: str,
+            event_seq: int,
+            timestamp: Optional[str],
+            metadata: Optional[dict] = None
+        ) -> None:
+            entry = nodes.get(node_id)
+            if entry is None:
+                entry = {
+                    "id": node_id,
+                    "label": label,
+                    "type": node_type,
+                    "event_count": 0,
+                    "last_seq": 0,
+                    "last_timestamp": None,
+                    "score": 0.0,
+                    "metadata": metadata or {},
+                }
+                nodes[node_id] = entry
+            if metadata:
+                entry["metadata"].update(metadata)
+            entry["event_count"] += 1
+            entry["last_seq"] = max(entry["last_seq"], event_seq)
+            if timestamp:
+                entry["last_timestamp"] = timestamp
+            age = max(until_seq - event_seq, 0)
+            entry["score"] += math.exp(-age / 40) if age else 1.0
+
+        def add_root_edge(node_id: str, weight: float) -> None:
+            if node_id != root_id:
+                bump_edge(root_id, node_id, "context", weight)
+
+        for event in events:
+            event_type = event.get("type") or ""
+            event_seq = int(event.get("seq") or 0)
+            timestamp = event.get("timestamp")
+            payload = event.get("payload")
+            if isinstance(payload, str):
+                try:
+                    payload = json.loads(payload)
+                except json.JSONDecodeError:
+                    payload = {}
+            payload = payload or {}
+
+            if event_type.startswith("file."):
+                path = payload.get("path") or payload.get("dest") or payload.get("destination") or "unknown"
+                node_id = f"file:{path}"
+                update_node(node_id, path, "file", event_seq, timestamp, {"path": path})
+                add_root_edge(node_id, 1.0)
+                continue
+
+            if event_type == "tool.call":
+                tool_name = payload.get("tool_name") or "tool"
+                node_id = f"tool:{tool_name}"
+                update_node(node_id, tool_name, "tool", event_seq, timestamp, {"tool_name": tool_name})
+                add_root_edge(node_id, 0.8)
+                conversation_id = payload.get("conversation_id")
+                if conversation_id is not None:
+                    convo_id = f"conversation:{conversation_id}"
+                    update_node(convo_id, f"Conversation {conversation_id}", "conversation", event_seq, timestamp)
+                    bump_edge(convo_id, node_id, "invokes", 0.6)
+                continue
+
+            if event_type == "message":
+                role = payload.get("role") or "message"
+                node_id = f"message:{role}"
+                update_node(node_id, role.capitalize(), "message", event_seq, timestamp, {"role": role})
+                conversation_id = payload.get("conversation_id")
+                if conversation_id is not None:
+                    convo_id = f"conversation:{conversation_id}"
+                    update_node(convo_id, f"Conversation {conversation_id}", "conversation", event_seq, timestamp)
+                    bump_edge(convo_id, node_id, "message", 0.7)
+                else:
+                    add_root_edge(node_id, 0.7)
+                continue
+
+            if event_type.startswith("note."):
+                node_id = f"note:{event_type}"
+                update_node(node_id, event_type, "note", event_seq, timestamp)
+                add_root_edge(node_id, 0.5)
+                continue
+
+            if event_type.startswith("receipt."):
+                node_id = f"receipt:{event_type}"
+                update_node(node_id, event_type, "receipt", event_seq, timestamp)
+                add_root_edge(node_id, 0.6)
+                continue
+
+            if event_type.startswith("artifact."):
+                label = payload.get("name") or event_type
+                node_id = f"artifact:{label}"
+                update_node(node_id, label, "artifact", event_seq, timestamp)
+                add_root_edge(node_id, 0.5)
+                continue
+
+            if event_type.startswith("mode.") or event_type.startswith("run."):
+                label = payload.get("mode") or payload.get("run_id") or event_type
+                node_id = f"run:{label}"
+                update_node(node_id, str(label), "run", event_seq, timestamp)
+                add_root_edge(node_id, 0.9)
+                continue
+
+            node_id = f"event:{event_type}"
+            update_node(node_id, event_type or "event", "event", event_seq, timestamp)
+            add_root_edge(node_id, 0.4)
+
+        max_score = max((entry["score"] for entry in nodes.values()), default=1.0)
+        response_nodes = []
+        for entry in nodes.values():
+            heat = entry["score"] / max_score if max_score else 0.0
+            response_nodes.append({
+                "id": entry["id"],
+                "label": entry["label"],
+                "type": entry["type"],
+                "heat": round(heat, 3),
+                "event_count": entry["event_count"],
+                "last_seq": entry["last_seq"],
+                "last_timestamp": entry["last_timestamp"],
+                "metadata": entry["metadata"] or {},
+            })
+
+        response_edges = []
+        for edge in edges.values():
+            response_edges.append({
+                "source": edge["source"],
+                "target": edge["target"],
+                "type": edge["type"],
+                "weight": round(edge["weight"], 3),
+            })
+
+        return {
+            "nodes": response_nodes,
+            "edges": response_edges,
+            "latest_seq": latest_seq,
+            "since_seq": since_seq,
+            "until_seq": until_seq,
+            "event_count": len(events),
+        }
 
     def get_event_paths_since(self, since_seq: int, event_types: Optional[list[str]] = None) -> list[str]:
         """Return unique file paths from events since a sequence number."""

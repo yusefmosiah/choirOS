@@ -175,6 +175,33 @@ class AuditRequest(BaseModel):
     url: Optional[str] = None
 
 
+class ContextHeatmapNode(BaseModel):
+    id: str
+    label: str
+    type: str
+    heat: float
+    event_count: int
+    last_seq: int
+    last_timestamp: Optional[str] = None
+    metadata: dict = Field(default_factory=dict)
+
+
+class ContextHeatmapEdge(BaseModel):
+    source: str
+    target: str
+    type: str
+    weight: float
+
+
+class ContextHeatmapResponse(BaseModel):
+    nodes: list[ContextHeatmapNode]
+    edges: list[ContextHeatmapEdge]
+    latest_seq: int
+    since_seq: int
+    until_seq: int
+    event_count: int
+
+
 def _get_cors_settings() -> tuple[list[str], bool]:
     raw = os.environ.get("CORS_ALLOW_ORIGINS")
     if raw:
@@ -803,6 +830,18 @@ async def agent_websocket(websocket: WebSocket):
 
     except WebSocketDisconnect:
         pass
+
+
+@app.get("/observability/context-heatmap", response_model=ContextHeatmapResponse)
+async def context_heatmap(since_seq: int = 0, until_seq: Optional[int] = None, limit: int = 500):
+    if limit < 1 or limit > 2000:
+        raise HTTPException(status_code=400, detail="Limit must be between 1 and 2000")
+    if since_seq < 0:
+        raise HTTPException(status_code=400, detail="since_seq must be >= 0")
+    if until_seq is not None and until_seq < since_seq:
+        raise HTTPException(status_code=400, detail="until_seq must be >= since_seq")
+    store = get_store()
+    return store.build_context_heatmap(since_seq=since_seq, until_seq=until_seq, limit=limit)
 
 
 @app.post("/agent/audit")
