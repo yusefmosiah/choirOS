@@ -86,7 +86,7 @@ The plan must choose from an allowlist (examples):
 
 No ad hoc “curl” or arbitrary network activity is considered a verifier.
 
-### 4.3 Mood-sensitive strictness
+### 4.3 Mode-sensitive strictness
 - CALM: minimal verifiers (fast feedback)
 - SKEPTICAL: full verifier suite for target scope
 - PARANOID: add negative tests + security gates + independent reruns
@@ -158,7 +158,7 @@ Hyperthesis entries are admissible as disclosures but do not authorize action.
 ### 7.1 Non-monotonic progress triggers
 If repeated failures occur with the same signature:
 - stop re-running execution blindly
-- switch mood to CURIOUS (reframe) or SKEPTICAL (narrow and isolate)
+- switch mode to CURIOUS (reframe) or SKEPTICAL (narrow and isolate)
 - split the work item until satisfiable
 
 ### 7.2 Nested verification for depth

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "mood_defaults": {
+  "mode_defaults": {
     "CALM": ["V-08-FAST-UNIT"],
     "SKEPTICAL": ["V-08-FAST-UNIT"],
     "BOLD": ["V-08-FAST-UNIT"]
@@ -9,7 +9,7 @@
     {
       "id": "V-01-EVENT-CONTRACT",
       "description": "Event contract unit tests + doc sync",
-      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "modes": ["CALM", "SKEPTICAL", "BOLD"],
       "scopes": [
         "supervisor/event_contract.py",
         "supervisor/tests/test_event_contract.py",
@@ -21,7 +21,7 @@
     {
       "id": "V-02-AHDB-PROJECTION",
       "description": "AHDB projection unit tests",
-      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "modes": ["CALM", "SKEPTICAL", "BOLD"],
       "scopes": [
         "supervisor/db.py",
         "supervisor/tests/test_ahdb_projection.py"
@@ -31,7 +31,7 @@
     {
       "id": "V-03-RUN-STATE",
       "description": "Run/work item persistence smoke tests",
-      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "modes": ["CALM", "SKEPTICAL", "BOLD"],
       "scopes": [
         "supervisor/main.py",
         "supervisor/db.py",
@@ -42,7 +42,7 @@
     {
       "id": "V-04-PLAN-SELECT",
       "description": "Verifier plan selection tests",
-      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "modes": ["CALM", "SKEPTICAL", "BOLD"],
       "scopes": [
         "supervisor/verifier_plan.py",
         "config/verifiers.yaml"
@@ -52,7 +52,7 @@
     {
       "id": "V-05-GREEN-THREAD",
       "description": "Verifier runner integration tests",
-      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "modes": ["CALM", "SKEPTICAL", "BOLD"],
       "scopes": [
         "supervisor/verifier_runner.py",
         "supervisor/tests/test_verifier_runner.py"
@@ -60,19 +60,19 @@
       "command": "python -m unittest supervisor.tests.test_verifier_runner"
     },
     {
-      "id": "V-06-MOOD-ENGINE",
-      "description": "Mood transition guard unit tests",
-      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "id": "V-06-MODE-ENGINE",
+      "description": "Mode transition guard unit tests",
+      "modes": ["CALM", "SKEPTICAL", "BOLD"],
       "scopes": [
-        "supervisor/mood_engine.py",
-        "supervisor/tests/test_mood_engine.py"
+        "supervisor/mode_engine.py",
+        "supervisor/tests/test_mode_engine.py"
       ],
-      "command": "python -m unittest supervisor.tests.test_mood_engine"
+      "command": "python -m unittest supervisor.tests.test_mode_engine"
     },
     {
       "id": "V-07-AGENT-ORCH",
       "description": "Run orchestration integration test",
-      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "modes": ["CALM", "SKEPTICAL", "BOLD"],
       "scopes": [
         "supervisor/run_orchestrator.py",
         "supervisor/tests/test_run_orchestrator.py"
@@ -82,7 +82,7 @@
     {
       "id": "V-09-DOC-ALIGN",
       "description": "Docs index + cross-link consistency check",
-      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "modes": ["CALM", "SKEPTICAL", "BOLD"],
       "scopes": [
         "docs/00_INDEX.md",
         "docs/",
@@ -93,7 +93,7 @@
     {
       "id": "V-10-E2E-EVENTSTREAM",
       "description": "Playwright E2E (NATS event stream UI)",
-      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "modes": ["CALM", "SKEPTICAL", "BOLD"],
       "scopes": [
         "choiros/tests/e2e/eventstream.spec.ts",
         "choiros/playwright.config.ts",
@@ -104,9 +104,9 @@
     {
       "id": "V-08-FAST-UNIT",
       "description": "Fast supervisor unit suite",
-      "moods": ["CALM", "SKEPTICAL", "BOLD"],
+      "modes": ["CALM", "SKEPTICAL", "BOLD"],
       "scopes": ["supervisor/"],
-      "command": "python -m unittest supervisor.tests.test_event_contract supervisor.tests.test_ahdb_projection supervisor.tests.test_runs supervisor.tests.test_verifier_plan supervisor.tests.test_verifier_runner supervisor.tests.test_mood_engine supervisor.tests.test_run_orchestrator supervisor.tests.test_tools supervisor.tests.test_machine"
+      "command": "python -m unittest supervisor.tests.test_event_contract supervisor.tests.test_ahdb_projection supervisor.tests.test_runs supervisor.tests.test_verifier_plan supervisor.tests.test_verifier_runner supervisor.tests.test_mode_engine supervisor.tests.test_run_orchestrator supervisor.tests.test_tools supervisor.tests.test_machine"
     }
   ]
 }

@@ -30,7 +30,7 @@ Examples:
 - “WE ASSERT. NO ASSUME.”
 - “ASSERT cites only PROMOTED atoms.”
 - “NO COPY is a syscall.”
-- “MOODS are configs; transitions are guarded by receipts.”
+- “MODES are configs; transitions are guarded by receipts.”
 - “Local plane never propagates to global without explicit PUBLISH.”
 
 ### 1.2 SPECS (enforceable, modular)
@@ -44,7 +44,7 @@ Properties:
 - Each spec change should be traceable to a contradiction, bug, or new surface area.
 
 Examples:
-- CHOIR_MOODS_SPEC.md
+- CHOIR_MODES_SPEC.md
 - TWP_SPEC.md
 - CHIPS_TOPIC_ATTESTATION_SPEC.md
 - CHOIR_LOCAL_VC_GLOBAL_BOUNDARY_SPEC.md
@@ -94,7 +94,7 @@ This spec uses the director/associate overlay as an authority model atop the “
 
 ### 3.1 ASSOCIATE (runner)
 May:
-- execute RUNs under a MOOD configuration,
+- execute RUNs under a MODE configuration,
 - write NOTES freely,
 - emit SPEC_CHANGE_REQUEST objects,
 - propose spec deltas (as patches), but cannot merge to ACTIVE specs/doctrine.
@@ -212,7 +212,7 @@ Interpretation:
 
 Enforcement:
 - Spec lints: broken links, missing headers, stale flags older than N days.
-- Doc-tests (where feasible): check claimed moods/syscalls/policies exist in config.
+- Doc-tests (where feasible): check claimed modes/syscalls/policies exist in config.
 - If drift is detected: mark doc STALE and file SCR to repair.
 
 ---

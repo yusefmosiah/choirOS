@@ -23,7 +23,7 @@ This document identifies the key issues and provides a staged plan to simplify, 
 | **API Service** | Functional | Parse, artifacts, auth routers |
 | **Frontend (ChoirOS)** | Functional | React desktop UI, window manager, Writer app |
 | **EventStore (AHDB)** | Partially functional | SQLite with runs, notes, receipts, ahdb_state tables |
-| **Modes (Moods)** | Implemented | mood_engine.py, verifier_plan.py, but called "moods" not "modes" |
+| **Modes (Modes)** | Implemented | mode_engine.py, verifier_plan.py, but called "modes" not "modes" |
 | **Unilateral Auditor** | Partial | auditor.baml, auditor.py, auditor_worker.py exists but not integrated |
 | **Verifier System** | Functional | 10 verifiers in verifiers.yaml, verifier_runner.py |
 | **FileHistory** | In-memory only | Lost on restart |
@@ -38,7 +38,7 @@ This document identifies the key issues and provides a staged plan to simplify, 
 | DOCTRINE / SPEC / NOTES tiers | Docs exist but not enforced | Partial gap |
 | BACKLINKS ARE PROJECTIONS | Manual backlink lists in docs | Violates doctrine |
 | AHDB IS STATE VECTOR | Implemented but not used consistently | Partial gap |
-| MOODS ARE CONFIG | Partial—some hardcoded behavior | Partial gap |
+| MODES ARE CONFIG | Partial—some hardcoded behavior | Partial gap |
 | FAILED RUNS LEAVE NO CODE | Git checkpoint exists but not enforced | Partial gap |
 
 ---
@@ -86,12 +86,12 @@ NATS JetStream is enabled by default with dual-write to SQLite. This adds:
 - Multi-tenant knowledge base is built
 - Real-time collaboration is required
 
-### 2.4 Mode/Mood Nomenclature Confusion
+### 2.4 Mode/Mode Nomenclature Confusion
 
-The codebase uses "mood" throughout (`mood_engine.py`, `mood` field in runs) but the docs refer to:
+The codebase uses "mode" throughout (`mode_engine.py`, `mode` field in runs) but the docs refer to:
 
 - "Modes" as deterministic agent configurations
-- "Mood transitions" as policy-driven mode selection
+- "Mode transitions" as policy-driven mode selection
 - "Modes are configs, not vibes"
 
 **Impact:** New developers (and the original author) are confused about what the system is doing.
@@ -121,7 +121,7 @@ The imported concepts from `docs/new new/` are not reflected in code:
 | Remove NATS dual-write from `db.py` | High | 2-4 hours |
 | Persist FileHistory to SQLite | Medium | 4-8 hours |
 | Persist ArtifactStore to filesystem | Medium | 2-4 hours |
-| Rename "mood" to "mode" in code | Medium | 4-8 hours |
+| Rename "mode" to "mode" in code | Medium | 4-8 hours |
 
 **Deliverable:** Simpler system that works without Docker, remembers state across restarts.
 
@@ -168,21 +168,21 @@ The imported concepts from `docs/new new/` are not reflected in code:
 
 ## 4. Immediate Technical Recommendations
 
-### 4.1 Rename "Mood" to "Mode"
+### 4.1 Rename "Mode" to "Mode"
 
 ```python
 # Before
-from .mood_engine import select_initial_mood, transition_mood
+from .mode_engine import select_initial_mode, transition_mode
 
 # After
 from .mode_engine import select_initial_mode, transition_mode
 ```
 
 Update all references:
-- `run_orchestrator.py`: `mood` field → `mode`
-- `db.py`: `mood` column → `mode`
-- `verifiers.yaml`: `mood_defaults` → `mode_defaults`
-- Frontend: `audit.mood` → `audit.mode`
+- `run_orchestrator.py`: `mode` field → `mode`
+- `db.py`: `mode` column → `mode`
+- `verifiers.yaml`: `mode_defaults` → `mode_defaults`
+- Frontend: `audit.mode` → `audit.mode`
 
 ### 4.2 Simplify db.py NATS Handling
 
@@ -243,7 +243,7 @@ def get_file_history(self, path: str) -> list[dict]:
 - [ ] Supervisor starts with `NATS_ENABLED=0`
 - [ ] File explorer remembers files after restart
 - [ ] Verifiers still run correctly
-- [ ] Mode transitions work (no hardcoded "mood" references)
+- [ ] Mode transitions work (no hardcoded "mode" references)
 - [ ] Auditor can be invoked and writes results to AHDB
 
 ---
@@ -254,7 +254,7 @@ def get_file_history(self, path: str) -> list[dict]:
 |------|---------|
 | `supervisor/main.py` | Supervisor entry point, WebSocket handler |
 | `supervisor/db.py` | EventStore, AHDB, SQLite persistence |
-| `supervisor/mood_engine.py` | Mode selection and transition logic (rename to mode_engine.py) |
+| `supervisor/mode_engine.py` | Mode selection and transition logic (rename to mode_engine.py) |
 | `supervisor/run_orchestrator.py` | Run lifecycle: create → execute → verify → transition |
 | `supervisor/verifier_runner.py` | Execute verifiers based on mode |
 | `supervisor/verifier_plan.py` | Select verifiers by mode + touched paths |
@@ -276,7 +276,7 @@ ChoirOS has ambitious and well-designed concepts (AHDB, modes, zettelkasten) tha
 
 1. **Pause NATS** — unnecessary complexity for single-user mode
 2. **Persist FileHistory and ArtifactStore** — enable continuity across restarts
-3. **Rename "mood" to "mode"** — match the docs and clarify intent
+3. **Rename "mode" to "mode"** — match the docs and clarify intent
 4. **Complete auditor integration** — deliver the unilateral auditor feature
 5. **Build context heatmap** — enable inspection of agent reasoning
 

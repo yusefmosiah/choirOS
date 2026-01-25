@@ -10,7 +10,7 @@
 - CHOIR_FULL_SYSTEM_DESIGN.md
 - CHOIR_HEADLESS_1P_DESIGN.md
 - CHOIR_LOCAL_VC_GLOBAL_BOUNDARY_SPEC.md
-- CHOIR_MOODS_SPEC.md
+- CHOIR_MODES_SPEC.md
 - DOCTRINE_SPEC_NOTES_GOVERNANCE_SPEC.md
 - HUMAN_INTERRUPT_LANE_SPEC.md
 - HYPERTHESIS_FIRST_SURPRISAL_DOC.md
@@ -74,7 +74,7 @@ Notes:
 
 3) Event sourcing / receipts as system truth
 - Old: docs/THE_AUTOMATIC_COMPUTER.md, docs/bootstrap/NATS.md, docs/commits/*
-- New: RUN_OUTPUT_POLICY_SPEC.md, VERIFICATION_GREEN_THREADS_SPEC.md, CHOIR_MOODS_SPEC.md
+- New: RUN_OUTPUT_POLICY_SPEC.md, VERIFICATION_GREEN_THREADS_SPEC.md, CHOIR_MODES_SPEC.md
 - Alignment: both treat events/receipts as authoritative state, with replay as goal.
 
 4) Safety boundaries and trust zones
@@ -136,7 +136,7 @@ Notes:
 ## Gaps (new concepts not reflected in old docs)
 
 - AHDB/HYPERTHESIS/CONJECTURE state vector (THE_MIND_MODEL.md) missing from architecture docs and contracts.
-- Moods state machine (CHOIR_MOODS_SPEC.md) not integrated into director/associate contracts or tool gating.
+- Modes state machine (CHOIR_MODES_SPEC.md) not integrated into director/associate contracts or tool gating.
 - Capability leases and receipts (CHOIR_CAPABILITIES_SPEC.md) not represented in AGENT_TOOLS.md or contracts.
 - Verification green threads and attestations (VERIFICATION_GREEN_THREADS_SPEC.md) absent from bootstrap specs.
 - Local vs global boundary and publish/promote/attest lifecycle (CHOIR_LOCAL_VC_GLOBAL_BOUNDARY_SPEC.md) missing from older economics docs.
@@ -161,7 +161,7 @@ DOCTRINE (ACTIVE)
 - THE_MIND_MODEL.md (or HYPERTHESIS_FIRST_SURPRISAL_DOC.md as short doctrine intro)
 
 SPECS (ACTIVE or DRAFT)
-- CHOIR_MOODS_SPEC.md (ACTIVE)
+- CHOIR_MODES_SPEC.md (ACTIVE)
 - CHOIR_CAPABILITIES_SPEC.md (DRAFT)
 - VERIFICATION_GREEN_THREADS_SPEC.md (ACTIVE)
 - RUN_OUTPUT_POLICY_SPEC.md (ACTIVE)
@@ -184,7 +184,7 @@ NOTES (ACTIVE or ARCHIVE)
 
 ### 4) Update existing architecture docs to reference new doctrine/specs
 - docs/ARCHITECTURE.md and docs/ralph/CONTRACTS.md should reference:
-  - moods (CHOIR_MOODS_SPEC.md)
+  - modes (CHOIR_MODES_SPEC.md)
   - capability leases (CHOIR_CAPABILITIES_SPEC.md)
   - verification lane (VERIFICATION_GREEN_THREADS_SPEC.md)
   - run output policy (RUN_OUTPUT_POLICY_SPEC.md)
@@ -206,7 +206,7 @@ NOTES (ACTIVE or ARCHIVE)
 
 1) Decide event log transport and update docs/ARCHITECTURE.md + docs/ROADMAP.md + docs/ralph/CONTRACTS.md.
 2) Resolve fanout policy and update docs/bootstrap/DECISIONS.md + UNKNOWNS.md + CHOIR_DOCTRINES.md.
-3) Integrate moods/capabilities/verification into the DirectorTask/AssociateResult contract.
+3) Integrate modes/capabilities/verification into the DirectorTask/AssociateResult contract.
 4) Add doc status headers and create docs/00_INDEX.md.
 5) Move/rename new docs into docs/ and remove duplicates.
 

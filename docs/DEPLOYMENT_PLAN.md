@@ -22,9 +22,9 @@ Ephemeral execution environment (`sprites.dev` or isolated subprocess).
 
 ## 2. Deployment Checklist & Strategy
 
-### A. AHDB + Moods
+### A. AHDB + Modes
 *   **Status**: **Implemented** in `supervisor/db.py`.
-*   **Action**: Ensure `mood` is populated during `Run` creation and used by the agent to influence behavior (e.g., `CALM` vs `URGENT`).
+*   **Action**: Ensure `mode` is populated during `Run` creation and used by the agent to influence behavior (e.g., `CALM` vs `URGENT`).
 *   **Next Step**: Visualize AHDB state in the frontend (the "Animated Context Heatmap").
 
 ### B. AgentFS (SQLite as Filesystem)

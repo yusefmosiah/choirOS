@@ -13,14 +13,14 @@ Create a single, verifier-driven issue list that bootstraps ChoirOS to self-deve
 - Spec changes are explicit and traced to verifier feedback via receipts.
 
 ## Verifier Catalog (allowlist targets)
-Each verifier is a named target that the verifier planner can select based on scope, mood, and touched paths.
+Each verifier is a named target that the verifier planner can select based on scope, mode, and touched paths.
 
 - V-01-EVENT-CONTRACT: Event contract unit tests + doc sync check
 - V-02-AHDB-PROJECTION: AHDB projection unit tests (SQLite rebuild)
 - V-03-RUN-STATE: Run/work-item API + persistence smoke tests
 - V-04-PLAN-SELECT: Verifier-plan selection unit tests
 - V-05-GREEN-THREAD: Verifier runner integration test (artifact + attestation)
-- V-06-MOOD-ENGINE: Mood transition guard unit tests
+- V-06-MODE-ENGINE: Mode transition guard unit tests
 - V-07-AGENT-ORCH: Run orchestration integration test (CALM → VERIFY → SKEPTICAL)
 - V-08-FAST-UNIT: Supervisor fast unit test suite (db/event_contract/tools)
 - V-09-DOC-ALIGN: Docs index + cross-link consistency check
@@ -54,11 +54,11 @@ Each verifier is a named target that the verifier planner can select based on sc
 
 **SD-04 Verifier plan schema + selection logic**
 - Status: DONE (2026-01-17)
-- Goal: Allowlist verifiers via config and select plans by scope/mood.
+- Goal: Allowlist verifiers via config and select plans by scope/mode.
 - Deliverables: `config/verifiers.yaml`, planner module, selection tests.
 - Verifier: V-04-PLAN-SELECT
 - Receipts: VerifierPlanReceipt (plan id, inputs hash)
-- Exit: Planner selects expected verifier IDs for given file/mood inputs.
+- Exit: Planner selects expected verifier IDs for given file/mode inputs.
 
 **SD-05 Verifier runner (green thread) + attestations**
 - Status: DONE (2026-01-17)
@@ -68,12 +68,12 @@ Each verifier is a named target that the verifier planner can select based on sc
 - Receipts: VerifierReceipt, AttestationReceipt
 - Exit: Integration test proves artifact storage + structured report + attestation.
 
-**SD-06 Mood state machine + deterministic guards**
+**SD-06 Mode state machine + deterministic guards**
 - Status: DONE (2026-01-17)
-- Goal: Implement mood selection from AHDB + receipts, per spec.
-- Deliverables: Mood engine module + tests.
-- Verifier: V-06-MOOD-ENGINE
-- Receipts: MoodTransitionReceipt
+- Goal: Implement mode selection from AHDB + receipts, per spec.
+- Deliverables: Mode engine module + tests.
+- Verifier: V-06-MODE-ENGINE
+- Receipts: ModeTransitionReceipt
 - Exit: Guard tests pass for defined scenarios.
 
 **SD-07 Orchestrated run loop (no Ralph loop)**
@@ -94,7 +94,7 @@ Each verifier is a named target that the verifier planner can select based on sc
 
 **SD-09 Docs alignment + deprecate Ralph loop references**
 - Status: DONE (2026-01-17)
-- Goal: Align docs with AHDB/mood state machine and remove Ralph loop assumptions.
+- Goal: Align docs with AHDB/mode state machine and remove Ralph loop assumptions.
 - Deliverables: Update `docs/ARCHITECTURE.md` (if present) and indices.
 - Verifier: V-09-DOC-ALIGN
 - Receipts: DocUpdateReceipt (doc hashes)

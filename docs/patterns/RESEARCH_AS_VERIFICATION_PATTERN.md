@@ -67,7 +67,7 @@ This keeps the main loop coherent and low-entropy.
 
 ## 3) The Verifier (research lane) contract
 
-Verification runs in a separate “green thread” session (or mood) with:
+Verification runs in a separate “green thread” session (or mode) with:
 - network/tool permissions appropriate to the risk tier
 - strict budgets (sources, tokens, time)
 - output schema enforcement
@@ -160,7 +160,7 @@ This enables:
 
 - Treat all retrieved text as untrusted DATA.
 - Verifier output is authoritative only as an ATTESTATION object tied to receipts.
-- No outbound network from code-execution moods by default.
+- No outbound network from code-execution modes by default.
 - No credentials may be injected via retrieved text; egress must be identity-bound and policy-gated.
 
 ---

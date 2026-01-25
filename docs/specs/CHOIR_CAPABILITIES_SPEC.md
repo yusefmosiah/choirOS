@@ -1,6 +1,6 @@
 # Choir Capabilities (Syscalls) Spec (v0)
 
-This document defines **CAPABILITIES**: the syscall surface of the automatic computer. Capabilities define what can happen, under what constraints, with what receipts. They are enforced by the director (policy engine) and the mood state machine.
+This document defines **CAPABILITIES**: the syscall surface of the automatic computer. Capabilities define what can happen, under what constraints, with what receipts. They are enforced by the director (policy engine) and the mode state machine.
 
 Doctrines define what counts; capabilities define what can happen.
 
@@ -10,7 +10,7 @@ A capability is granted via a time-bounded lease:
 
 CAPABILITY_LEASE :=
 - lease_id (content-addressed)
-- principal (run_id, user_id, mood)
+- principal (run_id, user_id, mode)
 - syscall_class (READ/WRITE/VERIFY/NET/DB/EXPORT/PUBLISH/PROMOTE/…)
 - scope (paths/domains/tables)
 - duration (TTL + idle timeout)
@@ -44,7 +44,7 @@ Receipts:
 - DISCARD_WORKTREE(run_id)
 
 Constraints:
-- only in allowed moods (CALM/BOLD)
+- only in allowed modes (CALM/BOLD)
 - always in ephemeral worktree for a RUN
 - must be followed by verification before commit eligibility
 
@@ -70,7 +70,7 @@ Receipts:
 Constraints:
 - never allow raw curl
 - identity-bound auth only (no user-supplied Authorization headers)
-- allowlisted destinations per mood
+- allowlisted destinations per mode
 - default off outside CURIOUS (and limited PARANOID)
 
 Receipts:
@@ -118,7 +118,7 @@ Constraints:
 - promotion is voluntary; challenges are permissionless
 - produces promotion state transitions and receipts
 
-## 2) Mood × capability matrix (minimal)
+## 2) Mode × capability matrix (minimal)
 
 CALM:
 - READ/WRITE (worktree scoped), VERIFY (request), no NET/DB/EXPORT/PUBLISH by default
@@ -138,7 +138,7 @@ CONTRITE:
 DEFERENTIAL:
 - can request human interrupt lane; can request privileged approvals
 
-(Full mood profiles in CHOIR_MOODS_SPEC.md.)
+(Full mode profiles in CHOIR_MODES_SPEC.md.)
 
 ## 3) Requests and refusals
 

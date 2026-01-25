@@ -85,7 +85,7 @@ class TestRunOrchestrator(unittest.TestCase):
 
         run = result["run"]
         self.assertEqual(run["status"], "verified")
-        self.assertEqual(run["mood"], "SKEPTICAL")
+        self.assertEqual(run["mode"], "SKEPTICAL")
         self.assertEqual(len(self.fake_sandbox.created), 1)
         self.assertEqual(len(self.fake_sandbox.checkpoints), 1)
         self.assertEqual(len(self.fake_sandbox.destroyed), 1)

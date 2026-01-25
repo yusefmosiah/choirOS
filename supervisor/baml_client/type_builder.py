@@ -344,7 +344,7 @@ class AuditResultAst:
     def __init__(self, tb: type_builder.TypeBuilder):
         _tb = tb._tb # type: ignore (we know how to use this private attribute)
         self._bldr = _tb.class_("AuditResult")
-        self._properties: typing.Set[str] = set([  "critique",  "blind_spots",  "citations",  "mood",  ])
+        self._properties: typing.Set[str] = set([  "critique",  "blind_spots",  "citations",  "mode",  ])
         self._props = AuditResultProperties(self._bldr, self._properties)
 
     def type(self) -> baml_py.FieldType:
@@ -385,8 +385,8 @@ class AuditResultProperties:
         return type_builder.ClassPropertyViewer(self.__bldr.property("citations"))
     
     @property
-    def mood(self) -> type_builder.ClassPropertyViewer:
-        return type_builder.ClassPropertyViewer(self.__bldr.property("mood"))
+    def mode(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("mode"))
     
     
 

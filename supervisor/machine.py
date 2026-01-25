@@ -9,7 +9,7 @@ from typing import Awaitable, Callable, Optional, Any
 from .db import EventStore
 from .event_contract import build_subject
 from .mode_config import ModeConfig, get_mode_config
-from .mood_engine import MoodInputs, select_initial_mood
+from .mode_engine import ModeInputs, select_initial_mode
 
 
 @dataclass(frozen=True)
@@ -104,9 +104,9 @@ class Machine:
         """Select mode based on AHDB state vector."""
         ahdb = self.store.get_ahdb_state()
         
-        # Map AHDB state to MoodInputs
+        # Map AHDB state to ModeInputs
         # AHDB keys: crash_detected, has_demo, conjectures, repeated_failures, etc.
-        inputs = MoodInputs(
+        inputs = ModeInputs(
             crash_detected=ahdb.get("crash_detected", False),
             has_demo=ahdb.get("has_demo", True),
             conjectures_present=bool(ahdb.get("conjectures", [])),
@@ -121,10 +121,10 @@ class Machine:
             verified_and_bounded=ahdb.get("verified_and_bounded", False),
             suspected_reward_hack=ahdb.get("suspected_reward_hack", False),
             state_consistent=ahdb.get("state_consistent", True),
-            previous_mood=ahdb.get("previous_mood"),
+            previous_mode=ahdb.get("previous_mode"),
         )
         
-        mode_id = select_initial_mood(inputs)
+        mode_id = select_initial_mode(inputs)
         return get_mode_config(mode_id)
 
     async def handle_prompt(self, prompt: str, requested_mode: Optional[str] = None) -> str:
@@ -139,7 +139,7 @@ class Machine:
         session_id = payload.get("session_id")
         if self.session_id and session_id and session_id != self.session_id:
             return
-        mode_id = payload.get("mode") or payload.get("mood") or "CALM"
+        mode_id = payload.get("mode") or payload.get("mode") or "CALM"
         prompt = payload.get("prompt") or ""
         work_item_id = payload.get("work_item_id")
         if not work_item_id:

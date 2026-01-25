@@ -6,7 +6,7 @@
 - SD-03: Run/work-item persistence + APIs (store layer + projection)
 - SD-04: Verifier plan config + selection logic
 - SD-05: Verifier runner (green thread) + attestations
-- SD-06: Mood state machine + deterministic guards
+- SD-06: Mode state machine + deterministic guards
 - SD-07: Run orchestration (CALM → VERIFY → SKEPTICAL)
 - SD-08: Fast supervisor unit suite (db/event_contract/tools)
 - SD-09: Docs alignment + deprecate Ralph loop references
@@ -49,10 +49,10 @@ source api/venv/bin/activate
 PYTHONPATH="$PWD" python -m unittest supervisor.tests.test_verifier_runner
 ```
 
-6) Mood engine guard tests (unittest)
+6) Mode engine guard tests (unittest)
 ```
 source api/venv/bin/activate
-PYTHONPATH="$PWD" python -m unittest supervisor.tests.test_mood_engine
+PYTHONPATH="$PWD" python -m unittest supervisor.tests.test_mode_engine
 ```
 
 7) Run orchestration integration tests (unittest)
@@ -81,7 +81,7 @@ PYTHONPATH="$PWD" python -m unittest supervisor.tests.test_doc_alignment
 11) Combined fast supervisor unit checks (unittest)
 ```
 source api/venv/bin/activate
-PYTHONPATH="$PWD" python -m unittest supervisor.tests.test_event_contract supervisor.tests.test_ahdb_projection supervisor.tests.test_runs supervisor.tests.test_verifier_plan supervisor.tests.test_verifier_runner supervisor.tests.test_mood_engine supervisor.tests.test_run_orchestrator supervisor.tests.test_tools
+PYTHONPATH="$PWD" python -m unittest supervisor.tests.test_event_contract supervisor.tests.test_ahdb_projection supervisor.tests.test_runs supervisor.tests.test_verifier_plan supervisor.tests.test_verifier_runner supervisor.tests.test_mode_engine supervisor.tests.test_run_orchestrator supervisor.tests.test_tools
 ```
 
 ## Results
@@ -90,7 +90,7 @@ PYTHONPATH="$PWD" python -m unittest supervisor.tests.test_event_contract superv
 - PASS: run/work item persistence + run notes/verifications/commit requests
 - PASS: verifier plan selection + allowlist config parsing
 - PASS: verifier runner emits artifacts + attestations
-- PASS: mood guard selection + transitions
+- PASS: mode guard selection + transitions
 - PASS: run orchestration CALM → VERIFY → SKEPTICAL
 - PASS: agent tools read/write/edit behavior
 - PASS: docs index entries resolve

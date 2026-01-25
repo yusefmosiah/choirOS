@@ -11,7 +11,7 @@ This is a planning artifact: it should be revised frequently. It is not doctrine
 Choir is an **automatic computer**: a state machine OS for LLM execution.
 
 - The LLM harness is a *processor* that proposes actions.
-- The *machine* is the OS: moods (capability profiles), event log, content-addressed object store, verifiers, and transactional version control.
+- The *machine* is the OS: modes (capability profiles), event log, content-addressed object store, verifiers, and transactional version control.
 - The **AHDB state vector** is the compact control register passed into every run.
 - **Verification** is a first-class lane (green threads): raw output becomes artifacts; only typed attestations update authority.
 - **Notes are events**; **code is git**; **failed runs leave no code**.
@@ -27,7 +27,7 @@ The product journey:
 ### 2.1 The core scaling thesis
 “Continuous compute” is the limit of an event-driven system as event rate increases.
 
-- Many lanes (moods) consume events.
+- Many lanes (modes) consume events.
 - Each run is bounded, transactional, and emits receipts.
 - The KB is updated through promoted objects and projections.
 - If events arrive faster than queues drain, the system becomes continuously active.
@@ -190,6 +190,6 @@ Because the platform provides:
 - Tokenomics sequencing vs multimodal sequencing: what maximizes adoption and compounding?
 - Best minimal UI automation oracle for web desktop apps (reducing flake)?
 - What is the smallest viable “connector” surface that survives vendor zombification?
-- How to present AHDB and moods in UI without user fatigue?
+- How to present AHDB and modes in UI without user fatigue?
 
 These should be handled by conjecture-driven experiments and verifier development, not by one-shot planning.

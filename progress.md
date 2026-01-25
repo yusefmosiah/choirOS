@@ -32,7 +32,7 @@
 - New tests for machine scheduling, directive filtering, artifacts, and AHDB proposals.
 
 ## Tests
-- `python -m unittest supervisor.tests.test_event_contract supervisor.tests.test_ahdb_projection supervisor.tests.test_runs supervisor.tests.test_verifier_plan supervisor.tests.test_verifier_runner supervisor.tests.test_mood_engine supervisor.tests.test_run_orchestrator supervisor.tests.test_tools supervisor.tests.test_machine`
+- `python -m unittest supervisor.tests.test_event_contract supervisor.tests.test_ahdb_projection supervisor.tests.test_runs supervisor.tests.test_verifier_plan supervisor.tests.test_verifier_runner supervisor.tests.test_mode_engine supervisor.tests.test_run_orchestrator supervisor.tests.test_tools supervisor.tests.test_machine`
 - Note: BAML analysis warns about `baml-py==0.217.0` but tests pass.
 
 ## Next Steps
@@ -45,12 +45,12 @@
 ## Completed
 - NATS credentials can be fetched without a session when auth is disabled (local dev).
 - Frontend now attempts NATS creds even without a session token.
-- Writer audit stream shows blind spots + citations and labels tone instead of mood.
+- Writer audit stream shows blind spots + citations and labels tone instead of mode.
 - Mode directives can be consumed via NATS when available.
 - Artifact pointers can be read via new read_artifact tool.
 
 ## Tests
-- `python -m unittest supervisor.tests.test_event_contract supervisor.tests.test_ahdb_projection supervisor.tests.test_runs supervisor.tests.test_verifier_plan supervisor.tests.test_verifier_runner supervisor.tests.test_mood_engine supervisor.tests.test_run_orchestrator supervisor.tests.test_tools supervisor.tests.test_machine`
+- `python -m unittest supervisor.tests.test_event_contract supervisor.tests.test_ahdb_projection supervisor.tests.test_runs supervisor.tests.test_verifier_plan supervisor.tests.test_verifier_runner supervisor.tests.test_mode_engine supervisor.tests.test_run_orchestrator supervisor.tests.test_tools supervisor.tests.test_machine`
 
 ## Next Steps
 - Investigate NATS offline toast in UI once dev server is running with new auth fallback.

@@ -150,7 +150,7 @@ class EventStore:
                 id TEXT PRIMARY KEY,
                 work_item_id TEXT REFERENCES work_items(id),
                 status TEXT NOT NULL,
-                mood TEXT,
+                mode TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 started_at TEXT,
@@ -934,22 +934,22 @@ class EventStore:
     def create_run(
         self,
         work_item_id: str,
-        mood: Optional[str] = None,
+        mode: Optional[str] = None,
         status: str = "created",
     ) -> dict:
         now = datetime.now().isoformat()
         run_id = str(uuid.uuid4())
         self.conn.execute(
             """INSERT INTO runs
-               (id, work_item_id, status, mood, created_at, updated_at, started_at, finished_at)
+               (id, work_item_id, status, mode, created_at, updated_at, started_at, finished_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (run_id, work_item_id, status, mood, now, now, None, None),
+            (run_id, work_item_id, status, mode, now, now, None, None),
         )
         self.conn.commit()
         return self.get_run(run_id)
 
     def update_run(self, run_id: str, updates: dict) -> Optional[dict]:
-        allowed = {"status", "mood", "started_at", "finished_at"}
+        allowed = {"status", "mode", "started_at", "finished_at"}
         fields = {k: updates[k] for k in updates if k in allowed}
         if not fields:
             return self.get_run(run_id)

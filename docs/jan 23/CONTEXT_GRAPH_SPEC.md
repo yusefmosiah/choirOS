@@ -29,7 +29,7 @@ Non-goals (v0)
 
 ### 1.1 Object store (immutable, content-addressed)
 Objects (examples):
-- WorkItem, Run, Mood, Lease, Receipt, Artifact, Attestation
+- WorkItem, Run, Mode, Lease, Receipt, Artifact, Attestation
 - AHDBDelta, Hyperthesis, Conjecture
 - EvidenceCard, EvidenceSet
 - CommitReceipt, WorktreeReceipt
@@ -44,7 +44,7 @@ Rule: events store pointers, not large payloads.
 
 Event examples:
 - RUN_STARTED, RUN_FINISHED
-- MOOD_TRANSITION
+- MODE_TRANSITION
 - LEASE_GRANTED, LEASE_REVOKED
 - VERIFIER_REQUESTED, ATTESTATION_EMITTED
 - PATCH_PROPOSED, COMMIT_APPROVED, WORKTREE_DISCARDED
@@ -62,7 +62,7 @@ Nodes correspond to content-addressed objects.
 Required node types (v0):
 - RUN
 - WORK_ITEM
-- MOOD (state marker node or attribute)
+- MODE (state marker node or attribute)
 - LEASE
 - RECEIPT
 - ARTIFACT
@@ -108,7 +108,7 @@ A Context Graph is content-addressable via:
 ### 4.1 Time window selector
 TIME_SELECTOR:
 - t_start, t_end
-- optional filters: mood, syscall class, work item tags, run status
+- optional filters: mode, syscall class, work item tags, run status
 
 Selection:
 - include RUN nodes intersecting [t_start, t_end]
@@ -121,7 +121,7 @@ Output: “what transpired” graph.
 QUERY_SELECTOR:
 - query_text (string)
 - optional typed intent
-- scope constraints: runs/work_items/moods/object_types/tags
+- scope constraints: runs/work_items/modes/object_types/tags
 - retrieval budgets: top_k, depth, max_nodes
 
 Two-stage:
@@ -165,7 +165,7 @@ Default hierarchy:
 ROOT
 - WORK_ITEMS
   - RUNS
-    - MOOD segments
+    - MODE segments
     - LEASES
     - VERIFIERS/ATTESTATIONS
     - COMMITS / DISCARDS

@@ -36,9 +36,9 @@ class TestRunsAndWorkItems(unittest.TestCase):
 
     def test_run_create_and_notes(self) -> None:
         item = self.store.create_work_item(description="Run item")
-        run = self.store.create_run(item["id"], mood="CALM")
+        run = self.store.create_run(item["id"], mode="CALM")
         self.assertEqual(run["work_item_id"], item["id"])
-        self.assertEqual(run["mood"], "CALM")
+        self.assertEqual(run["mode"], "CALM")
 
         note_seq = self.store.add_run_note(run["id"], "note.status", {"status": "started"})
         self.assertGreater(note_seq, 0)
@@ -58,7 +58,7 @@ class TestRunsAndWorkItems(unittest.TestCase):
 
     def test_projection_rebuild_populates_run_notes(self) -> None:
         item = self.store.create_work_item(description="Projection test")
-        run = self.store.create_run(item["id"], mood="CURIOUS")
+        run = self.store.create_run(item["id"], mode="CURIOUS")
         self.store.add_run_note(run["id"], "note.observation", {"body": "hello"})
 
         rebuilt = self.store.rebuild_projection_from_events()
@@ -75,7 +75,7 @@ class TestRunsAndWorkItems(unittest.TestCase):
 
     def test_run_timeline(self) -> None:
         item = self.store.create_work_item(description="Timeline test")
-        run = self.store.create_run(item["id"], mood="CALM")
+        run = self.store.create_run(item["id"], mode="CALM")
 
         self.store.add_run_note(run["id"], "note.status", {"status": "started"})
         self.store.add_run_note(run["id"], "note.observation", {"body": "testing"})

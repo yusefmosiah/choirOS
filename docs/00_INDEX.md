@@ -3,7 +3,7 @@ Updated: 2026-01-23
 Status: ACTIVE
 
 ## Glossary & Terminology
-- **Mode** (formerly "Mood"): A deterministic, capability-bounded configuration for the agent harness.
+- **Mode** (formerly "Mode"): A deterministic, capability-bounded configuration for the agent harness.
 - **Machine**: The supervisor control plane orchestrating modes.
 - **AHDB**: Authentically Horizontal Data Base; the agent's internal state vector (ASSERT/HYPOTHESIZE/DRIVE/BELIEVE).
 - **Receipt**: An event recording capability usage or verification results.
@@ -22,7 +22,7 @@ Status: ACTIVE
 - docs/specs/CHOIR_FULL_SYSTEM_DESIGN.md
 - docs/specs/CHOIR_HEADLESS_1P_DESIGN.md
 - docs/specs/CHOIR_LOCAL_VC_GLOBAL_BOUNDARY_SPEC.md
-- docs/specs/CHOIR_MOODS_SPEC.md
+- docs/specs/CHOIR_MODES_SPEC.md
 - docs/specs/HUMAN_INTERRUPT_LANE_SPEC.md
 - docs/specs/RUN_OUTPUT_POLICY_SPEC.md
 - docs/specs/THE_AUTOMATIC_COMPUTER_SECURITY_MODELS.md

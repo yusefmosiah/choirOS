@@ -7,7 +7,7 @@ This note enumerates design ideas worth considering. It is intentionally pragmat
 ## 1) Visualization: what to show (and what not to)
 
 Show the control layer, not the model:
-- Active RUNs (one work item each), mood, budget burn, last verifier state
+- Active RUNs (one work item each), mode, budget burn, last verifier state
 - Capability leases (syscall class, scope, TTL, budget)
 - Verifier lanes (green threads): pending/running/completed, attestation results
 - AHDB deltas over time (small, surprisal-first)
@@ -98,7 +98,7 @@ Composition:
 ## 7) Architecture: event-driven concurrency without chaos
 
 Patterns:
-- queues per mood/lane (execute, research, verify, harden)
+- queues per mode/lane (execute, research, verify, harden)
 - typed messages only (no freeform agent-to-agent DMs)
 - leases for syscalls, revocable, scoped, budgeted
 - artifact store for raw outputs; only typed summaries enter state

@@ -27,7 +27,7 @@ Therefore:
   console.
 - **Sandboxed execution**: work runs in isolated environments that can be reset on
   failure.
-- **Director control plane**: policy engine that selects capability profiles (moods),
+- **Director control plane**: policy engine that selects capability profiles (modes),
   sets budgets, and gates commits.
 - **Verification green threads**: structured checks that produce attestations, not
   vibes.

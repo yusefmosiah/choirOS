@@ -150,7 +150,7 @@ export function Writer({ artifactId }: WriterProps) {
                                 editor.document[editor.document.length - 1],
                                 "after"
                             );
-                        } else if (data.type === "mood") {
+                        } else if (data.type === "mode") {
                             editor.insertBlocks(
                                 [
                                     {

@@ -27,7 +27,7 @@ Non-goals:
 
 ## 1) When this lane is used
 
-Only in DEFERENTIAL mood (or an explicit approval sub-mode) for:
+Only in DEFERENTIAL mode (or an explicit approval sub-mode) for:
 - Transformative questions that change the next action.
 - Approvals for privileged actions (publish, promote, export, later signing).
 - “Request review” of critical diffs/spec changes.
@@ -139,7 +139,7 @@ Compilation rules:
 
 ---
 
-## 6) Integration with AHDB and moods
+## 6) Integration with AHDB and modes
 
 Inbound events may update only:
 - DRIVE (preferences) via explicit preference updates
@@ -152,7 +152,7 @@ Inbound events must not directly:
 
 The director consumes HUMAN_REPLY_EVENT and decides next:
 - continue run
-- change mood
+- change mode
 - split work item
 - halt
 
@@ -215,4 +215,4 @@ HUMANS ARE INTERRUPTS, NOT CO-PROCESSORS.
 - NO IMPLICIT AUTHORITY
 - TIMEOUTS ARE SAFE
 
-DEFERENTIAL MOOD ONLY.
+DEFERENTIAL MODE ONLY.

@@ -13,13 +13,13 @@ Doctrines are distinct from CAPABILITIES (syscalls). The coupling is:
 Key insight (Ralph → automatic computer): you do not hand-author decomposition. The system selects the next **verifiable** step.
 
 A step is defined as:
-STEP := (WORK_ITEM, MOOD, REQUIRED_SYSCALLS, VERIFIER_PLAN)
+STEP := (WORK_ITEM, MODE, REQUIRED_SYSCALLS, VERIFIER_PLAN)
 
 Selection is:
 - Feasibility filter (capabilities + leases + budgets): can we execute safely?
 - Ranking (doctrine): which step reduces misconceptions and hyperthesis fastest?
 
-If infeasible, the “next step” is to change feasibility (switch mood, request verifier lane, ask a transformative question, or split until satisfiable).
+If infeasible, the “next step” is to change feasibility (switch mode, request verifier lane, ask a transformative question, or split until satisfiable).
 
 ## 1) WE ASSERT. NO ASSUME.
 
@@ -71,10 +71,10 @@ If infeasible, the “next step” is to change feasibility (switch mood, reques
 - It is surprisal-first: store only deltas that would change the next action.
 - It is updated by receipts and attestations, not narration.
 
-## 10) MOODS ARE CONFIG, NOT VIBES.
+## 10) MODES ARE CONFIG, NOT VIBES.
 
-- Moods are deterministic capability profiles (tools/data/models/verifiers/budgets).
-- Mood transitions are guarded by receipts and policy, not model whim.
+- Modes are deterministic capability profiles (tools/data/models/verifiers/budgets).
+- Mode transitions are guarded by receipts and policy, not model whim.
 
 ## 11) PARALLELIZE EVIDENCE, NOT ATTEMPTS.
 

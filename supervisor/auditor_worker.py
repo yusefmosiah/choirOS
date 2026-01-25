@@ -65,12 +65,12 @@ class AuditorWorker:
             result = await self.auditor.audit_file(path)
 
             # Log findings
-            logger.info(f"Audit Complete for {path}. Mood: {result.mood}")
+            logger.info(f"Audit Complete for {path}. Mode: {result.mode}")
 
             # Store result as a note in DB
             self.store.append("auditor.critique", {
                 "path": path,
-                "mood": result.mood,
+                "mode": result.mode,
                 "critique": result.critique,
                 "blind_spots": result.blind_spots,
                 "citations": result.citations

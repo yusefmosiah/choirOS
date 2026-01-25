@@ -20,9 +20,9 @@ Non-goals (v0)
 ## 1. Conceptual model
 
 - SESSION: ephemeral LLM context window.
-- RUN: one bounded execution episode (one work item, one mood, budgets).
+- RUN: one bounded execution episode (one work item, one mode, budgets).
 - WORK ITEM: single objective satisfiable within one run.
-- MOOD: deterministic scaffold profile (tools/data/models/verifiers/budgets).
+- MODE: deterministic scaffold profile (tools/data/models/verifiers/budgets).
 - STATE VECTOR: AHDB (ASSERT/HYPOTHESIZE/DRIVE/BELIEVE), plus HYPERTHESIS and CONJECTURES.
 - RECEIPTS: immutable references to what was accessed, what ran, and what changed.
 
@@ -30,7 +30,7 @@ Non-goals (v0)
 
 ### 2.1 Control plane (Director service)
 Responsibilities
-- Select next work item and mood.
+- Select next work item and mode.
 - Build the prompt context pack: AHDB + minimal artifacts + evidence pointers.
 - Choose verifier plan (policy-bounded).
 - Gate commits (director verification).
@@ -61,7 +61,7 @@ Responsibilities
 - Local KB index: embeddings over AHDB/conjecture/hyperthesis objects (not raw content by default).
 
 ### 2.5 Scheduler
-- Headless daemon/cron that enqueues runs and triggers moods based on guards.
+- Headless daemon/cron that enqueues runs and triggers modes based on guards.
 - Event-driven wakeups preferred; optional backoff polling.
 
 ## 3. Security and trust zones (1-player)
@@ -77,7 +77,7 @@ Zones
 
 All outbound network must go through a policy-enforced syscall tool (no raw curl).
 
-## 4. Moods (minimum set for v0)
+## 4. Modes (minimum set for v0)
 
 Use at least:
 - CALM: execute one bounded step.
@@ -86,13 +86,13 @@ Use at least:
 - PARANOID: hardening / boundary tightening / security checks.
 - CONTRITE: crash recovery / projection rebuild.
 
-Mood transitions are deterministic guards based on:
+Mode transitions are deterministic guards based on:
 - verifier regressions
 - repeated failure signatures
 - hyperthesis magnitude
 - privilege proximity (commit/publish/export)
 
-(Full palette defined in CHOIR_MOODS_SPEC.md.)
+(Full palette defined in CHOIR_MODES_SPEC.md.)
 
 ## 5. Control state: AHDB + Hyperthesis + Conjecture
 
@@ -185,7 +185,7 @@ Required receipts:
 - ContextFootprint
 - VerifierResults (artifact pointers + attestations)
 - PatchReceipt (diff hash)
-- MoodTransition events
+- ModeTransition events
 - CommitReceipt (commit hash, verifier set, policy decision)
 
 Anomaly triggers:
@@ -199,5 +199,5 @@ Anomaly triggers:
 Spiral 1: minimal run loop + work item + ephemeral worktree + one verifier  
 Spiral 2: AHDB projection + receipts + restart recovery  
 Spiral 3: green-thread verification + no raw logs in main context  
-Spiral 4: moods + deterministic transition guards  
+Spiral 4: modes + deterministic transition guards  
 Spiral 5: local KB object store + pointer citations + doc governance

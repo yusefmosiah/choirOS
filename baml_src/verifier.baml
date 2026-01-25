@@ -5,10 +5,10 @@ generator PythonClient {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Clients: ChoirOS "Moods" implemented as BAML client strategies
+// Clients: ChoirOS "Modes" implemented as BAML client strategies
 // ─────────────────────────────────────────────────────────────────────────────
 
-// SKEPTICAL mood: Low temp, reasoning-heavy. Used for verification.
+// SKEPTICAL mode: Low temp, reasoning-heavy. Used for verification.
 client<llm> ClaudeBedrock {
   provider aws-bedrock
   options {

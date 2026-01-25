@@ -73,7 +73,7 @@ class AuditResult(BaseModel):
     critique: str = Field(description='The dissenting opinion/critique')
     blind_spots: typing.List[str] = Field(description='List of potential blind spots or missing context')
     citations: typing.List[str] = Field(description='URLs or file paths cited in the critique')
-    mood: str = Field(description='The tone of the critique (e.g., \'Sharp\', \'Concerned\', \'Pedantic\')')
+    mode: str = Field(description='The tone of the critique (e.g., \'Sharp\', \'Concerned\', \'Pedantic\')')
 
 class AuditorContext(BaseModel):
     task_description: str = Field(description='What the user is currently working on')

@@ -1,7 +1,7 @@
 """
 Verifier plan selection.
 
-Loads allowlisted verifiers and selects a plan by mood + touched paths.
+Loads allowlisted verifiers and selects a plan by mode + touched paths.
 """
 
 from __future__ import annotations
@@ -99,16 +99,16 @@ def _hash_inputs(data: dict) -> str:
 
 def select_verifier_plan(
     touched_paths: list[str],
-    mood: Optional[str],
+    mode: Optional[str],
     required_verifiers: Optional[list[str]] = None,
     risk_tier: Optional[str] = None,
     config_path: Optional[Path] = None,
 ) -> VerifierPlan:
     config = _load_config(config_path)
     verifiers = config.get("verifiers", [])
-    mood_defaults = config.get("mood_defaults", {})
+    mode_defaults = config.get("mode_defaults", {})
 
-    mood_key = (mood or "").upper()
+    mode_key = (mode or "").upper()
     required = required_verifiers or []
 
     selected: set[str] = set()
@@ -122,8 +122,8 @@ def select_verifier_plan(
         else:
             unknown_required.append(verifier_id)
 
-    # Add mood defaults.
-    for verifier_id in mood_defaults.get(mood_key, []):
+    # Add mode defaults.
+    for verifier_id in mode_defaults.get(mode_key, []):
         if verifier_id in verifier_index:
             selected.add(verifier_id)
 
@@ -132,9 +132,9 @@ def select_verifier_plan(
         verifier_id = verifier.get("id")
         if not verifier_id:
             continue
-        moods = [m.upper() for m in verifier.get("moods", []) if isinstance(m, str)]
+        modes = [m.upper() for m in verifier.get("modes", []) if isinstance(m, str)]
         scopes = verifier.get("scopes", [])
-        if moods and mood_key and mood_key not in moods:
+        if modes and mode_key and mode_key not in modes:
             continue
         if _matches_scope(touched_paths, scopes):
             selected.add(verifier_id)
@@ -143,7 +143,7 @@ def select_verifier_plan(
 
     inputs = {
         "touched_paths": sorted({_normalize_path(p) for p in touched_paths}),
-        "mood": mood_key or None,
+        "mode": mode_key or None,
         "required_verifiers": sorted(required),
         "risk_tier": risk_tier,
         "verifier_ids": verifier_ids,

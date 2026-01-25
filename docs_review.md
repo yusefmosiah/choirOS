@@ -52,14 +52,14 @@ ChoirOS is in a **"hybrid" state** between a standard agent harness and the "Aut
 | BAML task assessment | ✅ Works | ✅ | None |
 | Verifier → AHDB promotion | ❌ Manual only | Auto via receipts | **Key gap** |
 
-### C. Modes ("Moods")
+### C. Modes ("Modes")
 
 | Aspect | Implemented | Specced | Gap |
 |--------|-------------|---------|-----|
 | 8 modes defined | ✅ `mode_config.py` | ✅ | None |
 | Tool allowlists | ✅ Works | ✅ | None |
 | Budget enforcement | ⚠️ Defined, not enforced | Strict budgets | Not enforced at runtime |
-| Terminology | ❌ Mixed mood/mode | Consistent | DB column `mood`, events use `mode` |
+| Terminology | ❌ Mixed mode/mode | Consistent | DB column `mode`, events use `mode` |
 
 ### D. AHDB (State Vector)
 
@@ -97,16 +97,16 @@ NATS_ENABLED = NATS_AVAILABLE and os.environ.get("NATS_ENABLED", "1") == "1"
 
 **Impact:** Replay, recovery, and "continuous compute" cannot be reliable until resolved.
 
-### Contradiction 2: Mood vs. Mode Terminology
+### Contradiction 2: Mode vs. Mode Terminology
 
 | Location | Uses |
 |----------|------|
-| `supervisor/mood_engine.py` | `MOOD_CALM`, `MoodInputs` |
-| `supervisor/db.py` (runs table) | Column: `mood` |
-| `supervisor/run_orchestrator.py` | Parameter: `mood` |
+| `supervisor/mode_engine.py` | `MODE_CALM`, `ModeInputs` |
+| `supervisor/db.py` (runs table) | Column: `mode` |
+| `supervisor/run_orchestrator.py` | Parameter: `mode` |
 | `supervisor/event_contract.py` | Event types: `mode.start`, `mode.stop` |
-| `supervisor/machine.py` | Payload field: `mode` (falls back to `mood`) |
-| `supervisor/auditor_worker.py` | Emits: `mood` field |
+| `supervisor/machine.py` | Payload field: `mode` (falls back to `mode`) |
+| `supervisor/auditor_worker.py` | Emits: `mode` field |
 
 **Impact:** Projections/visualizations will mis-join runs, directives, and audits.
 
@@ -195,7 +195,7 @@ Machine has a writer lock but lacks:
 
 ### Obstacle 4: Inconsistent Vocabulary and Event Payload Schemas
 
-- mode vs. mood
+- mode vs. mode
 - Event types normalized, but payload schemas aren't rigid
 - Linking fields (`work_item_id`, `run_id`, `session_id`) not uniformly present
 
@@ -212,8 +212,8 @@ Machine has a writer lock but lacks:
    - Reframe NATS as "optional transport / replication"
    
 2. **Normalize terminology: use "mode" everywhere**
-   - Keep DB column `runs.mood` temporarily (migration later)
-   - Event payloads always emit `mode`, never `mood`
+   - Keep DB column `runs.mode` temporarily (migration later)
+   - Event payloads always emit `mode`, never `mode`
    - Add `mode` alias in reads for backward compatibility
 
 ### Phase 1: Close the AHDB Loop (M: 1–3h)
@@ -281,7 +281,7 @@ This breaks the **Self-Dev Paradox**: you can now debug failed runs by replaying
 
 ### Phase 4: Promote Machine OS (M–L: 1–2d)
 
-Move MoodEngine logic into Machine and make it the primary entry point:
+Move ModeEngine logic into Machine and make it the primary entry point:
 - Machine becomes the scheduler, not just a wrapper
 - Mode guards driven by AHDB state + receipts
 - All execution flows through Machine (not direct orchestrator calls)
@@ -300,9 +300,9 @@ Only after above is stable:
 
 ### Terminology Harmonization (High Priority)
 
-1. **Global rename: mood → mode** in code comments and new code
-   - Keep `mood_engine.py` filename (rename later)
-   - Keep DB column `runs.mood` (migration later)
+1. **Global rename: mode → mode** in code comments and new code
+   - Keep `mode_engine.py` filename (rename later)
+   - Keep DB column `runs.mode` (migration later)
    - All new event payloads use `mode`
 
 2. **Retire "Phase 3 Agent Platform" language**
@@ -311,7 +311,7 @@ Only after above is stable:
 ### Doc Updates
 
 3. **Update docs/00_INDEX.md**
-   - Add glossary section defining mood/mode relationship
+   - Add glossary section defining mode/mode relationship
    - Surface Jan 23 concepts (AHDB, Context Graph, Machine)
 
 4. **Update docs/ARCHITECTURE_OVERVIEW.md**
@@ -324,7 +324,7 @@ Only after above is stable:
    - Change "NATS is canonical" to "SQLite-first for local dev; NATS for optional replication"
 
 7. **Update progress.md**
-   - Fix "moods are now modes" to clarify terminology relationship
+   - Fix "modes are now modes" to clarify terminology relationship
 
 ---
 
@@ -335,7 +335,7 @@ supervisor.tests.test_event_contract
 supervisor.tests.test_ahdb_projection  
 supervisor.tests.test_runs
 supervisor.tests.test_machine
-supervisor.tests.test_mood_engine
+supervisor.tests.test_mode_engine
 ```
 
 All 22 tests pass. NATS publish warnings are expected (disabled in tests).
@@ -355,7 +355,7 @@ All 22 tests pass. NATS publish warnings are expected (disabled in tests).
 | Verifier runner | `supervisor/verifier_runner.py` |
 | Auditor worker | `supervisor/auditor_worker.py` |
 | NATS client | `supervisor/nats_client.py` |
-| Mood engine | `supervisor/mood_engine.py` |
+| Mode engine | `supervisor/mode_engine.py` |
 
 ---
 

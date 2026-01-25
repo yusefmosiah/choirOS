@@ -97,7 +97,7 @@ SAFE APPLY
 
 ### 3.3 UI surface (web desktop)
 Expose as a timeline rail:
-- checkpoints as cards (timestamp, mood, demo status, verifier results)
+- checkpoints as cards (timestamp, mode, demo status, verifier results)
 - one-click “undo to checkpoint”
 - “create preview workspace”
 - “merge preview” / “discard preview”
@@ -124,7 +124,7 @@ This mirrors the global pipeline but stays private.
 
 RUN is the unit of compute:
 - one WORK ITEM (one objective)
-- one MOOD configuration (tools/data/models/verifiers/budgets)
+- one MODE configuration (tools/data/models/verifiers/budgets)
 - produces receipts and state deltas
 - costs CHIPS (credits) locally
 
@@ -140,7 +140,7 @@ Instead:
 - Continuous status events (“heartbeats”) are emitted
 - AHDB is stored as a live projection
 - Work items are idempotent and requeueable
-- On restart, CONTRITE mood rebuilds state from receipts
+- On restart, CONTRITE mode rebuilds state from receipts
 
 Landing the plane becomes optional hygiene, not correctness.
 
@@ -194,7 +194,7 @@ The local plane must enforce the “lethal trifecta” constraint:
 - do not co-locate private data + network + credentials in one trust zone
 
 Operationalization:
-- web/KB research runs in CURIOUS subagent/mood in a separate sandbox
+- web/KB research runs in CURIOUS subagent/mode in a separate sandbox
 - execution runs in CALM/BOLD with network off by default
 - export/publish requires DEFERENTIAL (approval) and policy tokens
 
@@ -208,7 +208,7 @@ Operationalization:
 4) Local object lifecycle: quarantine/promote/retract (local)
 5) Explicit PUBLISH syscall (no implicit global writes)
 6) Two-repo separation: platform vs user workspaces
-7) Mood gating for network/exfiltration primitives
+7) Mode gating for network/exfiltration primitives
 
 ---
 

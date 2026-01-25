@@ -11,7 +11,7 @@ class TestVerifierPlan(unittest.TestCase):
     def test_selects_scope_verifier(self) -> None:
         plan = select_verifier_plan(
             touched_paths=["supervisor/event_contract.py"],
-            mood="CALM",
+            mode="CALM",
             config_path=self.config_path,
         )
         self.assertIn("V-01-EVENT-CONTRACT", plan.verifier_ids)
@@ -20,7 +20,7 @@ class TestVerifierPlan(unittest.TestCase):
     def test_required_verifier_included(self) -> None:
         plan = select_verifier_plan(
             touched_paths=[],
-            mood="CALM",
+            mode="CALM",
             required_verifiers=["V-03-RUN-STATE"],
             config_path=self.config_path,
         )
@@ -29,7 +29,7 @@ class TestVerifierPlan(unittest.TestCase):
     def test_unknown_required_recorded(self) -> None:
         plan = select_verifier_plan(
             touched_paths=[],
-            mood="CALM",
+            mode="CALM",
             required_verifiers=["V-99-UNKNOWN"],
             config_path=self.config_path,
         )
@@ -38,7 +38,7 @@ class TestVerifierPlan(unittest.TestCase):
     def test_skeptical_includes_fast_unit(self) -> None:
         plan = select_verifier_plan(
             touched_paths=["supervisor/db.py"],
-            mood="SKEPTICAL",
+            mode="SKEPTICAL",
             config_path=self.config_path,
         )
         self.assertIn("V-08-FAST-UNIT", plan.verifier_ids)

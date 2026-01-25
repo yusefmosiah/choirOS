@@ -101,13 +101,13 @@ class WorkItemPayload(BaseModel):
 
 class RunCreatePayload(BaseModel):
     work_item_id: str
-    mood: Optional[str] = None
+    mode: Optional[str] = None
     status: Optional[str] = "created"
 
 
 class RunUpdatePayload(BaseModel):
     status: Optional[str] = None
-    mood: Optional[str] = None
+    mode: Optional[str] = None
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
 
@@ -384,7 +384,7 @@ async def create_run(payload: RunCreatePayload):
         raise HTTPException(status_code=404, detail="Work item not found")
     run = store.create_run(
         work_item_id=payload.work_item_id,
-        mood=payload.mood,
+        mode=payload.mode,
         status=payload.status or "created",
     )
     return {"run": run}
@@ -729,7 +729,7 @@ async def agent_websocket(websocket: WebSocket):
         result = await orchestrator.run_async(
             work_item_id=directive.work_item_id,
             execute_run=execute_run,
-            mood=directive.mode_id,
+            mode=directive.mode_id,
             config_path=verifier_config,
         )
 
@@ -853,7 +853,7 @@ async def agent_audit(request: AuditRequest):
             )
 
             # 3. Stream Response
-            yield f"data: {json.dumps({'type': 'mood', 'content': result.mood})}\n\n"
+            yield f"data: {json.dumps({'type': 'mode', 'content': result.mode})}\n\n"
             yield f"data: {json.dumps({'type': 'critique', 'content': result.critique})}\n\n"
             if result.blind_spots:
                 yield f"data: {json.dumps({'type': 'blind_spots', 'content': result.blind_spots})}\n\n"

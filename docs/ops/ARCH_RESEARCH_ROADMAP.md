@@ -8,7 +8,7 @@ Provide a concrete agenda for the upcoming deep research + review session so the
 
 ## Current state (local)
 - Supervisor + API + frontend run locally.
-- Event contract, AHDB projection, run/work items, verifier plan/runner, mood engine,
+- Event contract, AHDB projection, run/work items, verifier plan/runner, mode engine,
   and run orchestration are implemented.
 - Fast unit suite and EventStream E2E are green.
 

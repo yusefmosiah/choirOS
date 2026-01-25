@@ -41,7 +41,7 @@ Primary UI primitives
 - Desktop file tree and app tiles.
 - Hot reload viewer (iframe/webview) for sandboxed app runtime.
 - Checkpoint timeline (mechanical VC).
-- “Run console” showing: mood, work item, verifier status, receipts.
+- “Run console” showing: mode, work item, verifier status, receipts.
 - Publish/Promote/Attest panels (social actions, explicit).
 
 ### 2.2 Associate Sandbox (hot reload worker)
@@ -54,7 +54,7 @@ Runs user app code with hot reload.
 ### 2.3 Director Sandbox (control plane + VC UI)
 - Owns the checkpoint timeline and merge/discard operations.
 - Evaluates verifier attestations before allowing code to land.
-- Selects moods, budgets, verifier plans, and escalations.
+- Selects modes, budgets, verifier plans, and escalations.
 - Produces “approval packets” for high-risk actions (publish/export later).
 
 ### 2.4 Event Bus (AHDB-typed)
@@ -71,7 +71,7 @@ Runs user app code with hot reload.
 
 A user action triggers:
 - create RUN (one work item)
-- director selects mood
+- director selects mode
 - associate executes in isolated worktree/sandbox
 - verifier green thread runs checks
 - director approves commit or discards
@@ -90,17 +90,17 @@ Minimum primitives
 
 Rule: “live reload” is safe because mainline only advances on verified commits.
 
-## 5. Moods (capability profiles)
+## 5. Modes (capability profiles)
 
-Moods are deterministic configs that set:
+Modes are deterministic configs that set:
 - tool allowlists
 - data scope
 - model tier
 - verifier strictness
 - budgets and stop rules
 
-The web desktop surfaces the current mood as a user-legible indicator.
-(See CHOIR_MOODS_SPEC.md.)
+The web desktop surfaces the current mode as a user-legible indicator.
+(See CHOIR_MODES_SPEC.md.)
 
 ## 6. Verification in the loop (green threads)
 
@@ -146,9 +146,9 @@ Chips are bootstrapped via grants to early users. Waste is bounded by budgets an
 Hard rule: do not co-locate private data + network + credentials.
 
 Operationalization
-- Research runs in CURIOUS mood in a separate sandbox.
+- Research runs in CURIOUS mode in a separate sandbox.
 - Execution runs with network off by default.
-- Export/publish is a privileged syscall under DEFERENTIAL mood with approvals.
+- Export/publish is a privileged syscall under DEFERENTIAL mode with approvals.
 
 All network egress is via policy tool; no raw curl.
 

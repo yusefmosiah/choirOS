@@ -130,7 +130,7 @@ Beyond “a model in a loop” (tool calling agent), and beyond a simple session
 - a **small state vector** (AHDB + hyperthesis + conjectures),
 - **verifier-in-the-loop** producing attestations,
 - **mechanical version control** to keep live updates safe,
-- and strict **capability gating** (moods).
+- and strict **capability gating** (modes).
 
 The LLM harness is a processor that proposes instructions.
 The state machine is the OS that decides what can happen.
@@ -199,7 +199,7 @@ FAILED RUNS LEAVE NO CODE.
 HYPERTHESIS NAMES THE BLIND SPOT.  
 CONJECTURE SHRINKS THE EDGE.  
 AHDB IS THE STATE VECTOR.  
-MOODS ARE CONFIG, NOT VIBES.  
+MODES ARE CONFIG, NOT VIBES.  
 PUBLISH IS EXPLICIT. PROMOTION IS VOLUNTARY.
 
 ---

@@ -12,7 +12,7 @@ class AuditResult {
   critique string @description("The dissenting opinion/critique")
   blind_spots string[] @description("List of potential blind spots or missing context")
   citations string[] @description("URLs or file paths cited in the critique")
-  mood string @description("The tone of the critique (e.g., 'Sharp', 'Concerned', 'Pedantic')")
+  mode string @description("The tone of the critique (e.g., 'Sharp', 'Concerned', 'Pedantic')")
 }
 
 function Audit(context: AuditorContext) -> AuditResult {
@@ -49,7 +49,7 @@ function Audit(context: AuditorContext) -> AuditResult {
       "critique": "string",
       "blind_spots": ["string"],
       "citations": ["string"],
-      "mood": "string"
+      "mode": "string"
     }
 
     {{ ctx.output_format }}

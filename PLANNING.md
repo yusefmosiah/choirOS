@@ -6,11 +6,11 @@ Updated: 2026-01-18
 - docs/SELF_DEV_BOOTSTRAP.md (bootstrap issues + status)
 - docs/test_report-2026-01-17c.md (grand verification report)
 - docs/specs/CHOIR_HEADLESS_1P_DESIGN.md (headless plan)
-- docs/specs/CHOIR_MOODS_SPEC.md (mood policy + guards)
+- docs/specs/CHOIR_MODES_SPEC.md (mode policy + guards)
 - docs/specs/VERIFICATION_GREEN_THREADS_SPEC.md (verifier lane)
 
 ## Current state (bootstrap)
-- SD-01..SD-10 complete: event contract, AHDB projection, run/work items, verifier plan/runner, mood engine,
+- SD-01..SD-10 complete: event contract, AHDB projection, run/work items, verifier plan/runner, mode engine,
   run orchestration, fast unit suite, doc alignment, and EventStream E2E.
 - Supervisor endpoints exist for run/work item lifecycle and receipts (see supervisor/main.py).
 - Verifier allowlist and plan selection exist (config/verifiers.yaml + supervisor/verifier_plan.py).

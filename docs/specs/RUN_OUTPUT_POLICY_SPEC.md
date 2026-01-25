@@ -32,7 +32,7 @@ SESSION
 - an ephemeral LLM context window (cattle)
 
 RUN
-- one bounded execution episode with exactly one WORK ITEM, one MOOD, and budgets
+- one bounded execution episode with exactly one WORK ITEM, one MODE, and budgets
 
 WORK ITEM
 - the single objective of a RUN (must be satisfiable in one session/RUN)
@@ -104,14 +104,14 @@ NOTES are not freeform chat logs. They are typed, small, and queryable.
 - NOTE/HYPOTHESIS (must include test + budget)
 - NOTE/HYPERTHESIS (blind spot + bound)
 - NOTE/CONJECTURE (claim/test/edge/ΔO/scope)
-- NOTE/STATUS (heartbeat; mood; progress)
+- NOTE/STATUS (heartbeat; mode; progress)
 - NOTE/REQUEST_HELP (transformative question)
 - NOTE/REQUEST_VERIFY (ask for director verification)
 
 ### 4.2 Minimal fields for every NOTE event
 - RUN_ID
 - WORK_ITEM_ID
-- MOOD
+- MODE
 - TIMESTAMP
 - BODY (structured fields; minimal prose)
 - REFERENCES (receipt IDs, diff IDs, evidence set hash)
@@ -134,7 +134,7 @@ This prevents long-lived partial states from accumulating.
 ## 6) Verification gates (what “verified” means)
 
 ### 6.1 SELF-VERIFICATION (runner gate)
-Required checks depend on MOOD and work type:
+Required checks depend on MODE and work type:
 - unit tests (targeted)
 - lint/typecheck
 - minimal demo script (“30-second demo”)
@@ -152,7 +152,7 @@ Director may require additional checks:
 - security scanning
 - independent verifier re-run
 - diff budget enforcement
-- risk-based approval thresholds (DEFERENTIAL mood if needed)
+- risk-based approval thresholds (DEFERENTIAL mode if needed)
 
 Only the director can authorize a commit.
 
@@ -182,7 +182,7 @@ On failure:
    - git reset --hard OR delete worktree
 3) Director decides next:
    - split work item (make it satisfiable)
-   - switch mood (CURIOUS/SKEPTICAL/PARANOID)
+   - switch mode (CURIOUS/SKEPTICAL/PARANOID)
    - escalate model tier (bounded)
    - request a transformative user input (DEFERENTIAL)
 

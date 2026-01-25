@@ -1,4 +1,4 @@
-"""Deterministic mood selection and transition guards."""
+"""Deterministic mode selection and transition guards."""
 
 from __future__ import annotations
 
@@ -6,18 +6,18 @@ from dataclasses import dataclass
 from typing import Optional
 
 
-MOOD_CALM = "CALM"
-MOOD_CURIOUS = "CURIOUS"
-MOOD_SKEPTICAL = "SKEPTICAL"
-MOOD_PARANOID = "PARANOID"
-MOOD_BOLD = "BOLD"
-MOOD_PETTY = "PETTY"
-MOOD_CONTRITE = "CONTRITE"
-MOOD_DEFERENTIAL = "DEFERENTIAL"
+MODE_CALM = "CALM"
+MODE_CURIOUS = "CURIOUS"
+MODE_SKEPTICAL = "SKEPTICAL"
+MODE_PARANOID = "PARANOID"
+MODE_BOLD = "BOLD"
+MODE_PETTY = "PETTY"
+MODE_CONTRITE = "CONTRITE"
+MODE_DEFERENTIAL = "DEFERENTIAL"
 
 
 @dataclass(frozen=True)
-class MoodInputs:
+class ModeInputs:
     crash_detected: bool = False
     has_demo: bool = True
     conjectures_present: bool = True
@@ -32,45 +32,45 @@ class MoodInputs:
     verified_and_bounded: bool = False
     suspected_reward_hack: bool = False
     state_consistent: bool = True
-    previous_mood: Optional[str] = None
+    previous_mode: Optional[str] = None
 
 
-def select_initial_mood(inputs: MoodInputs) -> str:
+def select_initial_mode(inputs: ModeInputs) -> str:
     if inputs.crash_detected:
-        return MOOD_CONTRITE
+        return MODE_CONTRITE
     if not inputs.has_demo or not inputs.conjectures_present:
-        return MOOD_CURIOUS
+        return MODE_CURIOUS
     if inputs.repeated_verifier_failures:
-        return MOOD_SKEPTICAL
+        return MODE_SKEPTICAL
     if inputs.about_to_cross_privilege_boundary:
-        return MOOD_DEFERENTIAL if inputs.preference_missing else MOOD_PARANOID
-    return MOOD_CALM
+        return MODE_DEFERENTIAL if inputs.preference_missing else MODE_PARANOID
+    return MODE_CALM
 
 
-def transition_mood(current: str, inputs: MoodInputs) -> str:
+def transition_mode(current: str, inputs: ModeInputs) -> str:
     if inputs.crash_detected:
-        return MOOD_CONTRITE
+        return MODE_CONTRITE
     if inputs.suspected_reward_hack:
-        return MOOD_PETTY
+        return MODE_PETTY
     if inputs.preference_missing:
-        return MOOD_DEFERENTIAL
+        return MODE_DEFERENTIAL
 
-    if current == MOOD_CALM:
+    if current == MODE_CALM:
         if inputs.ambiguity_blocking or inputs.user_idk:
-            return MOOD_CURIOUS
+            return MODE_CURIOUS
         if inputs.verifiers_regress:
-            return MOOD_SKEPTICAL
-    elif current == MOOD_SKEPTICAL:
+            return MODE_SKEPTICAL
+    elif current == MODE_SKEPTICAL:
         if inputs.hyperthesis_high:
-            return MOOD_PARANOID
+            return MODE_PARANOID
         if inputs.verified_and_bounded:
-            return MOOD_CALM
-    elif current == MOOD_PARANOID:
+            return MODE_CALM
+    elif current == MODE_PARANOID:
         if inputs.mitigations_installed:
-            return MOOD_BOLD
-    elif current == MOOD_CONTRITE:
+            return MODE_BOLD
+    elif current == MODE_CONTRITE:
         if inputs.state_consistent:
-            return inputs.previous_mood or MOOD_CALM
-        return MOOD_CONTRITE
+            return inputs.previous_mode or MODE_CALM
+        return MODE_CONTRITE
 
     return current

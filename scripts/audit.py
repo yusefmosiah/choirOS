@@ -28,7 +28,7 @@ async def main():
         result = await auditor.audit_file(file_path)
 
         print("\n📝 AUDIT RESULT:")
-        print(f"Mood: {result.mood}")
+        print(f"Mode: {result.mode}")
         print("\nCRITIQUE:")
         print(result.critique)
 

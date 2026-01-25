@@ -9,7 +9,7 @@ interface AuditEvent {
     type: string;
     payload: {
         path: string;
-        mood: string;
+        mode: string;
         critique: string;
         blind_spots?: string[];
         citations?: string[];
@@ -39,8 +39,8 @@ export function Auditor() {
         return () => clearInterval(interval);
     }, []);
 
-    const getMoodColor = (mood: string) => {
-        const m = mood.toLowerCase();
+    const getModeColor = (mode: string) => {
+        const m = mode.toLowerCase();
         if (m.includes('sharp') || m.includes('alarmed') || m.includes('critical')) return 'var(--color-audit-critical)';
         if (m.includes('concerned') || m.includes('skeptical')) return 'var(--color-audit-warning)';
         return 'var(--color-audit-info)';
@@ -60,7 +60,7 @@ export function Auditor() {
                             key={audit.seq}
                             className={`audit-item ${selectedAudit?.seq === audit.seq ? 'active' : ''}`}
                             onClick={() => setSelectedAudit(audit)}
-                            style={{ borderLeftColor: getMoodColor(audit.payload.mood) }}
+                            style={{ borderLeftColor: getModeColor(audit.payload.mode) }}
                         >
                             <div className="audit-item-header">
                                 <span className="audit-path" title={audit.payload.path}>
@@ -70,8 +70,8 @@ export function Auditor() {
                                     {new Date(audit.timestamp).toLocaleTimeString()}
                                 </span>
                             </div>
-                            <div className="audit-mood" style={{ color: getMoodColor(audit.payload.mood) }}>
-                                {audit.payload.mood}
+                            <div className="audit-mode" style={{ color: getModeColor(audit.payload.mode) }}>
+                                {audit.payload.mode}
                             </div>
                             <div className="audit-snippet">
                                 {audit.payload.critique.slice(0, 60)}...
@@ -87,13 +87,13 @@ export function Auditor() {
                         <div className="detail-header">
                             <h3>{selectedAudit.payload.path}</h3>
                             <span
-                                className="mood-badge"
+                                className="mode-badge"
                                 style={{
-                                    backgroundColor: getMoodColor(selectedAudit.payload.mood),
+                                    backgroundColor: getModeColor(selectedAudit.payload.mode),
                                     color: '#fff'
                                 }}
                             >
-                                {selectedAudit.payload.mood}
+                                {selectedAudit.payload.mode}
                             </span>
                         </div>
 

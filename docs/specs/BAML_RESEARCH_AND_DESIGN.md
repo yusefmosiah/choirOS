@@ -12,7 +12,7 @@ The primary friction in Spiral 3 is "epistemic glue": asking an LLM to look at a
 
 **Thesis:** Adopting BAML now is not a distraction; it is an **accelerator**.
 1.  **Eliminates "String Parsing Hell":** Verifiers become typed functions returning `VerifierOutcome` objects.
-2.  **Enables "Moods" for free:** BAML’s client abstractions (Fallbacks, Retries, Round-robins) map 1:1 to ChoirOS Moods (CALM, CURIOUS, SKEPTICAL) without writing custom router logic.
+2.  **Enables "Modes" for free:** BAML’s client abstractions (Fallbacks, Retries, Round-robins) map 1:1 to ChoirOS Modes (CALM, CURIOUS, SKEPTICAL) without writing custom router logic.
 3.  **Solves the Streaming Problem:** We need real-time UI updates (E4 Register). BAML streaming provides guaranteed partial types, allowing the UI to render "Thinking..." states safely.
 
 ---
@@ -32,7 +32,7 @@ graph TD
     subgraph "BAML Layer (.baml)"
         Schemas[Type Definitions]
         Funcs[LLM Functions]
-        Clients[Client Strategies (Moods)]
+        Clients[Client Strategies (Modes)]
     end
 
     subgraph "Model Provider"
@@ -49,10 +49,10 @@ graph TD
     BAML -->|Stream Partial Typed Objects| EventStore
 ```
 
-### 1.1 Model Abstraction via Moods
-We verify *capabilities*, not models. ChoirOS defines "Moods" which BAML implements as Client Strategies.
+### 1.1 Model Abstraction via Modes
+We verify *capabilities*, not models. ChoirOS defines "Modes" which BAML implements as Client Strategies.
 
-| Choir Mood | Behavior | BAML Client Strategy |
+| Choir Mode | Behavior | BAML Client Strategy |
 |------------|----------|----------------------|
 | **CALM** (Default) | Fast, cheap, forgiving. | `fallback(GPT-4o-mini, Claude-3-Haiku)` |
 | **CURIOUS** (Research) | High temp, broad context. | `round_robin(Gemini-1.5-Pro, Claude-3.5-Sonnet)` |

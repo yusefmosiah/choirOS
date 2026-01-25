@@ -89,7 +89,7 @@ class RunOrchestrator:
         verifier_specs: Iterable[VerifierSpec],
         mode: str = "CALM",
     ) -> dict:
-        run = self.store.create_run(work_item_id=work_item_id, mood=mode, status="running")
+        run = self.store.create_run(work_item_id=work_item_id, mode=mode, status="running")
         run_id = run["id"]
         self._ensure_last_good_checkpoint()
         sandbox_handle = None
@@ -133,7 +133,7 @@ class RunOrchestrator:
                 )
 
             if not success:
-                self.store.update_run(run_id, {"status": "failed", "mood": "SKEPTICAL"})
+                self.store.update_run(run_id, {"status": "failed", "mode": "SKEPTICAL"})
                 self.store.add_run_note(
                     run_id,
                     "note.status",
@@ -157,7 +157,7 @@ class RunOrchestrator:
 
             all_passed = all(result.status == "pass" for result in results)
             final_status = "verified" if all_passed else "failed"
-            self.store.update_run(run_id, {"status": final_status, "mood": "SKEPTICAL"})
+            self.store.update_run(run_id, {"status": final_status, "mode": "SKEPTICAL"})
             self.store.add_run_note(
                 run_id,
                 "note.status",
@@ -259,7 +259,7 @@ class RunOrchestrator:
         mode: str = "CALM",
         config_path: Optional[Path] = None,
     ) -> dict:
-        run = self.store.create_run(work_item_id=work_item_id, mood=mode, status="running")
+        run = self.store.create_run(work_item_id=work_item_id, mode=mode, status="running")
         run_id = run["id"]
         start_seq = self.store.get_latest_seq()
         self._ensure_last_good_checkpoint()
@@ -353,7 +353,7 @@ class RunOrchestrator:
             verifier_specs = build_verifier_specs(plan.verifier_ids, config_path=config_path)
 
             if not success:
-                self.store.update_run(run_id, {"status": "failed", "mood": "SKEPTICAL"})
+                self.store.update_run(run_id, {"status": "failed", "mode": "SKEPTICAL"})
                 self.store.add_run_note(
                     run_id,
                     "note.status",
@@ -381,7 +381,7 @@ class RunOrchestrator:
 
             all_passed = all(result.status == "pass" for result in results)
             final_status = "verified" if all_passed else "failed"
-            self.store.update_run(run_id, {"status": final_status, "mood": "SKEPTICAL"})
+            self.store.update_run(run_id, {"status": final_status, "mode": "SKEPTICAL"})
             self.store.add_run_note(
                 run_id,
                 "note.status",
