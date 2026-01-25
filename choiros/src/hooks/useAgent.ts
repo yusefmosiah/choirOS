@@ -50,6 +50,7 @@ export function useAgent(options: UseAgentOptions = {}): UseAgentReturn {
 
     const wsRef = useRef<WebSocket | null>(null);
     const onMessageRef = useRef(onMessage);
+    const pendingPromptsRef = useRef<string[]>([]);
 
     // Keep onMessage ref updated
     useEffect(() => {
@@ -57,14 +58,14 @@ export function useAgent(options: UseAgentOptions = {}): UseAgentReturn {
     }, [onMessage]);
 
     const sendPrompt = useCallback((prompt: string) => {
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-            setError('Not connected to agent');
-            return;
-        }
-
         setIsProcessing(true);
         setError(null);
         setMessages([]);
+
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            pendingPromptsRef.current.push(prompt);
+            return;
+        }
 
         wsRef.current.send(JSON.stringify({ prompt }));
     }, []);
@@ -98,6 +99,14 @@ export function useAgent(options: UseAgentOptions = {}): UseAgentReturn {
                     if (isMounted) {
                         setIsConnected(true);
                         setError(null);
+                    }
+                    // Drain any prompts that were queued before the socket opened.
+                    if (pendingPromptsRef.current.length > 0) {
+                        const queued = [...pendingPromptsRef.current];
+                        pendingPromptsRef.current = [];
+                        for (const queuedPrompt of queued) {
+                            ws.send(JSON.stringify({ prompt: queuedPrompt }));
+                        }
                     }
                 };
 

@@ -21,17 +21,18 @@ DOCKER_COMPOSE=""
 NATS_STARTED=0
 
 print_usage() {
-    echo "Usage: ./dev.sh [start|stop|status|restart] [--no-nats]"
-    echo "  start    Start frontend, backend, supervisor (default)"
-    echo "  stop     Stop all dev processes and NATS container"
-    echo "  restart  Stop all processes and restart"
-    echo "  status   Show status of all dev processes"
+    echo "Usage: ./dev.sh [start|stop|status|restart|nats-reset] [--no-nats]"
+    echo "  start      Start frontend, backend, supervisor (default)"
+    echo "  stop       Stop all dev processes and NATS container"
+    echo "  restart    Stop all processes and restart"
+    echo "  status     Show status of all dev processes"
+    echo "  nats-reset Stop NATS, remove JetStream data, and restart"
     echo "  --no-nats  Skip starting NATS"
 }
 
 for arg in "$@"; do
     case "$arg" in
-        start|stop|status|restart)
+        start|stop|status|restart|nats-reset)
             MODE="$arg"
             ;;
         --no-nats)
@@ -83,6 +84,17 @@ stop_nats() {
         return
     fi
     $DOCKER_COMPOSE stop nats >/dev/null 2>&1 || true
+}
+
+reset_nats() {
+    detect_docker_compose
+    if [ -z "$DOCKER_COMPOSE" ]; then
+        echo -e "${RED}Docker Compose not available; cannot reset NATS${NC}"
+        return 1
+    fi
+    echo -e "${YELLOW}Stopping NATS and removing JetStream data...${NC}"
+    $DOCKER_COMPOSE down -v nats 2>/dev/null || true
+    echo -e "${GREEN}NATS data cleared. Stale consumers removed.${NC}"
 }
 
 show_nats_status() {
@@ -204,6 +216,13 @@ fi
 
 if [ "$MODE" = "status" ]; then
     show_status
+    exit 0
+fi
+
+if [ "$MODE" = "nats-reset" ]; then
+    stop_all
+    reset_nats
+    echo -e "${GREEN}Run ./dev.sh start to restart services${NC}"
     exit 0
 fi
 

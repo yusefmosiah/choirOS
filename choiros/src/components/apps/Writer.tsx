@@ -66,13 +66,6 @@ export function Writer({ artifactId, filePath, initialPrompt }: WriterProps) {
     const handleSendPrompt = useCallback((prompt: string) => {
         const trimmed = prompt.trim();
         if (!trimmed) return;
-        if (!isConnected) {
-            setConversation((prev) => [
-                ...prev,
-                { id: crypto.randomUUID(), role: 'system', content: 'Agent not connected.' },
-            ]);
-            return;
-        }
         ensureContextHeatmap();
         setConversation((prev) => [
             ...prev,
@@ -80,7 +73,7 @@ export function Writer({ artifactId, filePath, initialPrompt }: WriterProps) {
         ]);
         sendPrompt(trimmed);
         setDraftPrompt('');
-    }, [isConnected, sendPrompt, ensureContextHeatmap]);
+    }, [sendPrompt, ensureContextHeatmap]);
 
     // Load artifact content if artifactId is provided
     useEffect(() => {

@@ -9,6 +9,7 @@ import { AuthApp } from '../apps/Auth';
 import { Terminal } from '../apps/Terminal';
 import { Auditor } from '../apps/Auditor';
 import { ContextHeatmap } from '../apps/ContextHeatmap';
+import { ContextMindMap } from '../apps/ContextMindMap';
 
 // App component mapping
 const APP_COMPONENTS: Record<string, React.ComponentType<Record<string, unknown>>> = {
@@ -20,6 +21,7 @@ const APP_COMPONENTS: Record<string, React.ComponentType<Record<string, unknown>
     terminal: Terminal,
     auditor: Auditor,
     contextHeatmap: ContextHeatmap,
+    contextMindMap: ContextMindMap,
 };
 
 // Placeholder component for apps not yet implemented
