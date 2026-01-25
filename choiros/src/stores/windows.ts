@@ -22,7 +22,7 @@ interface WindowManagerState {
 }
 
 interface WindowStore extends WindowManagerState {
-    openWindow: (appId: string, props?: { title?: string; artifactId?: string }) => string;
+    openWindow: (appId: string, props?: { title?: string; artifactId?: string; filePath?: string; initialPrompt?: string }) => string;
     closeWindow: (id: string) => void;
     focusWindow: (id: string) => void;
     minimizeWindow: (id: string) => void;
@@ -39,6 +39,7 @@ const DEFAULT_SIZES: Record<string, { width: number; height: number }> = {
     files: { width: 700, height: 500 },
     terminal: { width: 700, height: 450 },
     git: { width: 500, height: 600 },
+    contextHeatmap: { width: 1100, height: 720 },
 };
 
 // App titles
@@ -47,6 +48,7 @@ const APP_TITLES: Record<string, string> = {
     files: 'Files',
     terminal: 'Terminal',
     git: 'Git',
+    contextHeatmap: 'Context Heatmap',
 };
 
 export const useWindowStore = create<WindowStore>((set, get) => ({
@@ -111,7 +113,7 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
             isMinimized: false,
             isMaximized: false,
             isFocused: true,
-            props: props.artifactId ? { artifactId: props.artifactId } : undefined,
+            props: Object.keys(props).length > 0 ? { ...props } : undefined,
         };
         // Unfocus all other windows
         const newWindows = new Map(windows);

@@ -1,6 +1,6 @@
 // App Registry
 import type { ComponentType } from 'react';
-import { FileText, Folder, Terminal, Mail, GitBranch, KeyRound, ShieldAlert } from 'lucide-react';
+import { FileText, Folder, Terminal, Mail, GitBranch, KeyRound, ShieldAlert, Activity } from 'lucide-react';
 
 export interface AppDefinition {
     id: string;
@@ -53,6 +53,12 @@ export const APP_REGISTRY: Record<string, AppDefinition> = {
         title: 'Auditor',
         icon: ShieldAlert,
         defaultSize: { width: 900, height: 600 },
+    },
+    contextHeatmap: {
+        id: 'contextHeatmap',
+        title: 'Context Heatmap',
+        icon: Activity,
+        defaultSize: { width: 1100, height: 720 },
     },
 };
 

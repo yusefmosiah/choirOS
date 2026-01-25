@@ -3,8 +3,8 @@ import { useState, useRef, type FormEvent } from 'react';
 import { useWindowStore } from '../../stores/windows';
 import { useSourcesStore } from '../../stores/sources';
 import { APP_REGISTRY } from '../../lib/apps';
-import { isUrl, createArtifact, type ParseMode } from '../../lib/api';
-import { useAgent, type AgentMessage } from '../../hooks/useAgent';
+import { isUrl, type ParseMode } from '../../lib/api';
+import { useAgent } from '../../hooks/useAgent';
 import { Upload, Link, Loader2, AlertCircle, Wifi, WifiOff, KeyRound } from 'lucide-react';
 import { useEventStore } from '../../stores/events';
 import './Taskbar.css';
@@ -25,14 +25,6 @@ export function Taskbar() {
     const addEvent = useEventStore((s) => s.addEvent);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Track agent response for saving as artifact
-    const agentResponseRef = useRef<{
-        prompt: string;
-        messages: string[];
-        error?: string;
-        saved?: boolean;
-    }>({ prompt: '', messages: [], error: undefined, saved: false });
-
     const windows = useWindowStore((s) => s.windows);
     const focusWindow = useWindowStore((s) => s.focusWindow);
     const restoreWindow = useWindowStore((s) => s.restoreWindow);
@@ -47,58 +39,23 @@ export function Taskbar() {
     const clearError = useSourcesStore((s) => s.clearError);
     const fetchArtifacts = useSourcesStore((s) => s.fetchArtifacts);
 
-    const saveAgentArtifact = async (content: string) => {
-        const { prompt } = agentResponseRef.current;
-        const name = `Agent: ${prompt.slice(0, 40)}${prompt.length > 40 ? '...' : ''}`;
-        const result = await createArtifact({ name, content, source_type: 'agent' });
-        await fetchArtifacts();
-        openWindow('writer', { title: result.name, artifactId: result.artifact_id });
-        showToast(`Saved: ${result.name}`, 'success', result.artifact_id);
-    };
-
-    const finalizeAgentArtifact = async (fallbackMessage?: string) => {
-        const { prompt, messages, error, saved } = agentResponseRef.current;
-        if (!prompt || saved) return;
-        agentResponseRef.current.saved = true;
-        const response =
-            messages.length > 0
-                ? messages.join('\n\n')
-                : error
-                  ? `Error: ${error}`
-                  : fallbackMessage || 'No response received.';
-        try {
-            const content = `# ${prompt}\n\n${response}`;
-            await saveAgentArtifact(content);
-        } catch {
-            showToast('Agent done (failed to save)', 'error');
-        } finally {
-            agentResponseRef.current = { prompt: '', messages: [], error: undefined, saved: false };
-        }
-    };
-
-    // Agent WebSocket connection
-    const { sendPrompt, isProcessing: isAgentProcessing, isConnected: isAgentConnected } = useAgent({
-        onMessage: async (message: AgentMessage) => {
-            if (message.type === 'text' && typeof message.content === 'string') {
-                agentResponseRef.current.messages.push(message.content);
-                showToast(message.content.slice(0, 80) + '...', 'info');
-            } else if (message.type === 'tool_use' && typeof message.content === 'object') {
-                const tool = (message.content as { tool?: string })?.tool || 'tool';
-                showToast(`Using ${tool}...`, 'info');
-            } else if (message.type === 'error') {
-                agentResponseRef.current.error = String(message.content);
-                showToast(String(message.content), 'error');
-                await finalizeAgentArtifact('Agent error.');
-            } else if (message.type === 'done') {
-                await finalizeAgentArtifact('Agent completed without a response.');
-            }
-        },
-    });
+    const { isProcessing: isAgentProcessing, isConnected: isAgentConnected } = useAgent();
 
     const showToast = (message: string, type: 'info' | 'success' | 'error' | 'thinking' = 'info', artifactId?: string) => {
         addEvent(message, type, artifactId);
     };
 
+    const openContextHeatmap = () => {
+        const existing = Array.from(windows.values()).find((win) => win.appId === 'contextHeatmap');
+        if (existing) {
+            if (existing.isMinimized) {
+                restoreWindow(existing.id);
+            }
+            focusWindow(existing.id);
+            return;
+        }
+        openWindow('contextHeatmap');
+    };
 
     const parseWithMode = async (url: string, mode: ParseMode) => {
         showToast('Parsing URL...', 'info');
@@ -156,16 +113,15 @@ export function Taskbar() {
             return;
         }
 
-        // Send to agent
-        if (isAgentConnected) {
-            // Capture prompt for artifact naming
-            agentResponseRef.current = { prompt: trimmedInput, messages: [], error: undefined, saved: false };
-            sendPrompt(trimmedInput);
-            setInput('');
-            showToast('Sending to agent...', 'info');
-        } else {
+        if (!isAgentConnected) {
             showToast('Agent not connected', 'error');
+            return;
         }
+
+        openContextHeatmap();
+        openWindow('writer', { title: 'Conversation', initialPrompt: trimmedInput });
+        setInput('');
+        showToast('Opened conversation', 'info');
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

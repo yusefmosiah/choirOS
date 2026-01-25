@@ -14,6 +14,7 @@ const DESKTOP_ICONS = [
     { appId: 'mail', label: 'Mail' },
     { appId: 'git', label: 'Git' },
     { appId: 'auth', label: 'Auth' },
+    { appId: 'contextHeatmap', label: 'Context Heatmap' },
 ];
 
 export function Desktop() {

@@ -52,6 +52,9 @@ Status: ACTIVE
 - docs/reviews/work_log-jan-15.md
 - docs/reviews/docs_reconciliation.md
 
+## Architecture
+- docs/architecture/CONTEXT_HEATMAP_ARCH.md
+
 ## Handoffs and Reports (Archived)
 - All handoffs moved to `docs/archive/` — see issue tracker `docs/reviews/issues-2026-01-18.md` for current status.
 
