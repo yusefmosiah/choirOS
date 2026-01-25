@@ -17,6 +17,16 @@ client<llm> ClaudeBedrock {
   }
 }
 
+// Z.ai provider using Anthropic-compatible API
+client<llm> ClaudeZAI {
+  provider anthropic
+  options {
+    api_key env.ZAI_API_KEY
+    base_url "https://api.z.ai/api/anthropic"
+    model "glm-4.7"
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Types: Structured outputs for verification
 // ─────────────────────────────────────────────────────────────────────────────

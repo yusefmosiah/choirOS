@@ -37,16 +37,9 @@ export function Taskbar() {
     const isUploading = useSourcesStore((s) => s.isUploading);
     const error = useSourcesStore((s) => s.error);
     const clearError = useSourcesStore((s) => s.clearError);
-    const fetchArtifacts = useSourcesStore((s) => s.fetchArtifacts);
 
-    const { isProcessing: isAgentProcessing, isConnected: isAgentConnected } = useAgent();
-
-    const showToast = (message: string, type: 'info' | 'success' | 'error' | 'thinking' = 'info', artifactId?: string) => {
-        addEvent(message, type, artifactId);
-    };
-
-    const openContextHeatmap = () => {
-        const existing = Array.from(windows.values()).find((win) => win.appId === 'contextHeatmap');
+    const openRunMap = () => {
+        const existing = Array.from(windows.values()).find((win) => win.appId === 'runMap');
         if (existing) {
             if (existing.isMinimized) {
                 restoreWindow(existing.id);
@@ -54,7 +47,19 @@ export function Taskbar() {
             focusWindow(existing.id);
             return;
         }
-        openWindow('contextHeatmap');
+        openWindow('runMap');
+    };
+
+    const { isProcessing: isAgentProcessing, isConnected: isAgentConnected, sendPrompt } = useAgent({
+        onMessage: (message) => {
+            if (message.type === 'enqueued') {
+                openRunMap();
+            }
+        },
+    });
+
+    const showToast = (message: string, type: 'info' | 'success' | 'error' | 'thinking' = 'info', artifactId?: string) => {
+        addEvent(message, type, artifactId);
     };
 
     const parseWithMode = async (url: string, mode: ParseMode) => {
@@ -118,10 +123,10 @@ export function Taskbar() {
             return;
         }
 
-        openContextHeatmap();
-        openWindow('writer', { title: 'Conversation', initialPrompt: trimmedInput });
+        openRunMap();
+        sendPrompt(trimmedInput, { inputKind: 'initial' });
         setInput('');
-        showToast('Opened conversation', 'info');
+        showToast('Run enqueued', 'info');
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

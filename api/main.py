@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routers import parse, artifacts, auth
+from api.routers import parse, artifacts, auth, settings
 from shared.auth_middleware import AuthMiddleware
 
 app = FastAPI(
@@ -33,6 +33,7 @@ app.add_middleware(
 app.include_router(parse.router, prefix="/api/parse", tags=["parse"])
 app.include_router(artifacts.router, prefix="/api/artifacts", tags=["artifacts"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
 
 
 @app.get("/health")

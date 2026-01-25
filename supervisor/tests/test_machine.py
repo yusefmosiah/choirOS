@@ -73,6 +73,7 @@ class TestMachine(unittest.TestCase):
         machine = Machine(store=self.store, executor=executor, session_id="s1")
 
         async def run_test():
+            work_item = self.store.create_work_item(description="hello", status="queued")
             event = type(
                 "Event",
                 (),
@@ -81,14 +82,18 @@ class TestMachine(unittest.TestCase):
                     "payload": {
                         "mode": "CALM",
                         "prompt": "hello",
-                        "work_item_id": "w1",
+                        "work_item_id": work_item["id"],
                         "session_id": "s1",
                     },
                 },
             )()
             await machine.handle_event(event)
-            self.assertEqual(ran, ["hello"])
+            self.assertEqual(ran, [])
+            updated = self.store.get_work_item(work_item["id"])
+            self.assertIsNotNone(updated)
+            self.assertEqual(updated["status"], "queued")
 
+            other_item = self.store.create_work_item(description="skip", status="queued")
             other_event = type(
                 "Event",
                 (),
@@ -97,13 +102,13 @@ class TestMachine(unittest.TestCase):
                     "payload": {
                         "mode": "CALM",
                         "prompt": "skip",
-                        "work_item_id": "w2",
+                        "work_item_id": other_item["id"],
                         "session_id": "s2",
                     },
                 },
             )()
             await machine.handle_event(other_event)
-            self.assertEqual(ran, ["hello"])
+            self.assertEqual(ran, [])
 
         asyncio.run(run_test())
 

@@ -446,21 +446,30 @@ async def update_run(run_id: str, payload: RunUpdatePayload):
 @app.get("/run/{run_id}")
 async def get_run(run_id: str):
     store = get_store()
-    run = store.get_run(run_id)
+    run = store.get_run_with_work_item(run_id) or store.get_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
-    return {"run": run}
+    return {"run": run, "inputs": store.list_run_inputs(run_id)}
 
 
 @app.get("/runs")
 async def list_runs(status: Optional[str] = None, limit: int = 50):
     store = get_store()
-    return {"runs": store.list_runs(status=status, limit=limit)}
+    return {"runs": store.list_runs_with_work_items(status=status, limit=limit)}
 
 
-@app.get("/run/{run_id}/timeline")
+@app.get("/runs/{run_id}")
+async def get_run_with_work_item(run_id: str):
+    store = get_store()
+    run = store.get_run_with_work_item(run_id) or store.get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return {"run": run, "inputs": store.list_run_inputs(run_id)}
+
+
+@app.get("/runs/{run_id}/timeline")
 async def get_run_timeline(run_id: str):
-    """Get unified timeline of all events/notes/verifications for a run (Context Graph v0)."""
+    """Get unified timeline of all events/notes/verifications for a run."""
     store = get_store()
     timeline = store.get_run_timeline(run_id)
     if timeline["run"] is None:
@@ -821,6 +830,8 @@ async def agent_websocket(websocket: WebSocket):
             # Receive prompt from ? bar
             data = await websocket.receive_json()
             prompt = data.get("prompt", "")
+            requested_run_id = data.get("run_id")
+            input_kind = data.get("input_kind") or ("followup" if requested_run_id else "initial")
 
             if not prompt:
                 await websocket.send_json({"type": "error", "content": "No prompt provided"})
@@ -844,26 +855,42 @@ async def agent_websocket(websocket: WebSocket):
                 continue
             recent_prompts.append(now)
 
+            work_item = store.create_work_item(description=prompt, status="queued")
+            work_item_id = work_item["id"]
+            run_id = work_item.get("run_id")
+
+            if requested_run_id:
+                store.add_run_input(requested_run_id, prompt, kind=input_kind)
+                store.update_work_item(work_item_id, {"run_id": requested_run_id})
+                store.update_run(requested_run_id, {"status": "queued"})
+                run_id = requested_run_id
+            elif run_id:
+                store.add_run_input(run_id, prompt, kind=input_kind)
+
+            await websocket.send_json(
+                {
+                    "type": "enqueued",
+                    "work_item_id": work_item_id,
+                    "content": {
+                        "work_item_id": work_item_id,
+                        "run_id": run_id,
+                        "status": "queued",
+                    },
+                }
+            )
+
             if NATS_ENABLED and listener_ready:
-                # TODO: This path bypasses the machine queue logic if NATS is on?
-                # For now, let's funnel everything through handle_prompt if we want the queue to be the source of truth.
-                # But NATS is "system" injection.
                 store.append(
                     "mode.start",
                     {
                         "mode": "CALM",
                         "prompt": prompt,
+                        "work_item_id": work_item_id,
+                        "run_id": run_id,
                         "session_id": session_id,
                     },
                     source="system",
                 )
-            else:
-                work_item_id = await machine.handle_prompt(prompt)
-                await websocket.send_json({
-                    "type": "enqueued",
-                    "work_item_id": work_item_id,
-                    "content": "Command enqueued."
-                })
 
     except WebSocketDisconnect:
         pass
@@ -957,6 +984,8 @@ def main():
     """Run the supervisor server."""
     import uvicorn
 
+    reload_enabled = os.environ.get("SUPERVISOR_RELOAD", "1") == "1"
+
     # Handle SIGTERM gracefully
     def handle_sigterm(signum, frame):
         raise SystemExit(0)
@@ -970,8 +999,8 @@ def main():
         "supervisor.main:app",
         host="0.0.0.0",
         port=8001,
-        reload=True,
-        reload_dirs=reload_dirs,
+        reload=reload_enabled,
+        reload_dirs=reload_dirs if reload_enabled else None,
     )
 
 

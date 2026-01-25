@@ -120,8 +120,18 @@ class VerifierRunner:
         """Call BAML to analyze command output. Returns None on failure."""
         try:
             from .baml_client import b
+            from .provider_factory import get_provider_factory
 
-            result = await b.AnalyzeVerifierOutput(
+            # Get the current provider's BAML client
+            db = self.store.event_store if self.store else None
+            if db is None:
+                from .db import get_store
+                db = get_store()
+
+            factory = get_provider_factory(db)
+            client = factory.get_baml_client()
+
+            result = await b.with_options(client=client).AnalyzeVerifierOutput(
                 command=command_str,
                 exit_code=exit_code,
                 stdout=stdout,

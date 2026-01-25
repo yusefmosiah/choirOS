@@ -142,6 +142,8 @@ class EventStore:
                 dependencies JSON,
                 status TEXT NOT NULL,
                 parent_id TEXT,
+                runner_id TEXT,
+                run_id TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -201,7 +203,34 @@ class EventStore:
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+
+            -- Run inputs (initial prompts + follow-ups)
+            CREATE TABLE IF NOT EXISTS run_inputs (
+                id TEXT PRIMARY KEY,
+                run_id TEXT REFERENCES runs(id),
+                prompt TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            -- User settings (provider config, etc)
+            CREATE TABLE IF NOT EXISTS user_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
         """)
+        self.conn.commit()
+        # Idempotent, lightweight migrations for existing local databases.
+        self._ensure_column("work_items", "runner_id", "TEXT")
+        self._ensure_column("work_items", "run_id", "TEXT")
+
+    def _ensure_column(self, table: str, column: str, column_type: str) -> None:
+        cursor = self.conn.execute(f"PRAGMA table_info({table})")
+        columns = {row["name"] for row in cursor.fetchall()}
+        if column in columns:
+            return
+        self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}")
         self.conn.commit()
 
     async def _get_nats(self) -> Optional[NATSClient]:
@@ -568,6 +597,7 @@ class EventStore:
             DELETE FROM run_notes;
             DELETE FROM run_verifications;
             DELETE FROM run_commit_requests;
+            DELETE FROM run_inputs;
             DELETE FROM events;
         """)
         self.conn.commit()
@@ -606,6 +636,7 @@ class EventStore:
             DELETE FROM run_notes;
             DELETE FROM run_verifications;
             DELETE FROM run_commit_requests;
+            DELETE FROM run_inputs;
         """)
         self.conn.commit()
 
@@ -804,14 +835,22 @@ class EventStore:
         self,
         conversation_id: int,
         role: str,
-        content: str
+        content: str,
+        run_id: Optional[str] = None,
     ) -> int:
         """Add a message to conversation, logging it as an event (async version)."""
-        seq = await self.append_async("message", {
+        payload: dict[str, Any] = {
             "conversation_id": conversation_id,
             "role": role,
-            "content": content
-        }, source="user" if role == "user" else "agent")
+            "content": content,
+        }
+        if run_id:
+            payload["run_id"] = run_id
+        seq = await self.append_async(
+            "message",
+            payload,
+            source="user" if role == "user" else "agent",
+        )
 
         # Materialize to messages table
         self.conn.execute(
@@ -833,15 +872,23 @@ class EventStore:
         self,
         conversation_id: int,
         role: str,
-        content: str
+        content: str,
+        run_id: Optional[str] = None,
     ) -> int:
         """Add a message to conversation, logging it as an event."""
         # Append to event log
-        seq = self.append("message", {
+        payload: dict[str, Any] = {
             "conversation_id": conversation_id,
             "role": role,
-            "content": content
-        }, source="user" if role == "user" else "agent")
+            "content": content,
+        }
+        if run_id:
+            payload["run_id"] = run_id
+        seq = self.append(
+            "message",
+            payload,
+            source="user" if role == "user" else "agent",
+        )
 
         # Materialize to messages table
         self.conn.execute(
@@ -882,15 +929,19 @@ class EventStore:
         conversation_id: int,
         tool_name: str,
         tool_input: dict,
-        tool_result: Any = None
+        tool_result: Any = None,
+        run_id: Optional[str] = None,
     ) -> int:
         """Log a tool call as an event (async version)."""
-        seq = await self.append_async("tool.call", {
+        payload: dict[str, Any] = {
             "conversation_id": conversation_id,
             "tool_name": tool_name,
             "tool_input": tool_input,
-            "tool_result": tool_result
-        }, source="agent")
+            "tool_result": tool_result,
+        }
+        if run_id:
+            payload["run_id"] = run_id
+        seq = await self.append_async("tool.call", payload, source="agent")
 
         self.conn.execute(
             """INSERT INTO tool_calls
@@ -907,15 +958,19 @@ class EventStore:
         conversation_id: int,
         tool_name: str,
         tool_input: dict,
-        tool_result: Any = None
+        tool_result: Any = None,
+        run_id: Optional[str] = None,
     ) -> int:
         """Log a tool call as an event."""
-        seq = self.append("tool.call", {
+        payload: dict[str, Any] = {
             "conversation_id": conversation_id,
             "tool_name": tool_name,
             "tool_input": tool_input,
-            "tool_result": tool_result
-        }, source="agent")
+            "tool_result": tool_result,
+        }
+        if run_id:
+            payload["run_id"] = run_id
+        seq = self.append("tool.call", payload, source="agent")
 
         self.conn.execute(
             """INSERT INTO tool_calls
@@ -1055,8 +1110,8 @@ class EventStore:
         self.conn.execute(
             """INSERT INTO work_items
                (id, description, acceptance_criteria, required_verifiers, risk_tier,
-                dependencies, status, parent_id, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                dependencies, status, parent_id, runner_id, run_id, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 work_item_id,
                 description,
@@ -1066,12 +1121,17 @@ class EventStore:
                 json.dumps(dependencies or []),
                 status,
                 parent_id,
+                None,
+                None,
                 now,
                 now,
             ),
         )
         self.conn.commit()
-        return self.get_work_item(work_item_id)
+        run = self.create_run(work_item_id=work_item_id, status="created")
+        if status == "queued":
+            self.update_run(run["id"], {"status": "queued"})
+        return self.update_work_item(work_item_id, {"run_id": run["id"]})
 
     def update_work_item(self, work_item_id: str, updates: dict) -> Optional[dict]:
         """Update fields on a work item."""
@@ -1083,6 +1143,8 @@ class EventStore:
             "dependencies",
             "status",
             "parent_id",
+            "runner_id",
+            "run_id",
         }
         fields = {k: updates[k] for k in updates if k in allowed}
         if not fields:
@@ -1100,6 +1162,45 @@ class EventStore:
         self.conn.execute(f"UPDATE work_items SET {set_clause} WHERE id = ?", values)
         self.conn.commit()
         return self.get_work_item(work_item_id)
+
+    def claim_next_work_item(self, runner_id: str) -> Optional[dict]:
+        """
+        Atomically claim the next queued work item.
+
+        This prevents multiple websocket sessions from executing the same prompt.
+        """
+        now = datetime.now().isoformat()
+        with self.conn:
+            row = self.conn.execute(
+                "SELECT id FROM work_items WHERE status = 'queued' ORDER BY created_at ASC LIMIT 1"
+            ).fetchone()
+            if not row:
+                return None
+            work_item_id = row["id"]
+            cursor = self.conn.execute(
+                """
+                UPDATE work_items
+                SET status = 'running', runner_id = ?, updated_at = ?
+                WHERE id = ? AND status = 'queued'
+                """,
+                (runner_id, now, work_item_id),
+            )
+            if cursor.rowcount == 0:
+                return None
+        return self.get_work_item(work_item_id)
+
+    def get_or_create_run_for_work_item(self, work_item_id: str) -> Optional[dict]:
+        work_item = self.get_work_item(work_item_id)
+        if not work_item:
+            return None
+        run_id = work_item.get("run_id")
+        if run_id:
+            run = self.get_run(run_id)
+            if run:
+                return run
+        run = self.create_run(work_item_id=work_item_id, status="created")
+        self.update_work_item(work_item_id, {"run_id": run["id"]})
+        return run
 
     def get_work_item(self, work_item_id: str) -> Optional[dict]:
         cursor = self.conn.execute("SELECT * FROM work_items WHERE id = ?", (work_item_id,))
@@ -1162,6 +1263,14 @@ class EventStore:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_latest_run_for_work_item(self, work_item_id: str) -> Optional[dict]:
+        cursor = self.conn.execute(
+            "SELECT * FROM runs WHERE work_item_id = ? ORDER BY created_at DESC LIMIT 1",
+            (work_item_id,),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
     def list_runs(self, status: Optional[str] = None, limit: int = 50) -> list[dict]:
         if status:
             cursor = self.conn.execute(
@@ -1173,6 +1282,77 @@ class EventStore:
                 "SELECT * FROM runs ORDER BY created_at DESC LIMIT ?",
                 (limit,),
             )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def list_runs_with_work_items(self, status: Optional[str] = None, limit: int = 50) -> list[dict]:
+        if status:
+            cursor = self.conn.execute(
+                """
+                SELECT runs.*, work_items.description AS prompt, work_items.status AS work_item_status
+                FROM runs
+                JOIN work_items ON work_items.id = runs.work_item_id
+                WHERE runs.status = ?
+                ORDER BY runs.created_at DESC
+                LIMIT ?
+                """,
+                (status, limit),
+            )
+        else:
+            cursor = self.conn.execute(
+                """
+                SELECT runs.*, work_items.description AS prompt, work_items.status AS work_item_status
+                FROM runs
+                JOIN work_items ON work_items.id = runs.work_item_id
+                ORDER BY runs.created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_run_with_work_item(self, run_id: str) -> Optional[dict]:
+        cursor = self.conn.execute(
+            """
+            SELECT runs.*, work_items.description AS prompt, work_items.status AS work_item_status
+            FROM runs
+            JOIN work_items ON work_items.id = runs.work_item_id
+            WHERE runs.id = ?
+            LIMIT 1
+            """,
+            (run_id,),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def add_run_input(self, run_id: str, prompt: str, kind: str = "initial") -> dict:
+        now = datetime.now().isoformat()
+        run_input_id = str(uuid.uuid4())
+        self.conn.execute(
+            """
+            INSERT INTO run_inputs (id, run_id, prompt, kind, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (run_input_id, run_id, prompt, kind, now),
+        )
+        self.conn.commit()
+        return {
+            "id": run_input_id,
+            "run_id": run_id,
+            "prompt": prompt,
+            "kind": kind,
+            "created_at": now,
+        }
+
+    def list_run_inputs(self, run_id: str, limit: int = 200) -> list[dict]:
+        cursor = self.conn.execute(
+            """
+            SELECT * FROM run_inputs
+            WHERE run_id = ?
+            ORDER BY created_at ASC
+            LIMIT ?
+            """,
+            (run_id, limit),
+        )
         return [dict(row) for row in cursor.fetchall()]
 
     async def add_run_note_async(self, run_id: str, note_type: str, body: dict) -> int:
@@ -1320,14 +1500,17 @@ class EventStore:
         Returns:
             {
                 "run": {...},
+                "inputs": [...],
                 "notes": [...],
                 "verifications": [...],
                 "events": [...],  # events with run_id in payload
             }
         """
-        run = self.get_run(run_id)
+        run = self.get_run_with_work_item(run_id) or self.get_run(run_id)
         if not run:
-            return {"run": None, "notes": [], "verifications": [], "events": []}
+            return {"run": None, "inputs": [], "notes": [], "verifications": [], "events": []}
+
+        inputs = self.list_run_inputs(run_id)
 
         # Get notes
         cursor = self.conn.execute(
@@ -1366,6 +1549,7 @@ class EventStore:
 
         return {
             "run": run,
+            "inputs": inputs,
             "notes": notes,
             "verifications": verifications,
             "events": events,
@@ -1390,10 +1574,33 @@ class EventStore:
         """Get the last known-good checkpoint commit SHA."""
         return self.get_sync_state("last_good_checkpoint")
 
-    def set_last_good_checkpoint(self, commit_sha: str) -> None:
+    def set_last_good_checkpoint(self,commit_sha: str) -> None:
         """Set the last known-good checkpoint commit SHA."""
         if commit_sha:
             self.set_sync_state("last_good_checkpoint", commit_sha)
+
+    # =========== User Settings ==========
+
+    def get_setting(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        """Get a user setting by key."""
+        cursor = self.conn.execute(
+            "SELECT value FROM user_settings WHERE key = ?",
+            (key,),
+        )
+        row = cursor.fetchone()
+        if row:
+            return row["value"]
+        return default
+
+    def set_setting(self, key: str, value: str) -> None:
+        """Set a user setting by key (upsert)."""
+        self.conn.execute(
+            """INSERT INTO user_settings (key, value, updated_at)
+               VALUES (?, ?, datetime('now'))
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')""",
+            (key, value),
+        )
+        self.conn.commit()
 
     async def close_async(self):
         """Close database and NATS connections."""

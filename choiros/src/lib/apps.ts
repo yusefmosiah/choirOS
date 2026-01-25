@@ -1,6 +1,6 @@
 // App Registry
 import type { ComponentType } from 'react';
-import { FileText, Folder, Terminal, Mail, GitBranch, KeyRound, ShieldAlert, Activity, Network } from 'lucide-react';
+import { FileText, Folder, Terminal, Mail, GitBranch, KeyRound, ShieldAlert, Activity, Network, Settings } from 'lucide-react';
 
 export interface AppDefinition {
     id: string;
@@ -65,6 +65,12 @@ export const APP_REGISTRY: Record<string, AppDefinition> = {
         title: 'Context Mind Map',
         icon: Network,
         defaultSize: { width: 900, height: 700 },
+    },
+    settings: {
+        id: 'settings',
+        title: 'Settings',
+        icon: Settings,
+        defaultSize: { width: 600, height: 500 },
     },
 };
 

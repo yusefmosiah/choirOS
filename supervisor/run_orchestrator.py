@@ -318,7 +318,11 @@ class RunOrchestrator:
             if prompt:
                 try:
                     from .baml_client import b
-                    baml_assessment = await b.AssessTask(prompt=prompt)
+                    from .provider_factory import get_provider_factory
+
+                    factory = get_provider_factory(self.store)
+                    client = factory.get_baml_client()
+                    baml_assessment = await b.with_options(client=client).AssessTask(prompt=prompt)
                     self.store.add_run_note(
                         run_id,
                         "note.observation",

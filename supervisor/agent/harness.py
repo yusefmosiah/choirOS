@@ -96,10 +96,15 @@ class AgentHarness:
                     indent=2,
                 )
 
-                stream = b.stream.PlanAction(
+                # Get the current provider's BAML client
+                from ..provider_factory import get_provider_factory
+                factory = get_provider_factory(self.store)
+                client = factory.get_baml_client()
+
+                stream = b.with_options(client=client).stream.PlanAction(
                     messages=self.message_history,
                     system_context=system_context,
-                    available_tools=tool_defs_str
+                    available_tools=tool_defs_str,
                 )
 
                 async for chunk in stream:

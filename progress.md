@@ -85,3 +85,23 @@
 - Decide event source-of-truth (NATS-only vs SQLite-first) and implement projector if moving to NATS-only.
 - Migrate/clean legacy in-memory artifacts (normalize names/paths) and add a simple backfill tool.
 - Reduce event stream noise and add backpressure/batching on WS stream.
+
+# Progress (2026-01-25)
+
+## Completed
+- Added a run-first spec: `docs/specs/RUNMAP_ARTIFACT_LINEAGE_SPEC.md`.
+- Implemented run-scoped queue behavior in `Machine` (claim-next-work-item + run_id propagation).
+- Extended `EventStore` with `runner_id`/`run_id` on work items and added run inputs + run/timeline queries.
+- Added RunMap UI (`choiros/src/components/apps/RunMap.tsx`) and wired it into windows + taskbar.
+- Taskbar now opens RunMap on enqueue and sends initial prompts as run inputs.
+
+## In Progress / Known Issues
+- `supervisor/tests/test_machine.py::test_handle_event_filters_session` still reflects old (execute-immediately) semantics.
+- Supervisor must be restarted in the background to avoid blocking the session and to pick up run-first changes.
+- There are unrelated local changes in the tree; avoid reverting user-authored work.
+
+## Next Steps
+- Patch the failing Machine test to match queue-only NATS handling.
+- Run targeted supervisor tests with `PYTHONPATH=/Users/wiz/choirOS`.
+- Restart supervisor cleanly in the background and verify `/runs` + `/runs/{id}/timeline`.
+- Validate the RunMap UI end-to-end and capture a screenshot of the current state.

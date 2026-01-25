@@ -10,6 +10,7 @@ import { Terminal } from '../apps/Terminal';
 import { Auditor } from '../apps/Auditor';
 import { ContextHeatmap } from '../apps/ContextHeatmap';
 import { ContextMindMap } from '../apps/ContextMindMap';
+import { RunMap } from '../apps/RunMap';
 
 // App component mapping
 const APP_COMPONENTS: Record<string, React.ComponentType<Record<string, unknown>>> = {
@@ -22,6 +23,7 @@ const APP_COMPONENTS: Record<string, React.ComponentType<Record<string, unknown>
     auditor: Auditor,
     contextHeatmap: ContextHeatmap,
     contextMindMap: ContextMindMap,
+    runMap: RunMap,
 };
 
 // Placeholder component for apps not yet implemented

@@ -175,6 +175,7 @@ class NATSClient:
             config=ConsumerConfig(
                 deliver_policy="by_start_sequence",
                 opt_start_seq=start_seq,
+                ack_policy="none",
             ),
         )
 
@@ -186,7 +187,6 @@ class NATSClient:
                 if msg.metadata:
                     nats_seq = msg.metadata.sequence.stream
                 events.append((event, nats_seq))
-                await msg.ack()
         except nats.errors.TimeoutError:
             pass  # No more messages
 
@@ -212,15 +212,20 @@ class NATSClient:
         async def message_handler(msg):
             event = ChoirEvent.from_json(msg.data)
             await callback(event)
-            await msg.ack()
 
-        # Determine stream from subject
+        # For ephemeral listeners (the common case), prefer core NATS to avoid JetStream acks.
+        if durable is None:
+            await self.nc.subscribe(subject, cb=message_handler)
+            return
+
+        # Durable subscriptions still go through JetStream.
         await self.js.subscribe(
             subject,
             cb=message_handler,
             stream=CHOIR_STREAM,
             durable=durable,
-            manual_ack=True,
+            manual_ack=False,
+            config=ConsumerConfig(ack_policy="none"),
         )
 
 

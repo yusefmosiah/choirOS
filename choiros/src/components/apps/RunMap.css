@@ -1,0 +1,277 @@
+.runmap {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.runmap-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.runmap-title {
+    font-weight: 600;
+    letter-spacing: 0.2px;
+}
+
+.runmap-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.runmap-toggle,
+.runmap-refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.runmap-toggle:hover,
+.runmap-refresh:hover {
+    background: var(--bg-hover);
+}
+
+.runmap-refresh:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.runmap-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    min-height: 0;
+}
+
+.runmap-sidebar {
+    border-right: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.runmap-sidebar-title {
+    padding: 10px 12px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.runmap-runlist {
+    overflow: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.runmap-runitem {
+    text-align: left;
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.runmap-runitem:hover {
+    border-color: var(--border-color);
+    background: var(--bg-hover);
+}
+
+.runmap-runitem.active {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 1px rgba(var(--accent-primary-rgb, 59, 130, 246), 0.25);
+}
+
+.runmap-runitem-title {
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.runmap-runitem-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.runmap-main {
+    padding: 12px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.runmap-panel {
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 10px 12px;
+}
+
+.runmap-panel-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.runmap-kv {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 6px 10px;
+    font-size: 13px;
+}
+
+.runmap-inputs {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.runmap-inputs li {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-primary);
+}
+
+.pill {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    padding: 2px 6px;
+    border-radius: 999px;
+}
+
+.runmap-events {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+}
+
+.runmap-event-card {
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    border-radius: 10px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+}
+
+.runmap-event-type {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.runmap-event-count {
+    font-weight: 600;
+}
+
+.runmap-followup {
+    display: flex;
+    gap: 8px;
+}
+
+.runmap-followup input {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.runmap-followup button {
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: var(--accent-gold);
+    color: #111;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.runmap-empty {
+    color: var(--text-secondary);
+    font-size: 13px;
+    padding: 8px;
+}
+
+.runmap-empty.large {
+    padding: 24px;
+}
+
+.mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+    word-break: break-all;
+}
+
+.status {
+    padding: 2px 6px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+}
+
+.status-running {
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.4);
+}
+
+.status-completed {
+    color: #22c55e;
+    border-color: rgba(34, 197, 94, 0.4);
+}
+
+.status-failed {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+.spinning {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+

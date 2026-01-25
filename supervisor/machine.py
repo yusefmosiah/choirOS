@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Awaitable, Callable, Optional, Any
 
 from .db import EventStore
@@ -17,6 +18,7 @@ class ModeDirective:
     mode_id: str
     prompt: str
     work_item_id: str
+    run_id: str
     allow_write: bool
     session_id: Optional[str] = None
 
@@ -61,15 +63,23 @@ class Machine:
             try:
                 # Acquire lock for entire claim-execute cycle to ensure serialization
                 async with self._writer_lock:
-                    # 1. Poll for queued work (FIFO by created_at)
-                    items = self.store.list_work_items(status="queued", limit=1)
-                    if not items:
+                    # 1. Atomically claim queued work (FIFO by created_at)
+                    runner_id = self.session_id or "machine"
+                    item = self.store.claim_next_work_item(runner_id)
+                    if not item:
                         # Release lock briefly before sleeping
                         pass
                     else:
-                        item = items[0]
                         work_item_id = item["id"]
                         prompt = item["description"]
+                        run = self.store.get_or_create_run_for_work_item(work_item_id)
+                        if not run:
+                            await asyncio.sleep(0.1)
+                            continue
+                        run_id = run["id"]
+                        existing_inputs = self.store.list_run_inputs(run_id, limit=1)
+                        if not existing_inputs:
+                            self.store.add_run_input(run_id, prompt, kind="initial")
 
                         # 2. Determine mode (TODO: AHDB selector)
                         mode_config = self._select_mode(prompt)
@@ -78,17 +88,26 @@ class Machine:
                             mode_id=mode_config.mode_id,
                             prompt=prompt,
                             work_item_id=work_item_id,
+                            run_id=run_id,
                             allow_write=mode_config.allow_write,
                             session_id=self.session_id,
                         )
 
                         # 3. Mark as running, execute, then mark completed
-                        self.store.update_work_item(work_item_id, {"status": "running"})
                         try:
+                            started_at = datetime.now().isoformat()
+                            self.store.update_run(
+                                run_id,
+                                {"status": "running", "started_at": started_at},
+                            )
                             await self._run_directive(directive, emit_start=True)
                             self.store.update_work_item(work_item_id, {"status": "completed"})
+                            finished_at = datetime.now().isoformat()
+                            self.store.update_run(run_id, {"status": "completed", "finished_at": finished_at})
                         except Exception as exec_err:
                             self.store.update_work_item(work_item_id, {"status": "failed"})
+                            failed_at = datetime.now().isoformat()
+                            self.store.update_run(run_id, {"status": "failed", "finished_at": failed_at})
                             raise exec_err
                         continue  # Check for more work immediately
 
@@ -139,25 +158,20 @@ class Machine:
         session_id = payload.get("session_id")
         if self.session_id and session_id and session_id != self.session_id:
             return
-        mode_id = payload.get("mode") or payload.get("mode") or "CALM"
         prompt = payload.get("prompt") or ""
         work_item_id = payload.get("work_item_id")
         if not work_item_id:
-            work_item = self.store.create_work_item(description=prompt, status="queued")
-            work_item_id = work_item["id"]
-        mode_config = get_mode_config(mode_id)
-        directive = ModeDirective(
-            mode_id=mode_config.mode_id,
-            prompt=prompt,
-            work_item_id=work_item_id,
-            allow_write=payload.get("allow_write", mode_config.allow_write),
-            session_id=session_id,
-        )
-        if directive.allow_write:
-            async with self._writer_lock:
-                await self._run_directive(directive, emit_start=False)
-        else:
-            await self._run_directive(directive, emit_start=False)
+            self.store.create_work_item(description=prompt, status="queued")
+            return
+        existing = self.store.get_work_item(work_item_id)
+        if existing is None:
+            self.store.create_work_item(description=prompt, status="queued")
+            return
+        if existing.get("status") not in {"running"}:
+            self.store.update_work_item(work_item_id, {"status": "queued"})
+        run = self.store.get_or_create_run_for_work_item(work_item_id)
+        if run and run.get("status") not in {"running"}:
+            self.store.update_run(run["id"], {"status": "queued"})
 
     async def listen_for_directives(self) -> bool:
         try:
@@ -177,6 +191,7 @@ class Machine:
                 {
                     "mode": directive.mode_id,
                     "work_item_id": directive.work_item_id,
+                    "run_id": directive.run_id,
                     "allow_write": directive.allow_write,
                     "prompt": directive.prompt,
                     "session_id": directive.session_id,
@@ -184,21 +199,22 @@ class Machine:
                 source="system",
             )
         result = await self.executor(directive)
-        if result.run_id:
-            self.store.append(
-                "mode.update",
-                {
-                    "mode": directive.mode_id,
-                    "run_id": result.run_id,
-                    "status": result.status,
-                },
-                source="system",
-            )
+        self.store.append(
+            "mode.update",
+            {
+                "mode": directive.mode_id,
+                "run_id": directive.run_id,
+                "orchestrator_run_id": result.run_id,
+                "status": result.status,
+            },
+            source="system",
+        )
         self.store.append(
             "mode.stop",
             {
                 "mode": directive.mode_id,
-                "run_id": result.run_id,
+                "run_id": directive.run_id,
+                "orchestrator_run_id": result.run_id,
                 "status": result.status,
                 "session_id": directive.session_id,
             },

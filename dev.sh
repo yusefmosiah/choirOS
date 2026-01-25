@@ -161,6 +161,10 @@ stop_all() {
     done
 
     rm -f "$PID_FILE"
+    # Ensure reloader children are fully stopped
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -ti tcp:8001 | xargs -r kill 2>/dev/null || true
+    fi
     echo -e "${GREEN}All processes stopped${NC}"
 }
 
@@ -228,6 +232,7 @@ fi
 
 if [ "$MODE" = "restart" ]; then
     stop_all
+    reset_nats
     echo ""
 fi
 
@@ -279,6 +284,7 @@ export PYTHONPATH="${PWD}"
 export NATS_ENABLED=1
 export NATS_USER=${NATS_USER:-choiros_supervisor}
 export NATS_PASSWORD=${NATS_PASSWORD:-local_supervisor}
+export SUPERVISOR_RELOAD=${SUPERVISOR_RELOAD:-0}
 
 echo -e "${GREEN}Starting NATS (docker compose)...${NC}"
 start_nats

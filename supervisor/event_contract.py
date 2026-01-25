@@ -68,6 +68,9 @@ CHOIR_EVENT_TYPES_V0 = (
     "receipt.mitigation.proposals",
     "receipt.preference.decision",
     "receipt.timeout",
+    # Settings and configuration
+    "provider.changed",
+    "provider.test",
 )
 
 _LEGACY_EVENT_TYPE_MAP = {
