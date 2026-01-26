@@ -13,6 +13,8 @@ import { fetchNatsCredentials, getSessionUserId } from './auth';
 // Configuration
 const NATS_WS_URL = import.meta.env.VITE_NATS_WS_URL || 'ws://localhost:8080';
 const NATS_AUTH_TOKEN = import.meta.env.VITE_NATS_AUTH_TOKEN;
+const NATS_USER = import.meta.env.VITE_NATS_USER;
+const NATS_PASSWORD = import.meta.env.VITE_NATS_PASSWORD;
 const USER_ID = import.meta.env.VITE_USER_ID || 'local';
 
 const sc = StringCodec();
@@ -61,6 +63,10 @@ export async function connectNats(): Promise<NatsConnection> {
         };
         if (NATS_AUTH_TOKEN) {
             options.token = NATS_AUTH_TOKEN;
+            subjectPrefix = `${CHOIR_SUBJECT_ROOT}.${USER_ID}.>`;
+        } else if (NATS_USER && NATS_PASSWORD) {
+            options.user = NATS_USER;
+            options.pass = NATS_PASSWORD;
             subjectPrefix = `${CHOIR_SUBJECT_ROOT}.${USER_ID}.>`;
         } else {
             const creds = await fetchNatsCredentials();

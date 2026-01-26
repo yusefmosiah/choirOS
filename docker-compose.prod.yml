@@ -1,0 +1,84 @@
+# ChoirOS Production Docker Compose
+# No volume mounts, no reload, optimized for deployment
+
+services:
+  nats:
+    image: nats:2.10-alpine
+    container_name: choiros-nats
+    command: -c /etc/nats/nats.conf
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+      - "8080:8080"
+    volumes:
+      - ./config/nats.conf:/etc/nats/nats.conf:ro
+      - nats-data:/data
+    restart: always
+
+  choiros:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: choiros-app
+    ports:
+      - "5173:5173"
+      - "8000:8000"
+      - "8001:8001"
+    volumes:
+      # Only persist artifacts and logs in production
+      - ./artifacts:/app/artifacts:rw
+      - ./logs:/app/logs:rw
+    environment:
+      - NODE_ENV=production
+      - PYTHONPATH=/app
+      - VITE_API_URL=http://localhost:8000
+      - VITE_SUPERVISOR_URL=http://localhost:8001
+      - NATS_URL=nats://nats:4222
+      - NATS_USER=choiros_supervisor
+      - NATS_PASSWORD=local_supervisor
+      - AWS_BEARER_TOKEN_BEDROCK
+      - AWS_REGION
+    env_file:
+      - api/.env
+    depends_on:
+      - nats
+    restart: always
+    command: >
+      bash -c "
+        echo 'Starting ChoirOS (Production)...'
+
+        # Start Backend
+        echo 'Starting backend on port 8000...' &&
+        cd /app &&
+        uvicorn api.main:app --host 0.0.0.0 --port 8000 &
+        BACKEND_PID=$$! &&
+
+        # Build and start Frontend
+        sleep 2 &&
+        echo 'Building frontend...' &&
+        cd /app/choiros &&
+        npm run build &&
+        npm run preview &
+        FRONTEND_PID=$$! &&
+
+        # Start Supervisor
+        sleep 2 &&
+        echo 'Starting supervisor on port 8001...' &&
+        cd /app &&
+        SUPERVISOR_STANDALONE=1 python -m supervisor.main &
+        SUPERVISOR_PID=$$! &&
+
+        echo ''
+        echo '========================================'
+        echo 'ChoirOS Production is running!'
+        echo '  Frontend:  http://localhost:5173'
+        echo '  Backend:   http://localhost:8000'
+        echo '  Supervisor: http://localhost:8001'
+        echo '========================================'
+        echo '' &&
+
+        wait $$BACKEND_PID $$FRONTEND_PID $$SUPERVISOR_PID
+      "
+
+volumes:
+  nats-data:

@@ -1,6 +1,10 @@
+# ChoirOS Docker Compose
+# Development and Production configuration
+
 services:
   nats:
     image: nats:2.10-alpine
+    container_name: choiros-nats
     command: -c /etc/nats/nats.conf
     ports:
       - "4222:4222"   # Client connections
@@ -12,37 +16,88 @@ services:
     restart: unless-stopped
 
   choiros:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: choiros-app
     ports:
-      - "5173:5173"
-      - "8000:8000"
-      - "8001:8001"
+      - "5173:5173"   # Frontend dev server
+      - "8000:8000"   # Backend API
+      - "8001:8001"   # Supervisor
     volumes:
       # Mount source for live reloading during development
       - ./choiros/src:/app/choiros/src:rw
       - ./choiros/public:/app/choiros/public:rw
+      - ./choiros/vite.config.ts:/app/choiros/vite.config.ts:rw
+      - ./choiros/index.html:/app/choiros/index.html:rw
+      - ./choiros/package.json:/app/choiros/package.json:rw
       - ./api:/app/api:rw
       - ./supervisor:/app/supervisor:rw
-      # Persist artifacts
+      - ./shared:/app/shared:rw
+      # Persist artifacts and logs
       - ./artifacts:/app/artifacts:rw
-      # Persist logs
       - ./logs:/app/logs:rw
     environment:
       - NODE_ENV=development
+      - PYTHONPATH=/app
       - VITE_API_URL=http://localhost:8000
       - VITE_SUPERVISOR_URL=http://localhost:8001
+      - VITE_NATS_WS_URL=ws://localhost:8080
+      - VITE_NATS_USER=choiros_local_web
+      - VITE_NATS_PASSWORD=local_web
+      - VITE_USER_ID=local
+      - NATS_URL=nats://nats:4222
       - NATS_USER=choiros_supervisor
       - NATS_PASSWORD=local_supervisor
-      - NATS_URL=nats://nats:4222
-      # AWS Bedrock credentials (from .env file)
+      # AWS credentials (from .env file)
       - AWS_BEARER_TOKEN_BEDROCK
       - AWS_REGION
     env_file:
       - api/.env
     depends_on:
       - nats
-    # Restart on failure
     restart: unless-stopped
+    command: >
+      bash -c "
+        echo 'Starting ChoirOS...' &&
+        echo 'PYTHONPATH=$PYTHONPATH' &&
+
+        # Start Backend
+        echo 'Starting backend on port 8000...' &&
+        cd /app &&
+        uvicorn api.main:app --reload --host 0.0.0.0 --port 8000 &
+        BACKEND_PID=$$! &&
+        echo 'Backend started (PID: '$$BACKEND_PID')' &&
+
+        # Start Frontend
+        sleep 2 &&
+        echo 'Starting frontend on port 5173...' &&
+        cd /app/choiros &&
+        npm run dev &
+        FRONTEND_PID=$$! &&
+        echo 'Frontend started (PID: '$$FRONTEND_PID')' &&
+
+        # Start Supervisor
+        sleep 2 &&
+        echo 'Starting supervisor on port 8001...' &&
+        SUPERVISOR_STANDALONE=1 python -m supervisor.main &
+        SUPERVISOR_PID=$$! &&
+        echo 'Supervisor started (PID: '$$SUPERVISOR_PID')' &&
+
+        echo ''
+        echo '========================================'
+        echo 'ChoirOS is running!'
+        echo '  Frontend:  http://localhost:5173'
+        echo '  Backend:   http://localhost:8000'
+        echo '  Supervisor: http://localhost:8001'
+        echo '  NATS:      http://localhost:8222 (monitoring)'
+        echo '========================================'
+        echo ''
+        echo 'Press Ctrl+C to stop all services'
+        echo '' &&
+
+        wait $$BACKEND_PID $$FRONTEND_PID $$SUPERVISOR_PID
+      "
 
 volumes:
   nats-data:

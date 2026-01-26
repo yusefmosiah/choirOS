@@ -105,3 +105,34 @@
 - Run targeted supervisor tests with `PYTHONPATH=/Users/wiz/choirOS`.
 - Restart supervisor cleanly in the background and verify `/runs` + `/runs/{id}/timeline`.
 - Validate the RunMap UI end-to-end and capture a screenshot of the current state.
+
+# Progress (2026-01-25b)
+
+## Completed: Dockerizing ChoirOS
+- Created unified `docker-compose.yml` with NATS + full app stack (frontend, backend, supervisor)
+- Added production-ready `docker-compose.prod.yml` for deployment
+- Created `run.sh` CLI script for easy management (dev/prod/stop/logs/clean)
+- Added `DOCKER.md` documentation
+- Fixed Vite config to bind to `0.0.0.0` for Docker network access
+- Added volume mounts for hot-reload development (src, public, configs)
+- Configured NATS credentials via environment variables
+- Created `choiros/.env.development` with NATS WebSocket credentials
+
+## Known Issues
+- NATS connection showing as offline in UI (env vars may need verification)
+- Some state.sqlite changes not committed
+
+## Files Changed
+- `docker-compose.yml` - Unified dev setup with NATS
+- `docker-compose.prod.yml` - Production config
+- `run.sh` - Management CLI
+- `DOCKER.md` - Documentation
+- `choiros/vite.config.ts` - Added host binding
+- `choiros/src/lib/nats.ts` - Added env var support for NATS auth
+- `choiros/.env.development` - NATS credentials for dev
+
+## Next Steps
+- Debug NATS WebSocket connection in browser
+- Test full stack with Docker Compose
+- Consider building tmux from source for flicker fix (mode 2026 synchronized output)
+- Clean up state.sqlite and verify data persistence
