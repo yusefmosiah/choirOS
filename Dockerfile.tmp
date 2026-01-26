@@ -1,6 +1,4 @@
-# ChoirOS Development Container
-# Production-ready with all fixes applied
-
+# Quick test - use npm instead of yarn
 FROM node:20-slim
 
 RUN apt-get update && apt-get install -y \
@@ -11,28 +9,22 @@ WORKDIR /app
 
 RUN python3 -m venv /app/venv
 ENV PATH="/app/venv/bin:$PATH"
-ENV PYTHONPATH="/app:/app/shared"
+ENV PYTHONPATH="/app"
 
-# Install Python dependencies
 COPY api/requirements.txt /app/api/requirements.txt
 COPY supervisor/requirements.txt /app/supervisor/requirements.txt
 RUN pip install --no-cache-dir -r /app/api/requirements.txt \
-    && pip install --no-cache-dir -r /app/supervisor/requirements.txt \
-    && pip install baml-py==0.217.0  # Fixed version
+    && pip install --no-cache-dir -r /app/supervisor/requirements.txt
 
-# Install Node dependencies
-COPY choiros/package.json choiros/package-lock.json* /app/choiros/
+COPY choiros/package.json* /app/choiros/
 WORKDIR /app/choiros
 RUN npm install
 WORKDIR /app
 
-# Copy source code - ORDER MATTERS
-COPY shared/ /app/shared/
 COPY api/ /app/api/
 COPY choiros/ /app/choiros/
 COPY supervisor/ /app/supervisor/
 
 EXPOSE 5173 8000 8001
 
-# Start all services
 CMD ["bash", "-c", "cd /app && uvicorn api.main:app --reload --host 0.0.0.0 --port 8000 & cd /app/choiros && npm run dev & SUPERVISOR_STANDALONE=1 python -m supervisor.main & wait"]

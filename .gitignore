@@ -44,3 +44,7 @@ artifacts/
 .ralphy/
 .context/
 .dev.sh.pids
+.sqlite
+.sqlite-journal
+.sqlite-shm
+*.sqlite

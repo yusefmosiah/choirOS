@@ -1,0 +1,49 @@
+services:
+  choiros-main:
+    image: choir-os:latest
+    container_name: choiros-main
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+      - "8000:8000"
+      - "8001:8001"
+    volumes:
+      - ./choiros/src:/app/choiros/src:rw
+      - ./choiros/public:/app/choiros/public:rw
+      - ./api:/app/api:rw
+      - ./supervisor:/app/supervisor:rw
+      - ./artifacts:/app/artifacts:rw
+      - ./logs:/app/logs:rw
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:8000
+      - VITE_SUPERVISOR_URL=http://localhost:8001
+      - NATS_URL=nats://host.docker.internal:4222
+      - WORKTREE_NAME=main
+      - PORT_BASE=5173
+      - PYTHONPATH=/app
+    env_file:
+      - api/.env
+    network_mode: "host"
+    restart: unless-stopped
+    command: >
+      bash -c "
+        echo 'Starting ChoirOS main container...' &&
+        cd /app &&
+        echo 'PYTHONPATH=$PYTHONPATH' &&
+        uvicorn api.main:app --reload --host 0.0.0.0 --port 8000 &
+        BACKEND_PID=\$! &&
+        echo 'Backend started (PID: '\$BACKEND_PID')' &&
+        sleep 2 &&
+        cd /app/choiros && npm run dev &
+        FRONTEND_PID=\$! &&
+        echo 'Frontend started (PID: '\$FRONTEND_PID')' &&
+        sleep 2 &&
+        SUPERVISOR_STANDALONE=1 python -m supervisor.main &
+        SUPERVISOR_PID=\$! &&
+        echo 'Supervisor started (PID: '\$SUPERVISOR_PID')' &&
+        echo 'All services started. Press Ctrl+C to stop.' &&
+        wait \$BACKEND_PID \$FRONTEND_PID \$SUPERVISOR_PID
+      "
