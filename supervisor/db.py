@@ -58,6 +58,7 @@ class EventStore:
             CREATE TABLE IF NOT EXISTS events (
                 seq INTEGER PRIMARY KEY AUTOINCREMENT,
                 nats_seq INTEGER,  -- Sequence from NATS JetStream
+                event_id TEXT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
                 type TEXT NOT NULL,
                 payload JSON NOT NULL
@@ -66,6 +67,7 @@ class EventStore:
             CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);
             CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
             CREATE INDEX IF NOT EXISTS idx_events_nats_seq ON events(nats_seq);
+            CREATE INDEX IF NOT EXISTS idx_events_event_id ON events(event_id);
 
             -- Materialized: file state
             CREATE TABLE IF NOT EXISTS files (
@@ -204,6 +206,21 @@ class EventStore:
                 value TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS event_dedupe (
+                consumer TEXT NOT NULL,
+                event_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                nats_seq INTEGER,
+                subject TEXT,
+                delivery_count INTEGER NOT NULL DEFAULT 1,
+                first_seen TEXT NOT NULL DEFAULT (datetime('now')),
+                last_seen TEXT NOT NULL DEFAULT (datetime('now')),
+                last_error TEXT,
+                PRIMARY KEY (consumer, event_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_event_dedupe_status ON event_dedupe(status);
+
             -- Run inputs (initial prompts + follow-ups)
             CREATE TABLE IF NOT EXISTS run_inputs (
                 id TEXT PRIMARY KEY,
@@ -224,6 +241,7 @@ class EventStore:
         # Idempotent, lightweight migrations for existing local databases.
         self._ensure_column("work_items", "runner_id", "TEXT")
         self._ensure_column("work_items", "run_id", "TEXT")
+        self._ensure_column("events", "event_id", "TEXT")
 
     def _ensure_column(self, table: str, column: str, column_type: str) -> None:
         cursor = self.conn.execute(f"PRAGMA table_info({table})")
@@ -254,9 +272,10 @@ class EventStore:
         """
         normalized_type = normalize_event_type(event_type)
         nats_seq = None
+        event_id = str(uuid.uuid4())
         if NATS_ENABLED and ChoirEvent is not None:
             event = ChoirEvent(
-                id=str(uuid.uuid4()),
+                id=event_id,
                 timestamp=int(datetime.now().timestamp() * 1000),
                 user_id=self.user_id,
                 source=source,
@@ -272,8 +291,8 @@ class EventStore:
 
         # Always write to SQLite
         cursor = self.conn.execute(
-            "INSERT INTO events (nats_seq, type, payload) VALUES (?, ?, ?)",
-            (nats_seq, normalized_type, json.dumps(payload))
+            "INSERT INTO events (nats_seq, event_id, type, payload) VALUES (?, ?, ?, ?)",
+            (nats_seq, event_id, normalized_type, json.dumps(payload))
         )
         self.conn.commit()
         return cursor.lastrowid
@@ -286,10 +305,11 @@ class EventStore:
         If NATS is enabled, runs async publish in background.
         """
         # Try to use async version if event loop exists
+        event_id = str(uuid.uuid4())
         try:
             loop = asyncio.get_running_loop()
             # Schedule async append but don't wait
-            asyncio.create_task(self._append_async_background(event_type, payload, source))
+            asyncio.create_task(self._append_async_background(event_type, payload, source, event_id))
         except RuntimeError:
             pass  # No event loop, skip NATS
 
@@ -297,13 +317,13 @@ class EventStore:
 
         # Always write immediately to SQLite
         cursor = self.conn.execute(
-            "INSERT INTO events (type, payload) VALUES (?, ?)",
-            (normalized_type, json.dumps(payload))
+            "INSERT INTO events (event_id, type, payload) VALUES (?, ?, ?)",
+            (event_id, normalized_type, json.dumps(payload))
         )
         self.conn.commit()
         return cursor.lastrowid
 
-    async def _append_async_background(self, event_type: str, payload: dict, source: str):
+    async def _append_async_background(self, event_type: str, payload: dict, source: str, event_id: str):
         """Background task to publish to NATS."""
         if not (NATS_ENABLED and ChoirEvent is not None):
             return
@@ -312,7 +332,7 @@ class EventStore:
             try:
                 normalized_type = normalize_event_type(event_type)
                 event = ChoirEvent(
-                    id=str(uuid.uuid4()),
+                    id=event_id,
                     timestamp=int(datetime.now().timestamp() * 1000),
                     user_id=self.user_id,
                     source=source,
@@ -599,6 +619,7 @@ class EventStore:
             DELETE FROM run_commit_requests;
             DELETE FROM run_inputs;
             DELETE FROM events;
+            DELETE FROM event_dedupe;
         """)
         self.conn.commit()
 
@@ -613,7 +634,7 @@ class EventStore:
         # Replay each event
         count = 0
         for event, nats_seq in events:
-            self._apply_event(event.event_type, event.payload, event.timestamp, nats_seq)
+            self.apply_event(event.event_type, event.payload, event.timestamp, nats_seq, event.id)
             count += 1
 
         self.conn.commit()
@@ -652,19 +673,29 @@ class EventStore:
         self.conn.commit()
         return count
 
-    def _apply_event(
+    def apply_event(
         self,
         event_type: str,
         payload: dict,
         timestamp_ms: int,
         nats_seq: Optional[int] = None,
+        event_id: Optional[str] = None,
     ) -> int:
         """Insert event into the log and materialize projections."""
+        if nats_seq is not None:
+            existing = self.conn.execute(
+                "SELECT seq FROM events WHERE nats_seq = ?",
+                (nats_seq,),
+            ).fetchone()
+            if existing:
+                return existing["seq"]
         normalized_type = normalize_event_type(event_type)
         timestamp = datetime.fromtimestamp(timestamp_ms / 1000).isoformat()
+        if event_id is None:
+            event_id = str(uuid.uuid4())
         cursor = self.conn.execute(
-            "INSERT INTO events (nats_seq, type, payload, timestamp) VALUES (?, ?, ?, ?)",
-            (nats_seq, normalized_type, json.dumps(payload), timestamp)
+            "INSERT INTO events (nats_seq, event_id, type, payload, timestamp) VALUES (?, ?, ?, ?, ?)",
+            (nats_seq, event_id, normalized_type, json.dumps(payload), timestamp)
         )
         event_seq = cursor.lastrowid
         self._materialize_projection(normalized_type, payload, timestamp, event_seq)
@@ -921,6 +952,29 @@ class EventStore:
         )
         # Reverse to get chronological order
         return list(reversed([dict(row) for row in cursor.fetchall()]))
+
+    def list_tool_calls(self, conversation_id: int) -> list[dict]:
+        cursor = self.conn.execute(
+            """SELECT event_seq, tool_name, tool_input, tool_result, timestamp
+               FROM tool_calls
+               WHERE conversation_id = ?
+               ORDER BY event_seq ASC""",
+            (conversation_id,),
+        )
+        results: list[dict] = []
+        for row in cursor.fetchall():
+            tool_input = json.loads(row["tool_input"]) if row["tool_input"] else {}
+            tool_result = json.loads(row["tool_result"]) if row["tool_result"] else None
+            results.append(
+                {
+                    "event_seq": row["event_seq"],
+                    "tool_name": row["tool_name"],
+                    "tool_input": tool_input,
+                    "tool_result": tool_result,
+                    "timestamp": row["timestamp"],
+                }
+            )
+        return results
 
     # =========== Tool Call Logging ===========
 
@@ -1488,6 +1542,69 @@ class EventStore:
         self.conn.execute(
             "DELETE FROM sync_state WHERE key = ?",
             (key,),
+        )
+        self.conn.commit()
+
+    # =========== Event Dedupe ===========
+
+    def record_event_delivery(
+        self,
+        consumer: str,
+        event_id: str,
+        nats_seq: Optional[int],
+        subject: str,
+        delivery_count: int,
+    ) -> tuple[bool, str]:
+        now = datetime.now().isoformat()
+        try:
+            self.conn.execute(
+                """
+                INSERT INTO event_dedupe
+                    (consumer, event_id, status, nats_seq, subject, delivery_count, first_seen, last_seen)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (consumer, event_id, "received", nats_seq, subject, delivery_count, now, now),
+            )
+            self.conn.commit()
+            return True, "received"
+        except sqlite3.IntegrityError:
+            row = self.conn.execute(
+                "SELECT status FROM event_dedupe WHERE consumer = ? AND event_id = ?",
+                (consumer, event_id),
+            ).fetchone()
+            self.conn.execute(
+                """
+                UPDATE event_dedupe
+                SET last_seen = ?, delivery_count = ?, nats_seq = COALESCE(?, nats_seq), subject = COALESCE(?, subject)
+                WHERE consumer = ? AND event_id = ?
+                """,
+                (now, delivery_count, nats_seq, subject, consumer, event_id),
+            )
+            self.conn.commit()
+            status = row["status"] if row else "unknown"
+            return False, status
+
+    def mark_event_processing(self, consumer: str, event_id: str) -> None:
+        now = datetime.now().isoformat()
+        self.conn.execute(
+            "UPDATE event_dedupe SET status = ?, last_seen = ? WHERE consumer = ? AND event_id = ?",
+            ("processing", now, consumer, event_id),
+        )
+        self.conn.commit()
+
+    def mark_event_done(self, consumer: str, event_id: str) -> None:
+        now = datetime.now().isoformat()
+        self.conn.execute(
+            "UPDATE event_dedupe SET status = ?, last_seen = ? WHERE consumer = ? AND event_id = ?",
+            ("done", now, consumer, event_id),
+        )
+        self.conn.commit()
+
+    def mark_event_failed(self, consumer: str, event_id: str, error: str) -> None:
+        now = datetime.now().isoformat()
+        self.conn.execute(
+            "UPDATE event_dedupe SET status = ?, last_seen = ?, last_error = ? WHERE consumer = ? AND event_id = ?",
+            ("failed", now, error, consumer, event_id),
         )
         self.conn.commit()
 

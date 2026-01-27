@@ -22,6 +22,12 @@ ChoirOS is a web-based AI assistant with a desktop UI metaphor. It consists of:
 ./dev.sh --no-nats    # Skip NATS container
 ```
 
+### Test Harness
+```bash
+./scripts/test.sh --nats-integration   # Start NATS and run integration tests
+./scripts/test.sh --skip-e2e           # Run non-E2E tests only
+```
+
 ### Frontend (choiros/)
 ```bash
 cd choiros
@@ -118,6 +124,7 @@ Each mode has specific tool allowlists, budgets, and behavioral constraints.
 4. **Single-Writer**: Only one write-capable Mode runs at a time
 5. **Artifact Sharing**: Cross-mode sharing via artifact pointers, not raw file paths
 6. **AHDB Authority**: AHDB updates require receipts/attestations, not LLM output alone
+7. **Testing Discipline**: Every feature or fix must include automated tests and explicit PREDICTION → EXPERIMENT → OBSERVE criteria.
 
 ## Code Style Guidelines
 

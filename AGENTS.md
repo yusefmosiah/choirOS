@@ -58,6 +58,12 @@ SUPERVISOR_STANDALONE=1 python -m supervisor.main  # Standalone mode
 ./dev.sh status       # Show status of all dev processes and NATS
 ```
 
+### Test Harness
+```bash
+./scripts/test.sh --nats-integration   # Start NATS and run integration tests
+./scripts/test.sh --skip-e2e           # Run non-E2E tests only
+```
+
 ### Sandbox Configuration
 ```bash
 # Use sprites.dev for sandboxed execution
@@ -88,7 +94,7 @@ echo "CHOIR_SANDBOX_PROVIDER=sprites" >> api/.env
 ### General Conventions
 - **No comments**: Avoid adding comments unless explaining complex logic
 - **No TODOs**: Address issues directly or create follow-up tasks
-- **Tests**: Python uses `unittest`; E2E uses Playwright; unit tests inline with code
+- **Tests**: Automated tests are required for all new features and fixes. Prefer PREDICTION → EXPERIMENT → OBSERVE framing.
 - **Secrets**: Never commit .env files or credentials; use placeholder values
 
 ## Key Files and Patterns

@@ -65,7 +65,7 @@ class ProjectorWorker:
                 for event, nats_seq in events:
                     if nats_seq is None:
                         continue
-                    self.store.apply_event(event.event_type, event.payload, event.timestamp, nats_seq)
+                    self.store.apply_event(event.event_type, event.payload, event.timestamp, nats_seq, event.id)
                     last_seq = max(last_seq, int(nats_seq))
 
                 self.store.conn.commit()

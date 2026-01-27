@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Awaitable, Callable, Optional, Any
+
+import nats
+from nats.js.api import ConsumerConfig
 
 from .db import EventStore
 from .event_contract import build_subject
 from .mode_config import ModeConfig, get_mode_config
 from .mode_engine import ModeInputs, select_initial_mode
+from .nats_client import ChoirEvent, NATS_MSG_ID_HEADER
+from .nats_metrics import NATS_METRICS
 
 
 @dataclass(frozen=True)
@@ -32,6 +40,24 @@ class ModeRunResult:
 
 ModeExecutor = Callable[[ModeDirective], Awaitable[ModeRunResult]]
 
+logger = logging.getLogger("machine.nats")
+
+DIRECTIVE_CONSUMER_PREFIX = "mode-start"
+DIRECTIVE_ACK_WAIT_SECONDS = 30
+DIRECTIVE_MAX_DELIVER = 5
+DIRECTIVE_BACKOFF_SECONDS = [1, 5, 30]
+DIRECTIVE_FETCH_BATCH = 10
+DIRECTIVE_FETCH_TIMEOUT = 1.0
+
+
+@dataclass(frozen=True)
+class NatsDeliveryContext:
+    stream: Optional[str]
+    consumer: str
+    subject: str
+    sequence: Optional[int]
+    delivery_count: int
+
 
 class Machine:
     def __init__(self, store: EventStore, executor: ModeExecutor, session_id: Optional[str] = None) -> None:
@@ -41,6 +67,9 @@ class Machine:
         self._writer_lock = asyncio.Lock()
         self._running = False
         self._loop_task: Optional[asyncio.Task] = None
+        self._nats_task: Optional[asyncio.Task] = None
+        self._nats_metrics = NATS_METRICS
+        self._listening = False
 
     def start_loop(self):
         if self._running:
@@ -57,6 +86,17 @@ class Machine:
             except asyncio.CancelledError:
                 pass
             self._loop_task = None
+        await self.stop_listening()
+
+    async def stop_listening(self) -> None:
+        self._listening = False
+        if self._nats_task:
+            self._nats_task.cancel()
+            try:
+                await self._nats_task
+            except asyncio.CancelledError:
+                pass
+            self._nats_task = None
 
     async def _scheduler_loop(self):
         while self._running:
@@ -179,10 +219,149 @@ class Machine:
 
             nats = await get_nats_client()
             subject = build_subject(self.store.user_id, "system", "mode.start")
-            await nats.subscribe(subject, self.handle_event)
+            durable = f"{DIRECTIVE_CONSUMER_PREFIX}.{self.store.user_id}"
+            config = ConsumerConfig(
+                ack_policy="explicit",
+                ack_wait=DIRECTIVE_ACK_WAIT_SECONDS * 1_000_000_000,
+                max_deliver=DIRECTIVE_MAX_DELIVER,
+                backoff=[delay * 1_000_000_000 for delay in DIRECTIVE_BACKOFF_SECONDS],
+                deliver_policy="new",
+            )
+            subscription = await nats.pull_subscribe(subject, durable=durable, config=config)
+            self._listening = True
+            self._nats_task = asyncio.create_task(
+                self._directive_consumer_loop(subscription, durable)
+            )
             return True
         except Exception:
             return False
+
+    async def _directive_consumer_loop(self, subscription, consumer: str) -> None:
+        while self._listening:
+            try:
+                msgs = await subscription.fetch(DIRECTIVE_FETCH_BATCH, timeout=DIRECTIVE_FETCH_TIMEOUT)
+            except nats.errors.TimeoutError:
+                continue
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.error("directive consumer error: %s", exc)
+                await asyncio.sleep(1)
+                continue
+
+            for msg in msgs:
+                await self._handle_directive_message(msg, consumer)
+
+    async def _handle_directive_message(self, msg, consumer: str) -> None:
+        started = time.monotonic()
+        event = ChoirEvent.from_json(msg.data)
+        metadata = msg.metadata
+        sequence = metadata.sequence.stream if metadata else None
+        delivery_count = metadata.num_delivered if metadata else 1
+        context = NatsDeliveryContext(
+            stream=metadata.stream if metadata else None,
+            consumer=consumer,
+            subject=msg.subject,
+            sequence=sequence,
+            delivery_count=delivery_count,
+        )
+        event_id = event.id
+        if not event_id and msg.headers:
+            event_id = msg.headers.get(NATS_MSG_ID_HEADER)
+        if not event_id and sequence is not None:
+            event_id = f"nats:{sequence}"
+
+        if not event_id:
+            await msg.ack()
+            return
+
+        is_new, status = self.store.record_event_delivery(
+            consumer=consumer,
+            event_id=event_id,
+            nats_seq=sequence,
+            subject=msg.subject,
+            delivery_count=delivery_count,
+        )
+        dedupe_hit = (not is_new) and status == "done"
+        self._nats_metrics.record_delivery(delivery_count)
+        self._nats_metrics.record_dedupe(dedupe_hit)
+
+        if dedupe_hit:
+            latency_ms = (time.monotonic() - started) * 1000
+            await msg.ack()
+            self._nats_metrics.record_ack(latency_ms)
+            self._log_delivery(context, event_id, "ack", "dedupe", latency_ms)
+            return
+
+        try:
+            self.store.mark_event_processing(consumer, event_id)
+            await self.handle_event(event)
+            self.store.mark_event_done(consumer, event_id)
+            latency_ms = (time.monotonic() - started) * 1000
+            await msg.ack()
+            self._nats_metrics.record_ack(latency_ms)
+            self._nats_metrics.record_handler_latency(latency_ms)
+            self._log_delivery(context, event_id, "ack", "processed", latency_ms)
+        except Exception as exc:
+            self.store.mark_event_failed(consumer, event_id, str(exc))
+            if delivery_count >= DIRECTIVE_MAX_DELIVER:
+                await self._publish_dlq(event, context, str(exc))
+                latency_ms = (time.monotonic() - started) * 1000
+                await msg.ack()
+                self._nats_metrics.record_dlq()
+                self._nats_metrics.record_ack(latency_ms)
+                self._log_delivery(context, event_id, "ack", "dlq", latency_ms)
+            else:
+                await msg.nak()
+                self._nats_metrics.record_nak()
+                self._log_delivery(context, event_id, "nak", "retry", (time.monotonic() - started) * 1000)
+
+    async def _publish_dlq(self, event: ChoirEvent, context: NatsDeliveryContext, error: str) -> None:
+        from .nats_client import get_nats_client
+
+        nats = await get_nats_client()
+        payload = {
+            "event": event.to_dict(),
+            "error": error,
+            "stream": context.stream,
+            "consumer": context.consumer,
+            "subject": context.subject,
+            "sequence": context.sequence,
+            "delivery_count": context.delivery_count,
+        }
+        dlq_event = ChoirEvent(
+            id=event.id,
+            timestamp=int(datetime.now().timestamp() * 1000),
+            user_id=event.user_id,
+            source="system",
+            event_type="receipt.dlq",
+            payload=payload,
+        )
+        await nats.publish_event(dlq_event)
+
+    def _log_delivery(
+        self,
+        context: NatsDeliveryContext,
+        event_id: str,
+        ack: str,
+        outcome: str,
+        latency_ms: float,
+    ) -> None:
+        logger.info(
+            json.dumps(
+                {
+                    "stream": context.stream,
+                    "consumer": context.consumer,
+                    "subject": context.subject,
+                    "sequence": context.sequence,
+                    "delivery_count": context.delivery_count,
+                    "ack": ack,
+                    "outcome": outcome,
+                    "event_id": event_id,
+                    "latency_ms": latency_ms,
+                }
+            )
+        )
 
     async def _run_directive(self, directive: ModeDirective, emit_start: bool) -> ModeRunResult:
         if emit_start:

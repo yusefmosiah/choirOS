@@ -36,6 +36,11 @@ if not NATS_USER or not NATS_PASSWORD:
         NATS_USER = supervisor_creds.user
         NATS_PASSWORD = supervisor_creds.password
 
+NATS_MSG_ID_HEADER = "Nats-Msg-Id"
+DEFAULT_ACK_WAIT_SECONDS = 30
+DEFAULT_MAX_DELIVER = 5
+DEFAULT_BACKOFF_SECONDS = [1, 5, 30]
+
 
 @dataclass
 class ChoirEvent:
@@ -135,7 +140,7 @@ class NATSClient:
         subject = self._event_to_subject(event)
 
         # Publish and get ack with sequence number
-        ack = await self.js.publish(subject, event.to_json())
+        ack = await self.js.publish(subject, event.to_json(), headers={NATS_MSG_ID_HEADER: event.id})
         return ack.seq
 
     def _event_to_subject(self, event: ChoirEvent) -> str:
@@ -209,23 +214,53 @@ class NATSClient:
         if not self._connected:
             raise RuntimeError("NATS not connected")
 
-        async def message_handler(msg):
-            event = ChoirEvent.from_json(msg.data)
-            await callback(event)
-
         # For ephemeral listeners (the common case), prefer core NATS to avoid JetStream acks.
         if durable is None:
+            async def message_handler(msg):
+                event = ChoirEvent.from_json(msg.data)
+                await callback(event)
+
             await self.nc.subscribe(subject, cb=message_handler)
             return
 
         # Durable subscriptions still go through JetStream.
+        async def durable_handler(msg):
+            event = ChoirEvent.from_json(msg.data)
+            try:
+                await callback(event)
+                await msg.ack()
+            except Exception:
+                await msg.nak()
+
         await self.js.subscribe(
             subject,
-            cb=message_handler,
+            cb=durable_handler,
             stream=CHOIR_STREAM,
             durable=durable,
-            manual_ack=False,
-            config=ConsumerConfig(ack_policy="none"),
+            manual_ack=True,
+            config=ConsumerConfig(
+                ack_policy="explicit",
+                deliver_policy="new",
+                ack_wait=DEFAULT_ACK_WAIT_SECONDS * 1_000_000_000,
+                max_deliver=DEFAULT_MAX_DELIVER,
+                backoff=[delay * 1_000_000_000 for delay in DEFAULT_BACKOFF_SECONDS],
+            ),
+        )
+
+    async def pull_subscribe(
+        self,
+        subject: str,
+        durable: str,
+        config: ConsumerConfig,
+        stream: str = CHOIR_STREAM,
+    ):
+        if not self._connected:
+            raise RuntimeError("NATS not connected")
+        return await self.js.pull_subscribe(
+            subject,
+            durable=durable,
+            stream=stream,
+            config=config,
         )
 
 

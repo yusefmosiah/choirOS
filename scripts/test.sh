@@ -8,20 +8,31 @@ export NATS_USER=${NATS_USER:-choiros_supervisor}
 export NATS_PASSWORD=${NATS_PASSWORD:-local_supervisor}
 
 SKIP_NATS=0
+RUN_NATS_INTEGRATION=0
+SKIP_E2E=0
 KEEP_NATS=${KEEP_NATS:-0}
 DOCKER_COMPOSE=""
 NATS_STARTED=0
+NATS_PREEXISTING=0
 STOPPED_CONTAINERS=()
 
 print_usage() {
-    echo "Usage: ./scripts/test.sh [--no-nats]"
-    echo "  --no-nats   Skip starting NATS"
+    echo "Usage: ./scripts/test.sh [--no-nats] [--nats-integration] [--skip-e2e]"
+    echo "  --no-nats           Skip starting NATS"
+    echo "  --nats-integration  Run NATS integration tests"
+    echo "  --skip-e2e          Skip frontend E2E tests"
 }
 
 for arg in "$@"; do
     case "$arg" in
         --no-nats)
             SKIP_NATS=1
+            ;;
+        --nats-integration)
+            RUN_NATS_INTEGRATION=1
+            ;;
+        --skip-e2e)
+            SKIP_E2E=1
             ;;
         -h|--help)
             print_usage
@@ -63,6 +74,15 @@ start_nats() {
     detect_docker_compose
     if [ -z "$DOCKER_COMPOSE" ]; then
         echo "Docker Compose not available; skipping NATS start"
+        return
+    fi
+    local existing_state
+    existing_state=$(docker ps -a --filter 'name=^/choiros-nats$' --format '{{.State}}' | head -n 1)
+    if [ -n "$existing_state" ]; then
+        NATS_PREEXISTING=1
+        if [ "$existing_state" != "running" ]; then
+            docker start choiros-nats >/dev/null 2>&1 || true
+        fi
         return
     fi
     if $DOCKER_COMPOSE up -d nats; then
@@ -111,7 +131,7 @@ preflight_nats() {
 }
 
 stop_nats() {
-    if [ "$NATS_STARTED" -ne 1 ] || [ "$KEEP_NATS" -eq 1 ]; then
+    if [ "$NATS_STARTED" -ne 1 ] || [ "$KEEP_NATS" -eq 1 ] || [ "$NATS_PREEXISTING" -eq 1 ]; then
         return
     fi
     detect_docker_compose
@@ -125,6 +145,15 @@ trap stop_nats EXIT
 
 preflight_nats
 start_nats
+
+if [ "$RUN_NATS_INTEGRATION" -eq 1 ]; then
+    echo "Running NATS integration tests..."
+    PYTHONPATH="$ROOT_DIR" RUN_NATS_TESTS=1 pytest supervisor/tests/test_nats_integration.py
+fi
+
+if [ "$SKIP_E2E" -eq 1 ]; then
+    exit 0
+fi
 
 if [ ! -d "$ROOT_DIR/choiros/node_modules" ]; then
     echo "Missing choiros/node_modules. Run ./scripts/setup.sh"

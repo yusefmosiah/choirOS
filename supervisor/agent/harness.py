@@ -17,6 +17,7 @@ from ..mode_config import ModeConfig, get_mode_config
 from ..prompt_builder import ModePromptBuilder
 from supervisor.baml_client import b
 from supervisor.baml_client.types import Message, AgentPlan, AgentToolCall
+from supervisor.replay import ReplayToolCache
 
 logger = logging.getLogger("agent-harness")
 
@@ -29,6 +30,9 @@ class AgentHarness:
         event_store: Optional[EventStore] = None,
         mode_config: Optional[ModeConfig] = None,
         prompt_builder: Optional[ModePromptBuilder] = None,
+        replay: bool = False,
+        replay_read_only: bool = True,
+        replay_conversation_id: Optional[int] = None,
     ):
         self.store = event_store or get_store()
         self.mode_config = mode_config or get_mode_config("CALM")
@@ -41,6 +45,10 @@ class AgentHarness:
         self.conversation_id: Optional[int] = None
         self.message_history: List[Message] = []
         self.current_run_id: Optional[str] = None
+        self.replay = replay
+        self.replay_read_only = replay_read_only
+        self.replay_conversation_id = replay_conversation_id
+        self._replay_tools: Optional[ReplayToolCache] = None
 
     def set_mode(self, mode_config: ModeConfig) -> None:
         if self.mode_config.mode_id != mode_config.mode_id:
@@ -48,6 +56,21 @@ class AgentHarness:
             self.conversation_id = None
         self.mode_config = mode_config
         self.tools.mode_config = mode_config
+
+    def load_replay_context(self, conversation_id: int) -> None:
+        self.conversation_id = conversation_id
+        messages = self.store.get_conversation_messages(conversation_id, limit=1000)
+        self.message_history = [Message(role=m["role"], content=m["content"]) for m in messages]
+        self._replay_tools = ReplayToolCache.from_store(self.store, conversation_id)
+
+    def _get_replay_tool_result(self, tool_name: str, tool_input: dict) -> Optional[Any]:
+        if not self.replay:
+            return None
+        if self._replay_tools is None and self.conversation_id is not None:
+            self._replay_tools = ReplayToolCache.from_store(self.store, self.conversation_id)
+        if not self._replay_tools:
+            return None
+        return self._replay_tools.get(tool_name, tool_input)
 
     async def process(self, prompt: str) -> AsyncGenerator[dict[str, Any], None]:
         """
@@ -57,7 +80,10 @@ class AgentHarness:
         try:
             # Ensure we have a conversation
             if self.conversation_id is None:
-                self.conversation_id = self.store.start_conversation()
+                if self.replay and self.replay_conversation_id is not None:
+                    self.load_replay_context(self.replay_conversation_id)
+                else:
+                    self.conversation_id = self.store.start_conversation()
 
             ahdb_state = self.store.get_ahdb_state()
             system_context = self.prompt_builder.build(
@@ -65,18 +91,20 @@ class AgentHarness:
                 ahdb_state=ahdb_state,
                 context={"receipts": [], "artifacts": []},
             )
-            self.store.append(
-                "receipt.context.footprint",
-                {
-                    "conversation_id": self.conversation_id,
-                    "mode": self.mode_config.mode_id,
-                    "ahdb_keys": sorted(ahdb_state.keys()),
-                },
-                source="system",
-            )
+            if not self.replay_read_only:
+                self.store.append(
+                    "receipt.context.footprint",
+                    {
+                        "conversation_id": self.conversation_id,
+                        "mode": self.mode_config.mode_id,
+                        "ahdb_keys": sorted(ahdb_state.keys()),
+                    },
+                    source="system",
+                )
 
             # Log user message
-            await self.store.add_message_async(self.conversation_id, "user", prompt)
+            if not self.replay_read_only:
+                await self.store.add_message_async(self.conversation_id, "user", prompt)
             self.message_history.append(Message(role="user", content=prompt))
 
             # Initial "thinking" state
@@ -123,9 +151,10 @@ class AgentHarness:
                 # If we have a final response (no tools), we are done
                 if final_plan.final_response:
                      yield {"type": "text", "content": final_plan.final_response}
-                     await self.store.add_message_async(
-                        self.conversation_id, "assistant", final_plan.final_response
-                     )
+                     if not self.replay_read_only:
+                        await self.store.add_message_async(
+                            self.conversation_id, "assistant", final_plan.final_response
+                        )
                      self.message_history.append(Message(role="assistant", content=final_plan.final_response))
                      break
 
@@ -177,16 +206,22 @@ class AgentHarness:
                     except:
                         args = {} # Should act as empty dict if parsing fails? or error
 
-                    # Execute
-                    result = await self.tools.execute_tool(tc.tool_name, args)
-
-                    # Log
-                    await self.store.log_tool_call_async(
-                        self.conversation_id,
+                    replay_result = self._get_replay_tool_result(tc.tool_name, args)
+                    if replay_result is None and self.replay:
+                        raise RuntimeError(f"Replay missing tool result for {tc.tool_name}")
+                    result = replay_result if replay_result is not None else await self.tools.execute_tool(
                         tc.tool_name,
                         args,
-                        result
                     )
+
+                    # Log
+                    if not self.replay_read_only:
+                        await self.store.log_tool_call_async(
+                            self.conversation_id,
+                            tc.tool_name,
+                            args,
+                            result
+                        )
 
                     yield {
                         "type": "tool_result",

@@ -5,7 +5,7 @@
  * Uses nats.ws for WebSocket connection to NATS JetStream.
  */
 
-import { connect, StringCodec } from 'nats.ws';
+import { connect, StringCodec, headers } from 'nats.ws';
 import type { NatsConnection } from 'nats.ws';
 import { buildSubject, normalizeEventType, CHOIR_SUBJECT_ROOT } from './event_contract';
 import { fetchNatsCredentials, getSessionUserId } from './auth';
@@ -137,7 +137,9 @@ export async function publishEvent(
     };
 
     const subject = eventToSubject(event);
-    nc.publish(subject, sc.encode(JSON.stringify(event)));
+    const h = headers();
+    h.set('Nats-Msg-Id', event.id);
+    nc.publish(subject, sc.encode(JSON.stringify(event)), { headers: h });
 }
 
 /**

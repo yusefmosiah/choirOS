@@ -30,6 +30,7 @@ from .vite_manager import ViteManager
 from .file_history import FileHistory
 from .agent.harness import AgentHarness
 from .nats_client import get_nats_client, close_nats_client
+from .nats_metrics import NATS_METRICS
 from .db import get_store
 from shared.auth import extract_session_token, get_auth_store
 from shared.auth_middleware import AuthMiddleware
@@ -908,6 +909,11 @@ async def context_heatmap(since_seq: int = 0, until_seq: Optional[int] = None, l
         raise HTTPException(status_code=400, detail="until_seq must be >= since_seq")
     store = get_store()
     return store.build_context_heatmap(since_seq=since_seq, until_seq=until_seq, limit=limit)
+
+
+@app.get("/observability/nats")
+async def nats_metrics():
+    return NATS_METRICS.snapshot()
 
 
 @app.get("/observability/file", response_model=FileReadResponse)

@@ -68,6 +68,7 @@ Receipts (capabilities + verification):
 - receipt.verifier.results
 - receipt.verifier.attestations
 - receipt.discrepancy.report
+- receipt.dlq
 - receipt.commit
 - receipt.mode.transition
 - receipt.ahdb.delta

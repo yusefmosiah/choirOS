@@ -52,6 +52,7 @@ CHOIR_EVENT_TYPES_V0 = (
     "receipt.verifier.results",
     "receipt.verifier.attestations",
     "receipt.discrepancy.report",
+    "receipt.dlq",
     "receipt.commit",
     "receipt.mode.transition",
     "receipt.ahdb.delta",
