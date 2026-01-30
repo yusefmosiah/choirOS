@@ -4,7 +4,7 @@ Updated: 2026-01-18
 
 ## Canonical references
 - docs/SELF_DEV_BOOTSTRAP.md (bootstrap issues + status)
-- docs/test_report-2026-01-17c.md (grand verification report)
+- docs/archive/test_reports/test_report-2026-01-17c.md (grand verification report)
 - docs/specs/CHOIR_HEADLESS_1P_DESIGN.md (headless plan)
 - docs/specs/CHOIR_MODES_SPEC.md (mode policy + guards)
 - docs/specs/VERIFICATION_GREEN_THREADS_SPEC.md (verifier lane)

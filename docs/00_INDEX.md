@@ -62,6 +62,8 @@ Status: ACTIVE
 - docs/CHOIR_CONTEXT.md
 - docs/current_architecture_jan23.md
 - docs/agentic_computer_position_paper.md
+- docs/research/NATS_LIBSQL_REFACTOR_RUNBOOK_REPORT-2026-01-30.md
+- docs/test_report-2026-01-30.md
 - docs/SELF_DEV_BOOTSTRAP.md
 - PLANNING.md
 - next_steps_checklist.md

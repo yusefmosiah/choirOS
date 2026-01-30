@@ -98,7 +98,7 @@ The codebase uses "mode" throughout (`mode_engine.py`, `mode` field in runs) but
 
 ### 2.5 Zettelkasten Substrate Is Not Implemented
 
-The imported concepts from `docs/new new/` are not reflected in code:
+The imported concepts from `docs/archive/drafts/new-new/` are not reflected in code:
 
 - Content-addressed objects (hash-based IDs)
 - First-class edges (REFERS_TO, DERIVED_FROM, etc.)
@@ -264,9 +264,9 @@ def get_file_history(self, path: str) -> list[dict]:
 | `supervisor/file_history.py` | Undo support (in-memory, needs persistence) |
 | `api/services/artifact_store.py` | Artifact storage (in-memory) |
 | `config/verifiers.yaml` | Verifier definitions and mode defaults |
-| `docs/new new/ZETTELKASTEN_SUBSTRATE_SPEC.md` | Content-addressed knowledge substrate |
-| `docs/new new/DOCTRINE_SPEC_NOTES_GOVERNANCE_SPEC_zettelkasten_update.md` | Governance model |
-| `docs/new new/CHOIR_DOCTRINES_zettelkasten_update.md` | Core doctrines |
+| `docs/archive/drafts/new-new/ZETTELKASTEN_SUBSTRATE_SPEC.md` | Content-addressed knowledge substrate |
+| `docs/archive/drafts/new-new/DOCTRINE_SPEC_NOTES_GOVERNANCE_SPEC_zettelkasten_update.md` | Governance model |
+| `docs/archive/drafts/new-new/CHOIR_DOCTRINES_zettelkasten_update.md` | Core doctrines |
 
 ---
 

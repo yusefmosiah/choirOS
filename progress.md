@@ -170,3 +170,19 @@
 ## Next Steps
 - Automate remaining experiments (Q1/Q2/Q4/Q5) in `supervisor/research/experiments.py`.
 - Decide whether to silence the `runpy` warning in the research runner entrypoint.
+
+# Progress (2026-01-30)
+
+## Completed
+- Refactor complete: NATS as source of truth, libsql/SQLite projection store, runtime emits events only.
+- Projector worker and machine updated for JetStream consumers; runtime dedupe moved to RuntimeStore.
+- Projection rebuild tooling and runbook decision-test harnesses added.
+- Decision tests executed (concurrency, restart, projection rebuild) against one-user stack.
+
+## Tests
+- `PYTHONPATH=/Users/wiz/choirOS /Users/wiz/choirOS/api/venv/bin/python -m pytest supervisor/tests`
+- Runbook decision tests documented in `docs/test_report-2026-01-30.md`.
+
+## Notes
+- Decision tests used a no-op Machine runner to validate event pipeline without LLM calls.
+- Next: redesign Writer app for multi-turn flow after runbook closeout.
