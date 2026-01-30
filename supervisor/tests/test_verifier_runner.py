@@ -4,13 +4,18 @@ from pathlib import Path
 import sys
 
 from supervisor.verifier_runner import ArtifactStore, VerifierRunner, VerifierSpec
+from supervisor.sandbox_runner import LocalSandboxRunner
 
 
 class TestVerifierRunner(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp_dir = tempfile.TemporaryDirectory()
         self.store = ArtifactStore(root=Path(self.tmp_dir.name))
-        self.runner = VerifierRunner(store=self.store)
+        self.runner = VerifierRunner(
+            store=self.store,
+            sandbox_runner=LocalSandboxRunner(),
+            analyze_with_baml=False,
+        )
 
     def tearDown(self) -> None:
         self.tmp_dir.cleanup()

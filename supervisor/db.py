@@ -1,55 +1,84 @@
 """
-SQLite persistence for ChoirOS events.
+Projection store for ChoirOS events.
 
-Event-sourced: everything is an event, materialized views derive state.
-NATS JetStream is the source of truth; SQLite is a materialized projection.
+Event-sourced: NATS JetStream is the source of truth; libsql is a materialized projection.
 """
 
-import asyncio
 import json
 import os
 import sqlite3
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, TYPE_CHECKING
-import hashlib
+from typing import Any, Optional
 import math
 
-# Conditional import: NATS is optional for local dev
 try:
-    from .nats_client import NATSClient, ChoirEvent, get_nats_client, close_nats_client
-    NATS_AVAILABLE = True
-except ImportError:
-    NATS_AVAILABLE = False
-    NATSClient = None
-    ChoirEvent = None
-    get_nats_client = None
-    close_nats_client = None
+    import libsql  # type: ignore
+    LIBSQL_AVAILABLE = True
+except Exception:
+    libsql = None
+    LIBSQL_AVAILABLE = False
 
-from .event_contract import CHOIR_STREAM, normalize_event_type
-from shared.tenancy import get_default_user_id, subject_prefix_for
+from .event_contract import normalize_event_type
+from shared.tenancy import get_default_user_id
 
-# Default path - can be overridden per-user
-DEFAULT_DB_PATH = Path(__file__).parent.parent / "state.sqlite"
-
-# User ID for single-user mode (will be dynamic in multi-user)
+DEFAULT_DB_DIR = Path(__file__).parent.parent / ".context" / "projections"
+DEFAULT_DB_PATH = DEFAULT_DB_DIR / "projection-local.db"
 DEFAULT_USER_ID = os.environ.get("CHOIROS_USER_ID", get_default_user_id())
 
-# Feature flag: disable NATS for local dev if not running
-NATS_ENABLED = NATS_AVAILABLE and os.environ.get("NATS_ENABLED", "1") == "1"
+
+def _resolve_db_url(user_id: str) -> str:
+    raw = os.environ.get("CHOIROS_PROJECTION_DB_URL")
+    if raw:
+        return raw.format(user_id=user_id)
+    DEFAULT_DB_DIR.mkdir(parents=True, exist_ok=True)
+    return str(DEFAULT_DB_DIR / f"projection-{user_id}.db")
 
 
-class EventStore:
-    """Event-sourced storage with SQLite backend and NATS publishing."""
+def _resolve_sync_url(user_id: str) -> Optional[str]:
+    raw = os.environ.get("CHOIROS_PROJECTION_DB_SYNC_URL")
+    if raw:
+        return raw.format(user_id=user_id)
+    return None
 
-    def __init__(self, db_path: Path = DEFAULT_DB_PATH, user_id: str = DEFAULT_USER_ID):
-        self.db_path = db_path
+
+def _resolve_auth_token() -> Optional[str]:
+    return os.environ.get("CHOIROS_PROJECTION_DB_AUTH_TOKEN")
+
+
+class ProjectionStore:
+    """Materialized projection store (libsql)."""
+
+    def __init__(
+        self,
+        db_url: Optional[str] = None,
+        db_path: Optional[Path] = None,
+        user_id: str = DEFAULT_USER_ID,
+    ):
         self.user_id = user_id
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        resolved = db_url or (str(db_path) if db_path is not None else _resolve_db_url(user_id))
+        self.db_url = resolved
+        self.conn = self._connect(resolved)
         self.conn.row_factory = sqlite3.Row
         self._init_schema()
-        self._nats: Optional[NATSClient] = None
+
+    def _connect(self, db_url: str):
+        if db_url.startswith("libsql://") or db_url.startswith("file:"):
+            if not LIBSQL_AVAILABLE:
+                raise RuntimeError("libsql is required for projection store")
+            return libsql.connect(
+                db_url,
+                auth_token=_resolve_auth_token(),
+                sync_url=_resolve_sync_url(self.user_id),
+            )
+        if LIBSQL_AVAILABLE:
+            return libsql.connect(
+                db_url,
+                auth_token=_resolve_auth_token(),
+                sync_url=_resolve_sync_url(self.user_id),
+            )
+        return sqlite3.connect(db_url, check_same_thread=False)
 
     def _init_schema(self):
         """Initialize database schema."""
@@ -67,7 +96,6 @@ class EventStore:
             CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);
             CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
             CREATE INDEX IF NOT EXISTS idx_events_nats_seq ON events(nats_seq);
-            CREATE INDEX IF NOT EXISTS idx_events_event_id ON events(event_id);
 
             -- Materialized: file state
             CREATE TABLE IF NOT EXISTS files (
@@ -102,6 +130,7 @@ class EventStore:
             CREATE TABLE IF NOT EXISTS tool_calls (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 event_seq INTEGER REFERENCES events(seq),
+                tool_call_id TEXT,
                 conversation_id INTEGER REFERENCES conversations(id),
                 tool_name TEXT NOT NULL,
                 tool_input JSON NOT NULL,
@@ -200,26 +229,16 @@ class EventStore:
                 message TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS projection_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+
             -- Sync state
             CREATE TABLE IF NOT EXISTS sync_state (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
-
-            CREATE TABLE IF NOT EXISTS event_dedupe (
-                consumer TEXT NOT NULL,
-                event_id TEXT NOT NULL,
-                status TEXT NOT NULL,
-                nats_seq INTEGER,
-                subject TEXT,
-                delivery_count INTEGER NOT NULL DEFAULT 1,
-                first_seen TEXT NOT NULL DEFAULT (datetime('now')),
-                last_seen TEXT NOT NULL DEFAULT (datetime('now')),
-                last_error TEXT,
-                PRIMARY KEY (consumer, event_id)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_event_dedupe_status ON event_dedupe(status);
 
             -- Run inputs (initial prompts + follow-ups)
             CREATE TABLE IF NOT EXISTS run_inputs (
@@ -242,6 +261,9 @@ class EventStore:
         self._ensure_column("work_items", "runner_id", "TEXT")
         self._ensure_column("work_items", "run_id", "TEXT")
         self._ensure_column("events", "event_id", "TEXT")
+        self._ensure_column("tool_calls", "tool_call_id", "TEXT")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_events_event_id ON events(event_id)")
+        self.conn.commit()
 
     def _ensure_column(self, table: str, column: str, column_type: str) -> None:
         cursor = self.conn.execute(f"PRAGMA table_info({table})")
@@ -251,97 +273,6 @@ class EventStore:
         self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}")
         self.conn.commit()
 
-    async def _get_nats(self) -> Optional[NATSClient]:
-        """Get NATS client, initializing if needed."""
-        if not NATS_ENABLED:
-            return None
-        if self._nats is None:
-            try:
-                self._nats = await get_nats_client()
-            except Exception as e:
-                # Log warning but don't fail - fallback to SQLite only
-                print(f"Warning: NATS connection failed, using SQLite only: {e}")
-                return None
-        return self._nats
-
-    async def append_async(self, event_type: str, payload: dict, source: str = "system") -> int:
-        """
-        Append an event to NATS (source of truth) and SQLite (projection).
-
-        Returns the SQLite sequence number.
-        """
-        normalized_type = normalize_event_type(event_type)
-        nats_seq = None
-        event_id = str(uuid.uuid4())
-        if NATS_ENABLED and ChoirEvent is not None:
-            event = ChoirEvent(
-                id=event_id,
-                timestamp=int(datetime.now().timestamp() * 1000),
-                user_id=self.user_id,
-                source=source,
-                event_type=normalized_type,
-                payload=payload
-            )
-            nats = await self._get_nats()
-            if nats:
-                try:
-                    nats_seq = await nats.publish_event(event)
-                except Exception as e:
-                    print(f"Warning: NATS publish failed: {e}")
-
-        # Always write to SQLite
-        cursor = self.conn.execute(
-            "INSERT INTO events (nats_seq, event_id, type, payload) VALUES (?, ?, ?, ?)",
-            (nats_seq, event_id, normalized_type, json.dumps(payload))
-        )
-        self.conn.commit()
-        return cursor.lastrowid
-
-    def append(self, event_type: str, payload: dict, source: str = "system") -> int:
-        """
-        Synchronous append for backward compatibility.
-
-        In local dev without NATS, this works normally.
-        If NATS is enabled, runs async publish in background.
-        """
-        # Try to use async version if event loop exists
-        event_id = str(uuid.uuid4())
-        try:
-            loop = asyncio.get_running_loop()
-            # Schedule async append but don't wait
-            asyncio.create_task(self._append_async_background(event_type, payload, source, event_id))
-        except RuntimeError:
-            pass  # No event loop, skip NATS
-
-        normalized_type = normalize_event_type(event_type)
-
-        # Always write immediately to SQLite
-        cursor = self.conn.execute(
-            "INSERT INTO events (event_id, type, payload) VALUES (?, ?, ?)",
-            (event_id, normalized_type, json.dumps(payload))
-        )
-        self.conn.commit()
-        return cursor.lastrowid
-
-    async def _append_async_background(self, event_type: str, payload: dict, source: str, event_id: str):
-        """Background task to publish to NATS."""
-        if not (NATS_ENABLED and ChoirEvent is not None):
-            return
-        nats = await self._get_nats()
-        if nats:
-            try:
-                normalized_type = normalize_event_type(event_type)
-                event = ChoirEvent(
-                    id=event_id,
-                    timestamp=int(datetime.now().timestamp() * 1000),
-                    user_id=self.user_id,
-                    source=source,
-                    event_type=normalized_type,
-                    payload=payload
-                )
-                await nats.publish_event(event)
-            except Exception as e:
-                print(f"Warning: Background NATS publish failed: {e}")
 
     def get_events(
         self,
@@ -594,52 +525,6 @@ class EventStore:
         result = cursor.fetchone()[0]
         return result
 
-    async def rebuild_from_nats(self, target_seq: Optional[int] = None) -> int:
-        """
-        Rebuild SQLite projection from NATS stream.
-
-        Used for recovery or undo to a specific point.
-        Returns number of events replayed.
-        """
-        nats = await self._get_nats()
-        if not nats:
-            raise RuntimeError("NATS not available for rebuild")
-
-        # Clear materialized tables
-        self.conn.executescript("""
-            DELETE FROM files;
-            DELETE FROM messages;
-            DELETE FROM tool_calls;
-            DELETE FROM conversations;
-            DELETE FROM ahdb_state;
-            DELETE FROM ahdb_deltas;
-            DELETE FROM ahdb_proposals;
-            DELETE FROM run_notes;
-            DELETE FROM run_verifications;
-            DELETE FROM run_commit_requests;
-            DELETE FROM run_inputs;
-            DELETE FROM events;
-            DELETE FROM event_dedupe;
-        """)
-        self.conn.commit()
-
-        # Fetch all events from NATS
-        events = await nats.get_events(
-            stream=CHOIR_STREAM,
-            subject_filter=subject_prefix_for(self.user_id),
-            start_seq=1,
-            limit=target_seq or 100000,
-        )
-
-        # Replay each event
-        count = 0
-        for event, nats_seq in events:
-            self.apply_event(event.event_type, event.payload, event.timestamp, nats_seq, event.id)
-            count += 1
-
-        self.conn.commit()
-        return count
-
     def rebuild_projection_from_events(self) -> int:
         """
         Rebuild materialized projections from the existing SQLite event log.
@@ -699,6 +584,8 @@ class EventStore:
         )
         event_seq = cursor.lastrowid
         self._materialize_projection(normalized_type, payload, timestamp, event_seq)
+        if nats_seq is not None:
+            self.set_projection_state("last_nats_seq", str(nats_seq), commit=False)
         return event_seq
 
     def _materialize_projection(
@@ -745,10 +632,11 @@ class EventStore:
                 self._ensure_conversation(conversation_id, timestamp)
             self.conn.execute(
                 """INSERT INTO tool_calls
-                   (event_seq, conversation_id, tool_name, tool_input, tool_result, timestamp)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
+                   (event_seq, tool_call_id, conversation_id, tool_name, tool_input, tool_result, timestamp)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (
                     event_seq,
+                    payload.get("tool_call_id"),
                     conversation_id,
                     payload.get("tool_name"),
                     json.dumps(payload.get("tool_input")),
@@ -756,6 +644,118 @@ class EventStore:
                     timestamp,
                 )
             )
+        elif event_type == "tool.result":
+            tool_call_id = payload.get("tool_call_id")
+            conversation_id = payload.get("conversation_id")
+            if conversation_id is not None:
+                self._ensure_conversation(conversation_id, timestamp)
+            tool_result = json.dumps(payload.get("tool_result"))
+            if tool_call_id:
+                cursor = self.conn.execute(
+                    "UPDATE tool_calls SET tool_result = ?, timestamp = ? WHERE tool_call_id = ?",
+                    (tool_result, timestamp, tool_call_id),
+                )
+                if cursor.rowcount == 0:
+                    self.conn.execute(
+                        """INSERT INTO tool_calls
+                           (event_seq, tool_call_id, conversation_id, tool_name, tool_input, tool_result, timestamp)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            event_seq,
+                            tool_call_id,
+                            conversation_id,
+                            payload.get("tool_name"),
+                            json.dumps(payload.get("tool_input") or {}),
+                            tool_result,
+                            timestamp,
+                        ),
+                    )
+            else:
+                self.conn.execute(
+                    """INSERT INTO tool_calls
+                       (event_seq, tool_call_id, conversation_id, tool_name, tool_input, tool_result, timestamp)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        event_seq,
+                        None,
+                        conversation_id,
+                        payload.get("tool_name"),
+                        json.dumps(payload.get("tool_input") or {}),
+                        tool_result,
+                        timestamp,
+                    ),
+                )
+        elif event_type == "run.input":
+            run_id = payload.get("run_id")
+            prompt = payload.get("prompt")
+            kind = payload.get("input_kind") or "initial"
+            work_item_id = payload.get("work_item_id")
+            runner_id = payload.get("session_id")
+            description = prompt or payload.get("description")
+            if work_item_id:
+                self._ensure_work_item(
+                    work_item_id,
+                    description,
+                    payload.get("status") or "queued",
+                    runner_id,
+                    run_id,
+                    timestamp,
+                    acceptance_criteria=payload.get("acceptance_criteria"),
+                    required_verifiers=payload.get("required_verifiers"),
+                    risk_tier=payload.get("risk_tier"),
+                    dependencies=payload.get("dependencies"),
+                    parent_id=payload.get("parent_id"),
+                )
+            if run_id:
+                self._ensure_run(run_id, work_item_id, "queued", None, timestamp)
+            if run_id and prompt:
+                self.conn.execute(
+                    """INSERT INTO run_inputs (id, run_id, prompt, kind, created_at)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (str(uuid.uuid4()), run_id, prompt, kind, timestamp),
+                )
+        elif event_type == "run.started":
+            run_id = payload.get("run_id")
+            work_item_id = payload.get("work_item_id")
+            mode = payload.get("mode")
+            if run_id:
+                self._ensure_run(run_id, work_item_id, "running", mode, timestamp)
+                self.conn.execute(
+                    "UPDATE runs SET started_at = COALESCE(started_at, ?), updated_at = ? WHERE id = ?",
+                    (timestamp, timestamp, run_id),
+                )
+            if work_item_id:
+                self._ensure_work_item(work_item_id, None, "running", payload.get("session_id"), run_id, timestamp)
+        elif event_type == "run.finished":
+            run_id = payload.get("run_id")
+            work_item_id = payload.get("work_item_id")
+            status = payload.get("status") or "finished"
+            mode = payload.get("mode")
+            if run_id:
+                self._ensure_run(run_id, work_item_id, status, mode, timestamp)
+                self.conn.execute(
+                    "UPDATE runs SET finished_at = ?, updated_at = ? WHERE id = ?",
+                    (timestamp, timestamp, run_id),
+                )
+            if work_item_id:
+                terminal_status = "completed"
+                if str(status).lower() in {"failed", "error"}:
+                    terminal_status = "failed"
+                self._ensure_work_item(work_item_id, None, terminal_status, payload.get("session_id"), run_id, timestamp)
+        elif event_type == "mode.start":
+            run_id = payload.get("run_id")
+            work_item_id = payload.get("work_item_id")
+            mode = payload.get("mode")
+            if run_id:
+                self._ensure_run(run_id, work_item_id, "running", mode, timestamp)
+            if work_item_id:
+                self._ensure_work_item(work_item_id, payload.get("prompt"), "running", payload.get("session_id"), run_id, timestamp)
+        elif event_type == "mode.update":
+            run_id = payload.get("run_id")
+            status = payload.get("status")
+            mode = payload.get("mode")
+            if run_id:
+                self._ensure_run(run_id, payload.get("work_item_id"), status or "running", mode, timestamp)
         elif event_type == "receipt.ahdb.delta":
             delta = self._extract_ahdb_delta(payload)
             if delta is not None:
@@ -767,6 +767,13 @@ class EventStore:
                     self._apply_ahdb_proposal(delta, run_id, timestamp, event_seq)
                 else:
                     self._apply_ahdb_delta(delta, timestamp, event_seq)
+                    if authority == "asserted" and isinstance(payload, dict):
+                        run_id = payload.get("run_id")
+                        if run_id:
+                            self.conn.execute(
+                                "UPDATE ahdb_proposals SET status = ? WHERE run_id = ? AND status = ?",
+                                ("promoted", run_id, "proposed"),
+                            )
         elif event_type.startswith("note."):
             run_id = payload.get("run_id")
             body = payload.get("body", payload)
@@ -782,6 +789,11 @@ class EventStore:
                        VALUES (?, ?, ?, ?)""",
                     (run_id, json.dumps(body), event_seq, timestamp),
                 )
+            if event_type == "note.status" and run_id and isinstance(body, dict):
+                status = body.get("status")
+                mode = body.get("mode")
+                if status:
+                    self._ensure_run(run_id, None, status, mode, timestamp)
         elif event_type == "receipt.verifier.attestations":
             run_id = payload.get("run_id")
             attestation = payload.get("attestation")
@@ -791,6 +803,31 @@ class EventStore:
                        VALUES (?, ?, ?, ?)""",
                     (run_id, json.dumps(attestation), event_seq, timestamp),
                 )
+        elif event_type == "provider.changed":
+            provider = payload.get("provider")
+            if provider:
+                self.conn.execute(
+                    """INSERT INTO user_settings (key, value, updated_at)
+                       VALUES (?, ?, ?)
+                       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+                    ("llm_provider", provider, timestamp),
+                )
+        elif event_type == "checkpoint":
+            commit_sha = payload.get("commit_sha")
+            message = payload.get("message")
+            if commit_sha:
+                self.conn.execute(
+                    """INSERT INTO checkpoints (commit_sha, last_event_seq, last_nats_seq, message)
+                       VALUES (?, ?, ?, ?)""",
+                    (commit_sha, event_seq, payload.get("nats_seq"), message),
+                )
+                if payload.get("mark_good"):
+                    self.conn.execute(
+                        """INSERT INTO sync_state (key, value)
+                           VALUES (?, ?)
+                           ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+                        ("last_good_checkpoint", commit_sha),
+                    )
 
     def _extract_ahdb_delta(self, payload: dict) -> Optional[dict]:
         if not isinstance(payload, dict):
@@ -842,100 +879,93 @@ class EventStore:
             (conversation_id, started_at, None)
         )
 
-    # =========== Conversation Helpers ===========
-
-    def start_conversation(self) -> int:
-        """Start a new conversation, return its ID."""
-        cursor = self.conn.execute(
-            "INSERT INTO conversations DEFAULT VALUES"
-        )
-        self.conn.commit()
-        return cursor.lastrowid
-
-    def get_or_create_conversation(self) -> int:
-        """Get most recent conversation or create new one."""
-        cursor = self.conn.execute(
-            "SELECT id FROM conversations ORDER BY started_at DESC LIMIT 1"
-        )
-        row = cursor.fetchone()
-        if row:
-            return row[0]
-        return self.start_conversation()
-
-    async def add_message_async(
+    def _ensure_work_item(
         self,
-        conversation_id: int,
-        role: str,
-        content: str,
-        run_id: Optional[str] = None,
-    ) -> int:
-        """Add a message to conversation, logging it as an event (async version)."""
-        payload: dict[str, Any] = {
-            "conversation_id": conversation_id,
-            "role": role,
-            "content": content,
-        }
-        if run_id:
-            payload["run_id"] = run_id
-        seq = await self.append_async(
-            "message",
-            payload,
-            source="user" if role == "user" else "agent",
-        )
-
-        # Materialize to messages table
+        work_item_id: str,
+        description: Optional[str],
+        status: str,
+        runner_id: Optional[str],
+        run_id: Optional[str],
+        timestamp: str,
+        acceptance_criteria: Optional[str] = None,
+        required_verifiers: Optional[list[str]] = None,
+        risk_tier: Optional[str] = None,
+        dependencies: Optional[list[str]] = None,
+        parent_id: Optional[str] = None,
+    ) -> None:
+        required_json = json.dumps(required_verifiers) if required_verifiers is not None else None
+        deps_json = json.dumps(dependencies) if dependencies is not None else None
         self.conn.execute(
-            """INSERT INTO messages
-               (conversation_id, event_seq, role, content, timestamp)
-               VALUES (?, ?, ?, ?, datetime('now'))""",
-            (conversation_id, seq, role, content)
+            """INSERT OR IGNORE INTO work_items
+               (id, description, acceptance_criteria, required_verifiers, risk_tier,
+                dependencies, status, parent_id, runner_id, run_id, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                work_item_id,
+                description,
+                acceptance_criteria,
+                required_json or json.dumps([]),
+                risk_tier,
+                deps_json or json.dumps([]),
+                status,
+                parent_id,
+                runner_id,
+                run_id,
+                timestamp,
+                timestamp,
+            ),
         )
-
-        # Update conversation last_seq
         self.conn.execute(
-            "UPDATE conversations SET last_seq = ? WHERE id = ?",
-            (seq, conversation_id)
+            """UPDATE work_items
+               SET description = COALESCE(?, description),
+                   acceptance_criteria = COALESCE(?, acceptance_criteria),
+                   required_verifiers = COALESCE(?, required_verifiers),
+                   risk_tier = COALESCE(?, risk_tier),
+                   dependencies = COALESCE(?, dependencies),
+                   parent_id = COALESCE(?, parent_id),
+                   status = ?,
+                   runner_id = COALESCE(?, runner_id),
+                   run_id = COALESCE(?, run_id),
+                   updated_at = ?
+               WHERE id = ?""",
+            (
+                description,
+                acceptance_criteria,
+                required_json,
+                risk_tier,
+                deps_json,
+                parent_id,
+                status,
+                runner_id,
+                run_id,
+                timestamp,
+                work_item_id,
+            ),
         )
-        self.conn.commit()
-        return seq
 
-    def add_message(
+    def _ensure_run(
         self,
-        conversation_id: int,
-        role: str,
-        content: str,
-        run_id: Optional[str] = None,
-    ) -> int:
-        """Add a message to conversation, logging it as an event."""
-        # Append to event log
-        payload: dict[str, Any] = {
-            "conversation_id": conversation_id,
-            "role": role,
-            "content": content,
-        }
-        if run_id:
-            payload["run_id"] = run_id
-        seq = self.append(
-            "message",
-            payload,
-            source="user" if role == "user" else "agent",
-        )
-
-        # Materialize to messages table
+        run_id: str,
+        work_item_id: Optional[str],
+        status: str,
+        mode: Optional[str],
+        timestamp: str,
+    ) -> None:
         self.conn.execute(
-            """INSERT INTO messages
-               (conversation_id, event_seq, role, content, timestamp)
-               VALUES (?, ?, ?, ?, datetime('now'))""",
-            (conversation_id, seq, role, content)
+            """INSERT OR IGNORE INTO runs
+               (id, work_item_id, status, mode, created_at, updated_at, started_at, finished_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (run_id, work_item_id, status, mode, timestamp, timestamp, None, None),
         )
-
-        # Update conversation last_seq
         self.conn.execute(
-            "UPDATE conversations SET last_seq = ? WHERE id = ?",
-            (seq, conversation_id)
+            """UPDATE runs
+               SET work_item_id = COALESCE(?, work_item_id),
+                   status = ?,
+                   mode = COALESCE(?, mode),
+                   updated_at = ?
+               WHERE id = ?""",
+            (work_item_id, status, mode, timestamp, run_id),
         )
-        self.conn.commit()
-        return seq
 
     def get_conversation_messages(
         self,
@@ -955,7 +985,7 @@ class EventStore:
 
     def list_tool_calls(self, conversation_id: int) -> list[dict]:
         cursor = self.conn.execute(
-            """SELECT event_seq, tool_name, tool_input, tool_result, timestamp
+            """SELECT event_seq, tool_call_id, tool_name, tool_input, tool_result, timestamp
                FROM tool_calls
                WHERE conversation_id = ?
                ORDER BY event_seq ASC""",
@@ -968,6 +998,7 @@ class EventStore:
             results.append(
                 {
                     "event_seq": row["event_seq"],
+                    "tool_call_id": row["tool_call_id"],
                     "tool_name": row["tool_name"],
                     "tool_input": tool_input,
                     "tool_result": tool_result,
@@ -975,149 +1006,6 @@ class EventStore:
                 }
             )
         return results
-
-    # =========== Tool Call Logging ===========
-
-    async def log_tool_call_async(
-        self,
-        conversation_id: int,
-        tool_name: str,
-        tool_input: dict,
-        tool_result: Any = None,
-        run_id: Optional[str] = None,
-    ) -> int:
-        """Log a tool call as an event (async version)."""
-        payload: dict[str, Any] = {
-            "conversation_id": conversation_id,
-            "tool_name": tool_name,
-            "tool_input": tool_input,
-            "tool_result": tool_result,
-        }
-        if run_id:
-            payload["run_id"] = run_id
-        seq = await self.append_async("tool.call", payload, source="agent")
-
-        self.conn.execute(
-            """INSERT INTO tool_calls
-               (event_seq, conversation_id, tool_name, tool_input, tool_result, timestamp)
-               VALUES (?, ?, ?, ?, ?, datetime('now'))""",
-            (seq, conversation_id, tool_name,
-             json.dumps(tool_input), json.dumps(tool_result))
-        )
-        self.conn.commit()
-        return seq
-
-    def log_tool_call(
-        self,
-        conversation_id: int,
-        tool_name: str,
-        tool_input: dict,
-        tool_result: Any = None,
-        run_id: Optional[str] = None,
-    ) -> int:
-        """Log a tool call as an event."""
-        payload: dict[str, Any] = {
-            "conversation_id": conversation_id,
-            "tool_name": tool_name,
-            "tool_input": tool_input,
-            "tool_result": tool_result,
-        }
-        if run_id:
-            payload["run_id"] = run_id
-        seq = self.append("tool.call", payload, source="agent")
-
-        self.conn.execute(
-            """INSERT INTO tool_calls
-               (event_seq, conversation_id, tool_name, tool_input, tool_result, timestamp)
-               VALUES (?, ?, ?, ?, ?, datetime('now'))""",
-            (seq, conversation_id, tool_name,
-             json.dumps(tool_input), json.dumps(tool_result))
-        )
-        self.conn.commit()
-        return seq
-
-    # =========== File Tracking ===========
-
-    async def log_file_write_async(self, path: str, content: bytes) -> int:
-        """Log a file write event (async version)."""
-        content_hash = hashlib.sha256(content).hexdigest()
-
-        seq = await self.append_async("file.write", {
-            "path": path,
-            "content_hash": content_hash,
-            "size_bytes": len(content)
-        }, source="agent")
-
-        # Upsert to files table
-        self.conn.execute(
-            """INSERT OR REPLACE INTO files (path, content_hash, updated_at)
-               VALUES (?, ?, datetime('now'))""",
-            (path, content_hash)
-        )
-        self.conn.commit()
-        return seq
-
-    def log_file_write(self, path: str, content: bytes) -> int:
-        """Log a file write event."""
-        content_hash = hashlib.sha256(content).hexdigest()
-
-        seq = self.append("file.write", {
-            "path": path,
-            "content_hash": content_hash,
-            "size_bytes": len(content)
-        }, source="agent")
-
-        # Upsert to files table
-        self.conn.execute(
-            """INSERT OR REPLACE INTO files (path, content_hash, updated_at)
-               VALUES (?, ?, datetime('now'))""",
-            (path, content_hash)
-        )
-        self.conn.commit()
-        return seq
-
-    def log_file_delete(self, path: str) -> int:
-        """Log a file deletion event."""
-        seq = self.append("file.delete", {"path": path}, source="agent")
-
-        self.conn.execute("DELETE FROM files WHERE path = ?", (path,))
-        self.conn.commit()
-        return seq
-
-    # =========== AHDB ===========
-
-    async def log_ahdb_delta_async(self, delta: dict, metadata: Optional[dict] = None) -> int:
-        """Log an AHDB delta receipt event (async version)."""
-        payload = {"delta": delta}
-        if metadata:
-            payload.update(metadata)
-        seq = await self.append_async("receipt.ahdb.delta", payload, source="system")
-        timestamp = datetime.now().isoformat()
-        self._apply_ahdb_delta(delta, timestamp, seq)
-        self.conn.commit()
-        return seq
-
-    def log_ahdb_delta(self, delta: dict, metadata: Optional[dict] = None) -> int:
-        """Log an AHDB delta receipt event."""
-        payload = {"delta": delta}
-        if metadata:
-            payload.update(metadata)
-        seq = self.append("receipt.ahdb.delta", payload, source="system")
-        timestamp = datetime.now().isoformat()
-        authority = payload.get("authority")
-        if authority == "proposed":
-            self._apply_ahdb_proposal(delta, payload.get("run_id"), timestamp, seq)
-        else:
-            self._apply_ahdb_delta(delta, timestamp, seq)
-        self.conn.commit()
-        return seq
-
-    def log_ahdb_proposal(self, delta: dict, run_id: Optional[str] = None) -> int:
-        """Log a proposed AHDB delta (does not update asserted state)."""
-        metadata = {"authority": "proposed"}
-        if run_id:
-            metadata["run_id"] = run_id
-        return self.log_ahdb_delta(delta, metadata)
 
     def get_ahdb_state(self) -> dict:
         """Return the latest AHDB state vector."""
@@ -1137,7 +1025,17 @@ class EventStore:
             cursor = self.conn.execute(
                 "SELECT * FROM ahdb_proposals ORDER BY id DESC"
             )
-        return [dict(row) for row in cursor.fetchall()]
+        proposals: list[dict] = []
+        for row in cursor.fetchall():
+            entry = dict(row)
+            delta = entry.get("delta")
+            if delta:
+                try:
+                    entry["delta"] = json.loads(delta)
+                except json.JSONDecodeError:
+                    pass
+            proposals.append(entry)
+        return proposals
 
     def mark_ahdb_proposals_promoted(self, run_id: str) -> None:
         self.conn.execute(
@@ -1157,6 +1055,7 @@ class EventStore:
         dependencies: Optional[list[str]] = None,
         status: str = "pending",
         parent_id: Optional[str] = None,
+        runner_id: Optional[str] = None,
     ) -> dict:
         """Create a work item."""
         now = datetime.now().isoformat()
@@ -1175,7 +1074,7 @@ class EventStore:
                 json.dumps(dependencies or []),
                 status,
                 parent_id,
-                None,
+                runner_id,
                 None,
                 now,
                 now,
@@ -1226,7 +1125,13 @@ class EventStore:
         now = datetime.now().isoformat()
         with self.conn:
             row = self.conn.execute(
-                "SELECT id FROM work_items WHERE status = 'queued' ORDER BY created_at ASC LIMIT 1"
+                """
+                SELECT id FROM work_items
+                WHERE status = 'queued' AND (runner_id IS NULL OR runner_id = ?)
+                ORDER BY created_at ASC
+                LIMIT 1
+                """,
+                (runner_id,),
             ).fetchone()
             if not row:
                 return None
@@ -1235,9 +1140,9 @@ class EventStore:
                 """
                 UPDATE work_items
                 SET status = 'running', runner_id = ?, updated_at = ?
-                WHERE id = ? AND status = 'queued'
+                WHERE id = ? AND status = 'queued' AND (runner_id IS NULL OR runner_id = ?)
                 """,
-                (runner_id, now, work_item_id),
+                (runner_id, now, work_item_id, runner_id),
             )
             if cursor.rowcount == 0:
                 return None
@@ -1409,93 +1314,9 @@ class EventStore:
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    async def add_run_note_async(self, run_id: str, note_type: str, body: dict) -> int:
-        payload = {"run_id": run_id, "body": body}
-        event_seq = await self.append_async(note_type, payload, source="agent")
-        timestamp = datetime.now().isoformat()
-        self.conn.execute(
-            """INSERT INTO run_notes (run_id, note_type, body, event_seq, created_at)
-               VALUES (?, ?, ?, ?, ?)""",
-            (run_id, note_type, json.dumps(body), event_seq, timestamp),
-        )
-        self.conn.commit()
-        return event_seq
-
-    def add_run_note(self, run_id: str, note_type: str, body: dict) -> int:
-        payload = {"run_id": run_id, "body": body}
-        event_seq = self.append(note_type, payload, source="agent")
-        timestamp = datetime.now().isoformat()
-        self.conn.execute(
-            """INSERT INTO run_notes (run_id, note_type, body, event_seq, created_at)
-               VALUES (?, ?, ?, ?, ?)""",
-            (run_id, note_type, json.dumps(body), event_seq, timestamp),
-        )
-        self.conn.commit()
-        return event_seq
-
-    async def add_run_verification_async(self, run_id: str, attestation: dict) -> int:
-        event_seq = await self.append_async(
-            "receipt.verifier.attestations",
-            {"run_id": run_id, "attestation": attestation},
-            source="system",
-        )
-        timestamp = datetime.now().isoformat()
-        self.conn.execute(
-            """INSERT INTO run_verifications (run_id, attestation, event_seq, created_at)
-               VALUES (?, ?, ?, ?)""",
-            (run_id, json.dumps(attestation), event_seq, timestamp),
-        )
-        self.conn.commit()
-        return event_seq
-
-    def add_run_verification(self, run_id: str, attestation: dict) -> int:
-        event_seq = self.append(
-            "receipt.verifier.attestations",
-            {"run_id": run_id, "attestation": attestation},
-            source="system",
-        )
-        timestamp = datetime.now().isoformat()
-        self.conn.execute(
-            """INSERT INTO run_verifications (run_id, attestation, event_seq, created_at)
-               VALUES (?, ?, ?, ?)""",
-            (run_id, json.dumps(attestation), event_seq, timestamp),
-        )
-        self.conn.commit()
-        return event_seq
-
-    async def add_commit_request_async(self, run_id: str, payload: dict) -> int:
-        event_seq = await self.append_async(
-            "note.request.verify",
-            {"run_id": run_id, "body": payload},
-            source="agent",
-        )
-        timestamp = datetime.now().isoformat()
-        self.conn.execute(
-            """INSERT INTO run_commit_requests (run_id, payload, event_seq, created_at)
-               VALUES (?, ?, ?, ?)""",
-            (run_id, json.dumps(payload), event_seq, timestamp),
-        )
-        self.conn.commit()
-        return event_seq
-
-    def add_commit_request(self, run_id: str, payload: dict) -> int:
-        event_seq = self.append(
-            "note.request.verify",
-            {"run_id": run_id, "body": payload},
-            source="agent",
-        )
-        timestamp = datetime.now().isoformat()
-        self.conn.execute(
-            """INSERT INTO run_commit_requests (run_id, payload, event_seq, created_at)
-               VALUES (?, ?, ?, ?)""",
-            (run_id, json.dumps(payload), event_seq, timestamp),
-        )
-        self.conn.commit()
-        return event_seq
-
     # =========== Checkpoints ===========
 
-    def record_checkpoint(self, commit_sha: str, message: str = None) -> int:
+    def record_checkpoint(self, commit_sha: str, message: str = None, commit: bool = True) -> int:
         """Record a git checkpoint."""
         last_seq = self.get_latest_seq()
         last_nats_seq = self.get_latest_nats_seq()
@@ -1505,7 +1326,8 @@ class EventStore:
                VALUES (?, ?, ?, ?)""",
             (commit_sha, last_seq, last_nats_seq, message)
         )
-        self.conn.commit()
+        if commit:
+            self.conn.commit()
         return cursor.lastrowid
 
     def get_last_checkpoint(self) -> Optional[dict]:
@@ -1515,6 +1337,34 @@ class EventStore:
         )
         row = cursor.fetchone()
         return dict(row) if row else None
+
+    # =========== Projection State ===========
+
+    def get_projection_state(self, key: str) -> Optional[str]:
+        cursor = self.conn.execute(
+            "SELECT value FROM projection_state WHERE key = ?",
+            (key,),
+        )
+        row = cursor.fetchone()
+        return row["value"] if row else None
+
+    def set_projection_state(self, key: str, value: str, commit: bool = True) -> None:
+        self.conn.execute(
+            """INSERT INTO projection_state (key, value)
+               VALUES (?, ?)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+            (key, value),
+        )
+        if commit:
+            self.conn.commit()
+
+    def delete_projection_state(self, key: str, commit: bool = True) -> None:
+        self.conn.execute(
+            "DELETE FROM projection_state WHERE key = ?",
+            (key,),
+        )
+        if commit:
+            self.conn.commit()
 
     # =========== Sync State ===========
 
@@ -1542,69 +1392,6 @@ class EventStore:
         self.conn.execute(
             "DELETE FROM sync_state WHERE key = ?",
             (key,),
-        )
-        self.conn.commit()
-
-    # =========== Event Dedupe ===========
-
-    def record_event_delivery(
-        self,
-        consumer: str,
-        event_id: str,
-        nats_seq: Optional[int],
-        subject: str,
-        delivery_count: int,
-    ) -> tuple[bool, str]:
-        now = datetime.now().isoformat()
-        try:
-            self.conn.execute(
-                """
-                INSERT INTO event_dedupe
-                    (consumer, event_id, status, nats_seq, subject, delivery_count, first_seen, last_seen)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (consumer, event_id, "received", nats_seq, subject, delivery_count, now, now),
-            )
-            self.conn.commit()
-            return True, "received"
-        except sqlite3.IntegrityError:
-            row = self.conn.execute(
-                "SELECT status FROM event_dedupe WHERE consumer = ? AND event_id = ?",
-                (consumer, event_id),
-            ).fetchone()
-            self.conn.execute(
-                """
-                UPDATE event_dedupe
-                SET last_seen = ?, delivery_count = ?, nats_seq = COALESCE(?, nats_seq), subject = COALESCE(?, subject)
-                WHERE consumer = ? AND event_id = ?
-                """,
-                (now, delivery_count, nats_seq, subject, consumer, event_id),
-            )
-            self.conn.commit()
-            status = row["status"] if row else "unknown"
-            return False, status
-
-    def mark_event_processing(self, consumer: str, event_id: str) -> None:
-        now = datetime.now().isoformat()
-        self.conn.execute(
-            "UPDATE event_dedupe SET status = ?, last_seen = ? WHERE consumer = ? AND event_id = ?",
-            ("processing", now, consumer, event_id),
-        )
-        self.conn.commit()
-
-    def mark_event_done(self, consumer: str, event_id: str) -> None:
-        now = datetime.now().isoformat()
-        self.conn.execute(
-            "UPDATE event_dedupe SET status = ?, last_seen = ? WHERE consumer = ? AND event_id = ?",
-            ("done", now, consumer, event_id),
-        )
-        self.conn.commit()
-
-    def mark_event_failed(self, consumer: str, event_id: str, error: str) -> None:
-        now = datetime.now().isoformat()
-        self.conn.execute(
-            "UPDATE event_dedupe SET status = ?, last_seen = ?, last_error = ? WHERE consumer = ? AND event_id = ?",
-            ("failed", now, error, consumer, event_id),
         )
         self.conn.commit()
 
@@ -1720,27 +1507,28 @@ class EventStore:
         self.conn.commit()
 
     async def close_async(self):
-        """Close database and NATS connections."""
+        """Close database connection."""
         self.conn.close()
-        await close_nats_client()
 
     def close(self):
         """Close the database connection."""
         self.conn.close()
 
 
+EventStore = ProjectionStore
+
 # Singleton instance
-_store: Optional[EventStore] = None
-_stores_by_user: dict[str, EventStore] = {}
+_store: Optional[ProjectionStore] = None
+_stores_by_user: dict[str, ProjectionStore] = {}
 
 
-def get_store(user_id: Optional[str] = None) -> EventStore:
-    """Get the event store instance (optionally scoped to a user)."""
+def get_store(user_id: Optional[str] = None) -> ProjectionStore:
+    """Get the projection store instance (optionally scoped to a user)."""
     global _store, _stores_by_user
     if user_id is None:
         if _store is None:
-            _store = EventStore()
+            _store = ProjectionStore()
         return _store
     if user_id not in _stores_by_user:
-        _stores_by_user[user_id] = EventStore(user_id=user_id)
+        _stores_by_user[user_id] = ProjectionStore(user_id=user_id)
     return _stores_by_user[user_id]

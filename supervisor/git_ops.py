@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from .db import EventStore, get_store
+from .event_publisher import EventPublisher
 
 
 # Root of the git repo
@@ -201,19 +201,21 @@ def git_revert(sha: str, dry_run: bool = True) -> dict:
     }
 
 
-def checkpoint(message: Optional[str] = None, store: Optional[EventStore] = None) -> dict:
+def checkpoint(
+    message: Optional[str] = None,
+    publisher: Optional[EventPublisher] = None,
+    run_id: Optional[str] = None,
+    mark_good: bool = False,
+) -> dict:
     """
     Create a git checkpoint (add all + commit).
     
     Returns dict with commit info or error.
     """
-    store = store or get_store()
-    
     # Generate message if not provided
     if message is None:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        last_seq = store.get_latest_seq()
-        message = f"checkpoint: {timestamp} (event seq {last_seq})"
+        message = f"checkpoint: {timestamp}"
     
     # Check if there are changes
     status = get_status()
@@ -257,8 +259,17 @@ def checkpoint(message: Optional[str] = None, store: Optional[EventStore] = None
             "error": "Unable to determine commit SHA",
         }
 
-    # Record in event store
-    store.record_checkpoint(commit_sha, message)
+    if publisher:
+        publisher.publish_sync(
+            "checkpoint",
+            {
+                "run_id": run_id,
+                "commit_sha": commit_sha,
+                "message": message,
+                "mark_good": mark_good,
+            },
+            source="system",
+        )
 
     return {
         "success": True,

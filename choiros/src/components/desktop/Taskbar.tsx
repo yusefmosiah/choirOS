@@ -3,7 +3,7 @@ import { useState, useRef, type FormEvent } from 'react';
 import { useWindowStore } from '../../stores/windows';
 import { useSourcesStore } from '../../stores/sources';
 import { APP_REGISTRY } from '../../lib/apps';
-import { isUrl, type ParseMode } from '../../lib/api';
+import { createArtifact, isUrl, type ParseMode } from '../../lib/api';
 import { useAgent } from '../../hooks/useAgent';
 import { Upload, Link, Loader2, AlertCircle, Wifi, WifiOff, KeyRound } from 'lucide-react';
 import { useEventStore } from '../../stores/events';
@@ -20,6 +20,9 @@ export function Taskbar() {
     const [input, setInput] = useState('');
     const [showMenu, setShowMenu] = useState(false);
     const [duplicateConfirm, setDuplicateConfirm] = useState<DuplicateConfirm | null>(null);
+    const pendingPromptRef = useRef<string | null>(null);
+    const pendingRunIdRef = useRef<string | null>(null);
+    const responseBufferRef = useRef<string>('');
     
     // Use centralized event store
     const addEvent = useEventStore((s) => s.addEvent);
@@ -33,10 +36,15 @@ export function Taskbar() {
     const parseUrlAndCreate = useSourcesStore((s) => s.parseUrlAndCreate);
     const checkUrlExists = useSourcesStore((s) => s.checkUrlExists);
     const uploadAndParse = useSourcesStore((s) => s.uploadAndParse);
+    const fetchArtifacts = useSourcesStore((s) => s.fetchArtifacts);
     const isParsingUrl = useSourcesStore((s) => s.isParsingUrl);
     const isUploading = useSourcesStore((s) => s.isUploading);
     const error = useSourcesStore((s) => s.error);
     const clearError = useSourcesStore((s) => s.clearError);
+
+    const showToast = (message: string, type: 'info' | 'success' | 'error' | 'thinking' = 'info', artifactId?: string) => {
+        addEvent(message, type, artifactId);
+    };
 
     const openRunMap = () => {
         const existing = Array.from(windows.values()).find((win) => win.appId === 'runMap');
@@ -53,14 +61,47 @@ export function Taskbar() {
     const { isProcessing: isAgentProcessing, isConnected: isAgentConnected, sendPrompt } = useAgent({
         onMessage: (message) => {
             if (message.type === 'enqueued') {
+                const runId = (message.content as { run_id?: string })?.run_id;
+                if (runId) {
+                    pendingRunIdRef.current = runId;
+                }
                 openRunMap();
+                return;
+            }
+            if (message.type === 'text' && typeof message.content === 'string') {
+                responseBufferRef.current += message.content;
+                return;
+            }
+            if (message.type === 'error') {
+                showToast(String(message.content || 'Agent failed'), 'error');
+                return;
+            }
+            if (message.type === 'done') {
+                const prompt = pendingPromptRef.current;
+                const runId = pendingRunIdRef.current;
+                const response = responseBufferRef.current.trim();
+                pendingPromptRef.current = null;
+                pendingRunIdRef.current = null;
+                responseBufferRef.current = '';
+                if (!prompt || !response) {
+                    return;
+                }
+                const name = `Response - ${prompt.slice(0, 48)}`.trim();
+                const runBlock = runId ? `Run: ${runId}\n\n` : '';
+                const content = `${runBlock}# Prompt\n${prompt}\n\n# Response\n${response}\n`;
+                createArtifact({ name, content, source_type: 'agent', mime_type: 'text/markdown' })
+                    .then(async (artifact) => {
+                        await fetchArtifacts();
+                        showToast(`Response saved: ${artifact.name}`, 'success', artifact.artifact_id);
+                        openWindow('writer', { artifactId: artifact.artifact_id });
+                    })
+                    .catch((err) => {
+                        console.error('[Taskbar] Failed to save response:', err);
+                        showToast('Failed to save response', 'error');
+                    });
             }
         },
     });
-
-    const showToast = (message: string, type: 'info' | 'success' | 'error' | 'thinking' = 'info', artifactId?: string) => {
-        addEvent(message, type, artifactId);
-    };
 
     const parseWithMode = async (url: string, mode: ParseMode) => {
         showToast('Parsing URL...', 'info');
@@ -124,6 +165,9 @@ export function Taskbar() {
         }
 
         openRunMap();
+        pendingPromptRef.current = trimmedInput;
+        pendingRunIdRef.current = null;
+        responseBufferRef.current = '';
         sendPrompt(trimmedInput, { inputKind: 'initial' });
         setInput('');
         showToast('Run enqueued', 'info');

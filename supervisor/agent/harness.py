@@ -9,10 +9,12 @@ Streaming is handled via BAML's stream feature.
 
 import json
 import logging
+import uuid
 from typing import AsyncGenerator, Any, Optional, List
 
 from .tools import AgentTools
-from ..db import get_store, EventStore
+from ..db import ProjectionStore, get_store
+from ..event_publisher import EventPublisher, get_publisher
 from ..mode_config import ModeConfig, get_mode_config
 from ..prompt_builder import ModePromptBuilder
 from supervisor.baml_client import b
@@ -27,19 +29,21 @@ class AgentHarness:
     def __init__(
         self,
         file_history=None,
-        event_store: Optional[EventStore] = None,
+        projection: Optional[ProjectionStore] = None,
+        publisher: Optional[EventPublisher] = None,
         mode_config: Optional[ModeConfig] = None,
         prompt_builder: Optional[ModePromptBuilder] = None,
         replay: bool = False,
         replay_read_only: bool = True,
         replay_conversation_id: Optional[int] = None,
     ):
-        self.store = event_store or get_store()
+        self.projection = projection or get_store()
+        self.publisher = publisher or get_publisher(self.projection.user_id)
         self.mode_config = mode_config or get_mode_config("CALM")
         self.prompt_builder = prompt_builder or ModePromptBuilder()
         self.tools = AgentTools(
             file_history=file_history,
-            event_store=self.store,
+            event_publisher=self.publisher,
             mode_config=self.mode_config,
         )
         self.conversation_id: Optional[int] = None
@@ -59,15 +63,15 @@ class AgentHarness:
 
     def load_replay_context(self, conversation_id: int) -> None:
         self.conversation_id = conversation_id
-        messages = self.store.get_conversation_messages(conversation_id, limit=1000)
+        messages = self.projection.get_conversation_messages(conversation_id, limit=1000)
         self.message_history = [Message(role=m["role"], content=m["content"]) for m in messages]
-        self._replay_tools = ReplayToolCache.from_store(self.store, conversation_id)
+        self._replay_tools = ReplayToolCache.from_store(self.projection, conversation_id)
 
     def _get_replay_tool_result(self, tool_name: str, tool_input: dict) -> Optional[Any]:
         if not self.replay:
             return None
         if self._replay_tools is None and self.conversation_id is not None:
-            self._replay_tools = ReplayToolCache.from_store(self.store, self.conversation_id)
+            self._replay_tools = ReplayToolCache.from_store(self.projection, self.conversation_id)
         if not self._replay_tools:
             return None
         return self._replay_tools.get(tool_name, tool_input)
@@ -83,28 +87,37 @@ class AgentHarness:
                 if self.replay and self.replay_conversation_id is not None:
                     self.load_replay_context(self.replay_conversation_id)
                 else:
-                    self.conversation_id = self.store.start_conversation()
+                    self.conversation_id = int(uuid.uuid4().int >> 64)
 
-            ahdb_state = self.store.get_ahdb_state()
+            if self.tools:
+                self.tools.current_run_id = self.current_run_id
+
+            ahdb_state = self.projection.get_ahdb_state()
             system_context = self.prompt_builder.build(
                 mode=self.mode_config,
                 ahdb_state=ahdb_state,
                 context={"receipts": [], "artifacts": []},
             )
             if not self.replay_read_only:
-                self.store.append(
+                await self.publisher.publish(
                     "receipt.context.footprint",
                     {
                         "conversation_id": self.conversation_id,
                         "mode": self.mode_config.mode_id,
                         "ahdb_keys": sorted(ahdb_state.keys()),
+                        "run_id": self.current_run_id,
                     },
                     source="system",
                 )
 
             # Log user message
             if not self.replay_read_only:
-                await self.store.add_message_async(self.conversation_id, "user", prompt)
+                await self.publisher.add_message_async(
+                    self.conversation_id,
+                    "user",
+                    prompt,
+                    run_id=self.current_run_id,
+                )
             self.message_history.append(Message(role="user", content=prompt))
 
             # Initial "thinking" state
@@ -126,7 +139,7 @@ class AgentHarness:
 
                 # Get the current provider's BAML client
                 from ..provider_factory import get_provider_factory
-                factory = get_provider_factory(self.store)
+                factory = get_provider_factory(self.projection)
                 client = factory.get_baml_client()
 
                 stream = b.with_options(client=client).stream.PlanAction(
@@ -152,8 +165,11 @@ class AgentHarness:
                 if final_plan.final_response:
                      yield {"type": "text", "content": final_plan.final_response}
                      if not self.replay_read_only:
-                        await self.store.add_message_async(
-                            self.conversation_id, "assistant", final_plan.final_response
+                        await self.publisher.add_message_async(
+                            self.conversation_id,
+                            "assistant",
+                            final_plan.final_response,
+                            run_id=self.current_run_id,
                         )
                      self.message_history.append(Message(role="assistant", content=final_plan.final_response))
                      break
@@ -185,7 +201,12 @@ class AgentHarness:
                      assistant_content += f"Tool Call: {tc.tool_name}({tc.tool_args})\n"
 
                 self.message_history.append(Message(role="assistant", content=assistant_content))
-                await self.store.add_message_async(self.conversation_id, "assistant", assistant_content)
+                await self.publisher.add_message_async(
+                    self.conversation_id,
+                    "assistant",
+                    assistant_content,
+                    run_id=self.current_run_id,
+                )
 
                 # Execute each tool
                 # Wait, PlanAction returns ALL tool calls for this turn concurrently?
@@ -209,18 +230,27 @@ class AgentHarness:
                     replay_result = self._get_replay_tool_result(tc.tool_name, args)
                     if replay_result is None and self.replay:
                         raise RuntimeError(f"Replay missing tool result for {tc.tool_name}")
+                    tool_call_id = str(uuid.uuid4())
+                    if not self.replay_read_only:
+                        await self.publisher.log_tool_call_async(
+                            self.conversation_id,
+                            tc.tool_name,
+                            args,
+                            tool_call_id,
+                            run_id=self.current_run_id,
+                        )
+
                     result = replay_result if replay_result is not None else await self.tools.execute_tool(
                         tc.tool_name,
                         args,
                     )
-
-                    # Log
                     if not self.replay_read_only:
-                        await self.store.log_tool_call_async(
+                        await self.publisher.log_tool_result_async(
                             self.conversation_id,
                             tc.tool_name,
-                            args,
-                            result
+                            result,
+                            tool_call_id,
+                            run_id=self.current_run_id,
                         )
 
                     yield {

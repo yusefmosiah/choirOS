@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Optional
 import difflib
 
-from ..db import EventStore, get_store
+from ..event_publisher import EventPublisher, get_publisher
 from .web_search import WebSearch
 from ..mode_config import ModeConfig
 from ..verifier_runner import ArtifactStore
@@ -43,7 +43,7 @@ class AgentTools:
     def __init__(
         self,
         file_history=None,
-        event_store: Optional[EventStore] = None,
+        event_publisher: Optional[EventPublisher] = None,
         mode_config: Optional[ModeConfig] = None,
     ):
         """
@@ -51,16 +51,16 @@ class AgentTools:
 
         Args:
             file_history: Optional FileHistory instance for undo support
-            event_store: Optional EventStore for logging file mutations
+            event_publisher: Optional EventPublisher for logging events
         """
         self.file_history = file_history
-        self.store = event_store or get_store()
+        self.publisher = event_publisher or get_publisher()
         self.mode_config = mode_config
         self.env = os.environ.copy()
         self.cwd = str(PROJECT_ROOT / "choiros")  # Default working directory
         self.app_dir = PROJECT_ROOT
         self.web_search = WebSearch()
-        self.artifacts = ArtifactStore(event_store=self.store)
+        self.artifacts = ArtifactStore(event_publisher=self.publisher)
         self.current_run_id: Optional[str] = None
 
     # Tool definitions for Claude
@@ -267,17 +267,20 @@ class AgentTools:
         except ValueError:
             return str(path)
 
-    def _emit_artifact_pointer(self, artifact_hash: str, path: str, kind: str, size_bytes: int) -> None:
-        if not self.store:
+    async def _emit_artifact_pointer(self, artifact_hash: str, path: str, kind: str, size_bytes: int) -> None:
+        if not self.publisher:
             return
-        self.store.append(
+        payload = {
+            "artifact_hash": artifact_hash,
+            "path": path,
+            "kind": kind,
+            "size_bytes": size_bytes,
+        }
+        if self.current_run_id:
+            payload["run_id"] = self.current_run_id
+        await self.publisher.publish(
             "artifact.pointer",
-            {
-                "artifact_hash": artifact_hash,
-                "path": path,
-                "kind": kind,
-                "size_bytes": size_bytes,
-            },
+            payload,
             source="system",
         )
 
@@ -319,15 +322,18 @@ class AgentTools:
                 "total_lines": len(content.splitlines()),
                 "returned_lines": len(lines),
             }
-            if self.store:
-                self.store.append(
+            if self.publisher:
+                payload = {
+                    "path": self._display_path(file_path),
+                    "bytes": len(content.encode()),
+                    "head": head,
+                    "tail": tail,
+                }
+                if self.current_run_id:
+                    payload["run_id"] = self.current_run_id
+                await self.publisher.publish(
                     "receipt.read",
-                    {
-                        "path": self._display_path(file_path),
-                        "bytes": len(content.encode()),
-                        "head": head,
-                        "tail": tail,
-                    },
+                    payload,
                     source="agent",
                 )
             return result
@@ -354,8 +360,12 @@ class AgentTools:
             # Write content
             file_path.write_text(content)
 
-            if self.store:
-                await self.store.log_file_write_async(self._display_path(file_path), content.encode())
+            if self.publisher:
+                await self.publisher.log_file_write_async(
+                    self._display_path(file_path),
+                    content.encode(),
+                    run_id=self.current_run_id,
+                )
             diff = "\n".join(
                 difflib.unified_diff(
                     original.splitlines(),
@@ -366,8 +376,8 @@ class AgentTools:
                 )
             )
             if diff:
-                artifact_hash, _ = self.artifacts.write_bytes(diff.encode(), ".diff")
-                self._emit_artifact_pointer(
+                artifact_hash, _ = await self.artifacts.write_bytes(diff.encode(), ".diff")
+                await self._emit_artifact_pointer(
                     artifact_hash,
                     self._display_path(file_path),
                     "diff",
@@ -379,14 +389,17 @@ class AgentTools:
                 "path": str(file_path),
                 "bytes_written": len(content.encode()),
             }
-            if self.store:
-                self.store.append(
+            if self.publisher:
+                payload = {
+                    "path": self._display_path(file_path),
+                    "bytes": len(content.encode()),
+                    "action": "write",
+                }
+                if self.current_run_id:
+                    payload["run_id"] = self.current_run_id
+                await self.publisher.publish(
                     "receipt.patch",
-                    {
-                        "path": self._display_path(file_path),
-                        "bytes": len(content.encode()),
-                        "action": "write",
-                    },
+                    payload,
                     source="agent",
                 )
             return result
@@ -449,8 +462,12 @@ class AgentTools:
                     await self.file_history.save_state(str(file_path))
 
                 file_path.write_text(content)
-                if self.store:
-                    await self.store.log_file_write_async(self._display_path(file_path), content.encode())
+                if self.publisher:
+                    await self.publisher.log_file_write_async(
+                        self._display_path(file_path),
+                        content.encode(),
+                        run_id=self.current_run_id,
+                    )
                 diff = "\n".join(
                     difflib.unified_diff(
                         original.splitlines(),
@@ -461,8 +478,8 @@ class AgentTools:
                     )
                 )
                 if diff:
-                    artifact_hash, _ = self.artifacts.write_bytes(diff.encode(), ".diff")
-                    self._emit_artifact_pointer(
+                    artifact_hash, _ = await self.artifacts.write_bytes(diff.encode(), ".diff")
+                    await self._emit_artifact_pointer(
                         artifact_hash,
                         self._display_path(file_path),
                         "diff",
@@ -475,14 +492,17 @@ class AgentTools:
                 "changes": changes,
                 "modified": content != original,
             }
-            if result.get("modified") and self.store:
-                self.store.append(
+            if result.get("modified") and self.publisher:
+                payload = {
+                    "path": self._display_path(file_path),
+                    "bytes": len(content.encode()),
+                    "action": "edit",
+                }
+                if self.current_run_id:
+                    payload["run_id"] = self.current_run_id
+                await self.publisher.publish(
                     "receipt.patch",
-                    {
-                        "path": self._display_path(file_path),
-                        "bytes": len(content.encode()),
-                        "action": "edit",
-                    },
+                    payload,
                     source="agent",
                 )
             return result
@@ -532,8 +552,8 @@ class AgentTools:
             preview = content[:500]
             artifact_hash = None
             if log_path.exists():
-                artifact_hash, _ = self.artifacts.write_bytes(log_path.read_bytes(), ".log")
-                self._emit_artifact_pointer(
+                artifact_hash, _ = await self.artifacts.write_bytes(log_path.read_bytes(), ".log")
+                await self._emit_artifact_pointer(
                     artifact_hash,
                     str(log_path),
                     "bash.log",
@@ -564,14 +584,17 @@ class AgentTools:
             data = path.read_bytes()
             truncated = len(data) > max_bytes
             content = data[:max_bytes].decode(errors="replace")
-            if self.store:
-                self.store.append(
+            if self.publisher:
+                payload = {
+                    "artifact_hash": artifact_hash,
+                    "path": str(path),
+                    "bytes": len(data),
+                }
+                if self.current_run_id:
+                    payload["run_id"] = self.current_run_id
+                await self.publisher.publish(
                     "receipt.read",
-                    {
-                        "artifact_hash": artifact_hash,
-                        "path": str(path),
-                        "bytes": len(data),
-                    },
+                    payload,
                     source="agent",
                 )
             return {"content": content, "bytes": len(data), "truncated": truncated}
@@ -588,13 +611,18 @@ class AgentTools:
             return {"error": "No active run ID found (internal error)"}
             
         try:
-            if not self.store:
-                return {"error": "No event store connected"}
+            if not self.publisher:
+                return {"error": "No event publisher connected"}
 
-            self.store.create_ahdb_proposal(
-                run_id=self.current_run_id,
-                delta={field: value},
-                evidence=evidence,
+            await self.publisher.publish(
+                "receipt.ahdb.delta",
+                {
+                    "delta": {field: value},
+                    "authority": "proposed",
+                    "evidence": evidence,
+                    "run_id": self.current_run_id,
+                },
+                source="system",
             )
             return {
                 "status": "proposed",
@@ -611,7 +639,11 @@ class AgentTools:
             return denial
         try:
             from ..git_ops import checkpoint
-            result = checkpoint(message)
+            result = checkpoint(
+                message,
+                publisher=self.publisher,
+                run_id=self.current_run_id,
+            )
             return result
         except Exception as e:
             return {"error": str(e)}
@@ -656,13 +688,16 @@ class AgentTools:
             if denial:
                 return denial
             result = await self.web_search.search(**arguments)
-            if self.store:
-                self.store.append(
+            if self.publisher:
+                payload = {
+                    "query": arguments.get("query"),
+                    "max_results": arguments.get("max_results"),
+                }
+                if self.current_run_id:
+                    payload["run_id"] = self.current_run_id
+                await self.publisher.publish(
                     "receipt.net",
-                    {
-                        "query": arguments.get("query"),
-                        "max_results": arguments.get("max_results"),
-                    },
+                    payload,
                     source="agent",
                 )
             return result

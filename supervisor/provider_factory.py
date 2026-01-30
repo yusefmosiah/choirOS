@@ -9,7 +9,8 @@ import os
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from .db import EventStore
+    from .db import ProjectionStore
+    from .event_publisher import EventPublisher
 
 # Singleton instance
 _factory: Optional["ProviderFactory"] = None
@@ -46,9 +47,10 @@ class ProviderFactory:
         },
     }
 
-    def __init__(self, db: "EventStore"):
+    def __init__(self, db: "ProjectionStore", publisher: Optional["EventPublisher"] = None):
         """Initialize the provider factory with a database connection."""
         self.db = db
+        self.publisher = publisher
         self._current_provider = self._load_provider_from_db()
 
     def _load_provider_from_db(self) -> str:
@@ -79,7 +81,13 @@ class ProviderFactory:
             raise ValueError(f"Invalid provider: {provider}. Must be one of: {list(self.PROVIDER_CONFIGS.keys())}")
 
         self._current_provider = provider
-        self.db.set_setting("llm_provider", provider)
+        if not self.publisher:
+            raise RuntimeError("ProviderFactory requires EventPublisher to update provider")
+        self.publisher.publish_sync(
+            "provider.changed",
+            {"provider": provider},
+            source="system",
+        )
 
     def get_baml_client(self):
         """
@@ -150,12 +158,12 @@ class ProviderFactory:
         self.set_provider(self.DEFAULT_PROVIDER)
 
 
-def get_provider_factory(db: Optional["EventStore"] = None) -> ProviderFactory:
+def get_provider_factory(db: Optional["ProjectionStore"] = None, publisher: Optional["EventPublisher"] = None) -> ProviderFactory:
     """
     Get the singleton ProviderFactory instance.
 
     Args:
-        db: Optional EventStore instance (required for first call)
+        db: Optional ProjectionStore instance (required for first call)
 
     Returns:
         The ProviderFactory singleton
@@ -167,8 +175,8 @@ def get_provider_factory(db: Optional["EventStore"] = None) -> ProviderFactory:
 
     if _factory is None:
         if db is None:
-            raise RuntimeError("ProviderFactory requires EventStore on first call")
-        _factory = ProviderFactory(db)
+            raise RuntimeError("ProviderFactory requires ProjectionStore on first call")
+        _factory = ProviderFactory(db, publisher=publisher)
 
     return _factory
 

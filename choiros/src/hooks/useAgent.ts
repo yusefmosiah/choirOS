@@ -30,7 +30,7 @@ export interface UseAgentReturn {
     /** Last error message */
     error: string | null;
     /** Send a prompt to the agent */
-    sendPrompt: (prompt: string) => void;
+    sendPrompt: (prompt: string, options?: { runId?: string; inputKind?: 'initial' | 'followup' }) => void;
     /** Current response messages */
     messages: AgentMessage[];
     /** Clear messages */
@@ -50,24 +50,37 @@ export function useAgent(options: UseAgentOptions = {}): UseAgentReturn {
 
     const wsRef = useRef<WebSocket | null>(null);
     const onMessageRef = useRef(onMessage);
-    const pendingPromptsRef = useRef<string[]>([]);
+    const pendingPromptsRef = useRef<Array<{ prompt: string; runId?: string; inputKind?: 'initial' | 'followup' }>>(
+        []
+    );
 
     // Keep onMessage ref updated
     useEffect(() => {
         onMessageRef.current = onMessage;
     }, [onMessage]);
 
-    const sendPrompt = useCallback((prompt: string) => {
+    const sendPrompt = useCallback(
+        (prompt: string, options?: { runId?: string; inputKind?: 'initial' | 'followup' }) => {
         setIsProcessing(true);
         setError(null);
         setMessages([]);
 
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-            pendingPromptsRef.current.push(prompt);
+            pendingPromptsRef.current.push({
+                prompt,
+                runId: options?.runId,
+                inputKind: options?.inputKind,
+            });
             return;
         }
 
-        wsRef.current.send(JSON.stringify({ prompt }));
+        wsRef.current.send(
+            JSON.stringify({
+                prompt,
+                run_id: options?.runId,
+                input_kind: options?.inputKind,
+            })
+        );
     }, []);
 
     const clearMessages = useCallback(() => {
@@ -105,7 +118,13 @@ export function useAgent(options: UseAgentOptions = {}): UseAgentReturn {
                         const queued = [...pendingPromptsRef.current];
                         pendingPromptsRef.current = [];
                         for (const queuedPrompt of queued) {
-                            ws.send(JSON.stringify({ prompt: queuedPrompt }));
+                            ws.send(
+                                JSON.stringify({
+                                    prompt: queuedPrompt.prompt,
+                                    run_id: queuedPrompt.runId,
+                                    input_kind: queuedPrompt.inputKind,
+                                })
+                            );
                         }
                     }
                 };

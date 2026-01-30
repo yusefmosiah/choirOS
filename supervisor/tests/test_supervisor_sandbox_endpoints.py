@@ -6,8 +6,10 @@ from unittest import mock
 
 from fastapi.testclient import TestClient
 
-from supervisor.db import EventStore
+from supervisor.db import ProjectionStore
+from supervisor.runtime_store import RuntimeStore
 from supervisor import main as supervisor_main
+from supervisor.tests.fakes import FakeNATSClient
 from supervisor.sandbox_runner import (
     SandboxCheckpoint,
     SandboxCommand,
@@ -60,15 +62,43 @@ class FakeSandboxRunner(SandboxRunner):
 
 class TestSupervisorSandboxEndpoints(unittest.TestCase):
     def setUp(self) -> None:
-        os.environ["NATS_ENABLED"] = "0"
         fd, self.db_path = tempfile.mkstemp(prefix="choiros_sbx_", suffix=".sqlite")
         os.close(fd)
-        self.store = EventStore(db_path=Path(self.db_path), user_id="local")
+        self.store = ProjectionStore(
+            db_path=Path(self.db_path),
+            user_id="local",
+        )
+        self.runtime_store = RuntimeStore(db_path=Path(self.db_path), user_id="local")
         self.fake = FakeSandboxRunner()
+        self.fake_nats = FakeNATSClient()
+
+        async def _fake_get_nats_client():
+            return self.fake_nats
+
+        async def _fake_close_nats_client():
+            return None
+
+        self.nats_get_patch = mock.patch(
+            "supervisor.main.get_nats_client", new=_fake_get_nats_client
+        )
+        self.nats_close_patch = mock.patch(
+            "supervisor.main.close_nats_client", new=_fake_close_nats_client
+        )
+        self.nats_get_patch.start()
+        self.nats_close_patch.start()
+        self.runtime_patch = mock.patch(
+            "supervisor.main.RuntimeStore",
+            side_effect=lambda **_kwargs: self.runtime_store,
+        )
+        self.runtime_patch.start()
         self.client = TestClient(supervisor_main.app)
 
     def tearDown(self) -> None:
+        self.nats_get_patch.stop()
+        self.nats_close_patch.stop()
+        self.runtime_patch.stop()
         self.store.close()
+        self.runtime_store.close()
         Path(self.db_path).unlink(missing_ok=True)
 
     def test_full_sandbox_lifecycle(self) -> None:

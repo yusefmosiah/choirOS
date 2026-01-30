@@ -4,7 +4,7 @@ import json
 from collections import deque
 from typing import Any, Deque, Optional
 
-from .db import EventStore
+from .db import ProjectionStore
 
 
 def _tool_key(tool_name: str, tool_input: dict) -> str:
@@ -20,7 +20,7 @@ class ReplayToolCache:
             self._by_key.setdefault(key, deque()).append(call.get("tool_result"))
 
     @classmethod
-    def from_store(cls, store: EventStore, conversation_id: int) -> "ReplayToolCache":
+    def from_store(cls, store: ProjectionStore, conversation_id: int) -> "ReplayToolCache":
         tool_calls = store.list_tool_calls(conversation_id)
         return cls(tool_calls)
 

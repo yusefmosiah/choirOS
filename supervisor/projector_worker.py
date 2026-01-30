@@ -8,72 +8,103 @@ import signal
 import sys
 from pathlib import Path
 
-# Add project root to path
+import nats
+from nats.js.api import ConsumerConfig
+
 if str(Path(__file__).parent.parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from supervisor.db import EventStore
-from supervisor.nats_client import get_nats_client
-from supervisor.event_contract import CHOIR_STREAM
+from supervisor.db import ProjectionStore
+from supervisor.nats_client import ChoirEvent, get_nats_client
 from shared.tenancy import subject_prefix_for
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("projector-worker")
 
+PROJECTOR_ACK_WAIT_SECONDS = 30
+PROJECTOR_MAX_DELIVER = 5
+PROJECTOR_BACKOFF_SECONDS = [1, 5, 30]
+PROJECTOR_FETCH_BATCH = 200
+PROJECTOR_FETCH_TIMEOUT = 1.0
+
 
 class ProjectorWorker:
-    def __init__(self) -> None:
-        self.store = EventStore()
+    def __init__(self, store: ProjectionStore | None = None) -> None:
+        self.store = store or ProjectionStore()
         self.running = True
-        self._cursor_key = "projector:last_nats_seq"
+        self.consumer = f"projector-{self.store.user_id}"
 
-    def _get_start_seq(self) -> int:
-        stored = self.store.get_sync_state(self._cursor_key)
+    def _get_last_seq(self) -> int:
+        stored = self.store.get_projection_state("last_nats_seq")
         if stored and stored.isdigit():
             return int(stored)
         latest = self.store.get_latest_nats_seq()
         return int(latest or 0)
 
-    def _set_cursor(self, seq: int) -> None:
-        self.store.set_sync_state(self._cursor_key, str(seq))
-
     async def start(self) -> None:
-        """Continuously project NATS events into the projection store."""
-        start_seq = self._get_start_seq()
-        logger.info("Starting projector. Last NATS seq: %s", start_seq)
+        last_seq = self._get_last_seq()
+        logger.info("Starting projector. Last NATS seq: %s", last_seq)
 
         while self.running:
             try:
-                nats = await get_nats_client()
+                nats_client = await get_nats_client()
+                subject = subject_prefix_for(self.store.user_id)
+                config = ConsumerConfig(
+                    ack_policy="explicit",
+                    ack_wait=PROJECTOR_ACK_WAIT_SECONDS,
+                    max_deliver=PROJECTOR_MAX_DELIVER,
+                    backoff=PROJECTOR_BACKOFF_SECONDS,
+                    deliver_policy="all",
+                )
+                subscription = await nats_client.pull_subscribe(
+                    subject,
+                    durable=self.consumer,
+                    config=config,
+                )
             except Exception as exc:
                 logger.error("Projector NATS connect failed: %s", exc)
                 await asyncio.sleep(2)
                 continue
 
-            try:
-                events = await nats.get_events(
-                    stream=CHOIR_STREAM,
-                    subject_filter=subject_prefix_for(self.store.user_id),
-                    start_seq=start_seq + 1,
-                    limit=500,
-                )
-                if not events:
-                    await asyncio.sleep(0.5)
+            while self.running:
+                try:
+                    msgs = await subscription.fetch(PROJECTOR_FETCH_BATCH, timeout=PROJECTOR_FETCH_TIMEOUT)
+                except nats.errors.TimeoutError:
+                    continue
+                except asyncio.CancelledError:
+                    break
+                except Exception as exc:
+                    logger.error("Projector fetch error: %s", exc)
+                    await asyncio.sleep(2)
                     continue
 
-                last_seq = start_seq
-                for event, nats_seq in events:
-                    if nats_seq is None:
-                        continue
-                    self.store.apply_event(event.event_type, event.payload, event.timestamp, nats_seq, event.id)
-                    last_seq = max(last_seq, int(nats_seq))
+                if not msgs:
+                    continue
 
-                self.store.conn.commit()
-                self._set_cursor(last_seq)
-                start_seq = last_seq
-            except Exception as exc:
-                logger.error("Projector loop error: %s", exc)
-                await asyncio.sleep(2)
+                try:
+                    batch_last = None
+                    for msg in msgs:
+                        event = ChoirEvent.from_json(msg.data)
+                        metadata = msg.metadata
+                        nats_seq = metadata.sequence.stream if metadata else None
+                        if nats_seq is None:
+                            await msg.ack()
+                            continue
+                        self.store.apply_event(event.event_type, event.payload, event.timestamp, nats_seq, event.id)
+                        batch_last = nats_seq if batch_last is None else max(batch_last, nats_seq)
+
+                    if batch_last is not None:
+                        self.store.set_projection_state("last_nats_seq", str(batch_last), commit=False)
+                    self.store.conn.commit()
+
+                    for msg in msgs:
+                        await msg.ack()
+
+                    if batch_last is not None:
+                        last_seq = batch_last
+                except Exception as exc:
+                    logger.error("Projector apply error: %s", exc)
+                    await asyncio.sleep(2)
 
     async def stop(self) -> None:
         self.running = False

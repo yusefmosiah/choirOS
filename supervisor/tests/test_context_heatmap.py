@@ -1,27 +1,44 @@
 import os
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 
-from supervisor.db import EventStore
+from supervisor.db import ProjectionStore
 
 
 class TestContextHeatmap(unittest.TestCase):
     def setUp(self) -> None:
-        os.environ["NATS_ENABLED"] = "0"
         fd, self.db_path = tempfile.mkstemp(prefix="choiros_heatmap_", suffix=".sqlite")
         os.close(fd)
-        self.store = EventStore(db_path=Path(self.db_path), user_id="local")
+        self.store = ProjectionStore(
+            db_path=Path(self.db_path),
+            user_id="local",
+        )
 
     def tearDown(self) -> None:
         self.store.close()
         Path(self.db_path).unlink(missing_ok=True)
 
     def test_heatmap_builds_nodes_and_edges(self) -> None:
-        conversation_id = self.store.start_conversation()
-        self.store.add_message(conversation_id, "user", "hello")
-        self.store.log_tool_call(conversation_id, "web.search", {"query": "choiros"})
-        self.store.log_file_write("docs/notes.md", b"content")
+        conversation_id = 1001
+        now = int(datetime.now().timestamp() * 1000)
+        self.store.apply_event(
+            "message",
+            {"conversation_id": conversation_id, "role": "user", "content": "hello"},
+            now,
+        )
+        self.store.apply_event(
+            "tool.call",
+            {"conversation_id": conversation_id, "tool_name": "web.search", "tool_input": {"query": "choiros"}},
+            now,
+        )
+        self.store.apply_event(
+            "file.write",
+            {"path": "docs/notes.md", "content_hash": "content"},
+            now,
+        )
+        self.store.conn.commit()
 
         snapshot = self.store.build_context_heatmap(limit=100)
         node_ids = {node["id"] for node in snapshot["nodes"]}
@@ -38,12 +55,30 @@ class TestContextHeatmap(unittest.TestCase):
         self.assertIn((f"conversation:{conversation_id}", "tool:web.search"), edge_pairs)
 
     def test_heatmap_replay_honors_until_seq(self) -> None:
-        conversation_id = self.store.start_conversation()
-        self.store.add_message(conversation_id, "user", "first")
-        seq_first = self.store.log_file_write("docs/alpha.md", b"alpha")
+        conversation_id = 2002
+        now = int(datetime.now().timestamp() * 1000)
+        self.store.apply_event(
+            "message",
+            {"conversation_id": conversation_id, "role": "user", "content": "first"},
+            now,
+        )
+        seq_first = self.store.apply_event(
+            "file.write",
+            {"path": "docs/alpha.md", "content_hash": "alpha"},
+            now,
+        )
 
-        seq_second = self.store.add_message(conversation_id, "assistant", "second")
-        self.store.log_file_write("docs/beta.md", b"beta")
+        seq_second = self.store.apply_event(
+            "message",
+            {"conversation_id": conversation_id, "role": "assistant", "content": "second"},
+            now,
+        )
+        self.store.apply_event(
+            "file.write",
+            {"path": "docs/beta.md", "content_hash": "beta"},
+            now,
+        )
+        self.store.conn.commit()
 
         snapshot = self.store.build_context_heatmap(until_seq=seq_first, limit=100)
         node_ids = {node["id"] for node in snapshot["nodes"]}

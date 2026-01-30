@@ -126,6 +126,89 @@ Each mode has specific tool allowlists, budgets, and behavioral constraints.
 6. **AHDB Authority**: AHDB updates require receipts/attestations, not LLM output alone
 7. **Testing Discipline**: Every feature or fix must include automated tests and explicit PREDICTION → EXPERIMENT → OBSERVE criteria.
 
+## PREDICTION / EXPERIMENT / OBSERVE Protocol
+
+**This is the most important development pattern in ChoirOS.**
+
+### The Core Insight
+
+PREDICTION/EXPERIMENT/OBSERVE isn't just a prompt format. **It's AHDB.**
+
+When we structure work as:
+- **PREDICTION**: Hypothesis about what will change
+- **EXPERIMENT**: Concrete action to test hypothesis
+- **OBSERVE**: Explicit verification method
+
+We're creating a **hypothesis tracking protocol** that agents can:
+- Parse and understand
+- Execute automatically
+- Verify independently
+- Build upon
+
+### Why This Matters
+
+The previous agent's fix didn't include tests because the prompt asked for "action," not "experiment."
+
+**Action without observation = movement, not learning.**
+
+Every feature we build should be an experiment. Every feature should include its own verification.
+
+### How to Apply This Pattern
+
+When implementing ANY feature or fix:
+
+```python
+def test_feature_name():
+    """
+    PREDICTION: [Clear hypothesis about what will happen]
+    EXPERIMENT: [Concrete steps to test the hypothesis]
+    OBSERVE: [Explicit verification that prediction was correct]
+    """
+```
+
+**Example - NATS Deduplication Fix:**
+
+Instead of:
+```python
+# Fix NATS ACK timing
+def fixAckTiming() { ... }
+```
+
+Write:
+```python
+def test_nats_dedup_prevents_duplicates():
+    """
+    PREDICTION: Setting AckWait to 30s and ACKing after persist will
+    eliminate duplicate processing because NATS won't redeliver
+    acknowledged messages.
+
+    EXPERIMENT:
+    1. Subscribe with explicit ACK and AckWait=30000ms
+    2. Process 1000 events with timing metrics
+    3. Crash worker at 50% processing (simulating failure)
+    4. Restart worker
+    5. Complete remaining events
+
+    OBSERVE:
+    - Query event_dedupe table: zero events with delivery_count > 1
+    - All 1000 events processed exactly once
+    - No duplicate work_items created
+    - Timing metrics show ACK before AckWait expiry
+    """
+```
+
+### Verification is Part of the Feature
+
+The test isn't separate from the feature. **It's part of the feature declaration.**
+
+When you implement:
+1. Write the PREDICTION first (what are you trying to achieve?)
+2. Write the OBSERVE section next (how will you prove it works?)
+3. Implement the EXPERIMENT (the code + test)
+4. Run the test to verify your prediction
+
+This makes every feature self-documenting and independently verifiable.
+
 ## Code Style Guidelines
 
 ### Python (FastAPI)

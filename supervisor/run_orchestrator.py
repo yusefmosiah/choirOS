@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime
 import logging
 import os
 from pathlib import Path
 from typing import Callable, Iterable, Optional, Awaitable
 
-from .db import EventStore
+from .db import ProjectionStore
+from .event_publisher import EventPublisher
 from .git_ops import checkpoint, git_revert, get_head_sha
 from .verifier_runner import VerifierRunner, VerifierSpec
+from .runtime_store import RuntimeStore
 from .sandbox_runner import SandboxHandle
 from .sandbox_config import build_sandbox_config
 from .verifier_plan import select_verifier_plan, build_verifier_specs
@@ -21,13 +24,17 @@ logger = logging.getLogger(__name__)
 class RunOrchestrator:
     def __init__(
         self,
-        store: EventStore,
+        projection: ProjectionStore,
+        publisher: EventPublisher,
         verifier_runner: Optional[VerifierRunner] = None,
         on_rollback: Optional[Callable[[str], None]] = None,
+        runtime_store: Optional[RuntimeStore] = None,
     ) -> None:
-        self.store = store
+        self.projection = projection
+        self.publisher = publisher
         self.verifier_runner = verifier_runner or VerifierRunner()
         self.on_rollback = on_rollback
+        self.runtime_store = runtime_store or RuntimeStore(user_id=projection.user_id)
 
     def _notify_rollback(self, run_id: str) -> None:
         if not self.on_rollback:
@@ -37,26 +44,15 @@ class RunOrchestrator:
         except Exception:
             pass
 
-    def _ensure_last_good_checkpoint(self) -> None:
-        if self.store.get_last_good_checkpoint():
-            return
-        head = get_head_sha()
-        if head:
-            self.store.set_last_good_checkpoint(head)
-
     def _sandbox_checkpoint_key(self) -> str:
-        return f"sandbox_checkpoint:{self.store.user_id}"
+        return f"sandbox_checkpoint:{self.projection.user_id}"
 
     def _get_last_sandbox_checkpoint(self) -> Optional[str]:
-        return self.store.get_sync_state(self._sandbox_checkpoint_key())
-
-    def _set_last_sandbox_checkpoint(self, checkpoint_id: str) -> None:
-        if checkpoint_id:
-            self.store.set_sync_state(self._sandbox_checkpoint_key(), checkpoint_id)
+        return self.runtime_store.get_state(self._sandbox_checkpoint_key())
 
     def _create_sandbox(self, run_id: str) -> tuple[Optional[SandboxHandle], Optional[dict]]:
         try:
-            config = build_sandbox_config(user_id=self.store.user_id, workspace_id=run_id)
+            config = build_sandbox_config(user_id=self.projection.user_id, workspace_id=run_id)
             handle = self.verifier_runner.sandbox_runner.create(config)
             self.verifier_runner.set_sandbox(handle)
             restore_result = None
@@ -89,82 +85,84 @@ class RunOrchestrator:
         verifier_specs: Iterable[VerifierSpec],
         mode: str = "CALM",
     ) -> dict:
-        run = self.store.create_run(work_item_id=work_item_id, mode=mode, status="running")
+        run = self.projection.get_latest_run_for_work_item(work_item_id)
+        if not run:
+            raise RuntimeError(f"Run not found for work_item_id={work_item_id}")
         run_id = run["id"]
-        self._ensure_last_good_checkpoint()
         sandbox_handle = None
-        response: dict = {"run": self.store.get_run(run_id), "verifier_results": []}
+        response: dict = {"run": self.projection.get_run(run_id), "verifier_results": []}
 
-        self.store.add_run_note(
-            run_id,
+        self.publisher.publish_sync(
             "note.status",
-            {"status": "running", "mode": mode, "stage": "execute"},
+            {"run_id": run_id, "body": {"status": "running", "mode": mode, "stage": "execute"}},
+            source="agent",
         )
 
         try:
             sandbox_handle, restore_result = self._create_sandbox(run_id)
             if sandbox_handle:
-                self.store.add_run_note(
-                    run_id,
+                self.publisher.publish_sync(
                     "note.observation",
-                    {"event": "sandbox.create", "sandbox_id": sandbox_handle.sandbox_id},
+                    {"run_id": run_id, "body": {"event": "sandbox.create", "sandbox_id": sandbox_handle.sandbox_id}},
+                    source="agent",
                 )
                 if restore_result:
-                    self.store.add_run_note(
-                        run_id,
+                    self.publisher.publish_sync(
                         "note.observation",
-                        {"event": "sandbox.restore", "result": restore_result},
+                        {"run_id": run_id, "body": {"event": "sandbox.restore", "result": restore_result}},
+                        source="agent",
                     )
             elif restore_result:
-                self.store.add_run_note(
-                    run_id,
+                self.publisher.publish_sync(
                     "note.observation",
-                    {"event": "sandbox.create", "result": restore_result},
+                    {"run_id": run_id, "body": {"event": "sandbox.create", "result": restore_result}},
+                    source="agent",
                 )
 
             try:
                 success = bool(execute_run(run))
             except Exception as exc:
                 success = False
-                self.store.add_run_note(
-                    run_id,
+                self.publisher.publish_sync(
                     "note.hyperthesis",
-                    {"error": str(exc), "bound": "re-run with isolated executor"},
+                    {"run_id": run_id, "body": {"error": str(exc), "bound": "re-run with isolated executor"}},
+                    source="agent",
                 )
 
             if not success:
-                self.store.update_run(run_id, {"status": "failed", "mode": "SKEPTICAL"})
-                self.store.add_run_note(
-                    run_id,
+                self.publisher.publish_sync(
                     "note.status",
-                    {"status": "failed", "mode": "SKEPTICAL", "stage": "verify"},
+                    {"run_id": run_id, "body": {"status": "failed", "mode": "SKEPTICAL", "stage": "verify"}},
+                    source="agent",
                 )
-                response = {"run": self.store.get_run(run_id), "verifier_results": []}
+                response = {"run": self.projection.get_run(run_id), "verifier_results": []}
                 return response
 
-            self.store.update_run(run_id, {"status": "verifying"})
-            self.store.add_run_note(
-                run_id,
+            self.publisher.publish_sync(
                 "note.status",
-                {"status": "verifying", "mode": mode, "stage": "verify"},
+                {"run_id": run_id, "body": {"status": "verifying", "mode": mode, "stage": "verify"}},
+                source="agent",
             )
 
             results = []
             for spec in verifier_specs:
                 result = self.verifier_runner.run(spec)
                 results.append(result)
-                self.store.add_run_verification(run_id, asdict(result))
+                self.publisher.publish_sync(
+                    "receipt.verifier.attestations",
+                    {"run_id": run_id, "attestation": asdict(result)},
+                    source="system",
+                )
 
             all_passed = all(result.status == "pass" for result in results)
             final_status = "verified" if all_passed else "failed"
-            self.store.update_run(run_id, {"status": final_status, "mode": "SKEPTICAL"})
-            self.store.add_run_note(
-                run_id,
+            self.publisher.publish_sync(
                 "note.status",
-                                {"status": final_status, "mode": "SKEPTICAL", "stage": "adjudicate"},
+                {"run_id": run_id, "body": {"status": final_status, "mode": "SKEPTICAL", "stage": "adjudicate"}},
+                source="agent",
             )
 
-            self.store.append(
+            self.publisher.publish_sync(
                 "receipt.verifier.attestations",
                 {
                     "run_id": run_id,
@@ -177,14 +175,22 @@ class RunOrchestrator:
             if all_passed:
                 checkpoint_result = checkpoint(
                     message=f"verified checkpoint: run {run_id}",
-                    store=self.store,
                 )
                 if checkpoint_result.get("success") and checkpoint_result.get("commit_sha"):
-                    self.store.set_last_good_checkpoint(checkpoint_result["commit_sha"])
-                self.store.add_run_note(
-                    run_id,
+                    self.publisher.publish_sync(
+                        "checkpoint",
+                        {
+                            "run_id": run_id,
+                            "commit_sha": checkpoint_result.get("commit_sha"),
+                            "message": checkpoint_result.get("message"),
+                            "mark_good": True,
+                        },
+                        source="system",
+                    )
+                self.publisher.publish_sync(
                     "note.observation",
-                    {"event": "checkpoint", "result": checkpoint_result},
+                    {"run_id": run_id, "body": {"event": "checkpoint", "result": checkpoint_result}},
+                    source="agent",
                 )
                 if sandbox_handle:
                     try:
@@ -192,34 +198,47 @@ class RunOrchestrator:
                             sandbox_handle,
                             label=f"run {run_id} verified",
                         )
-                        self._set_last_sandbox_checkpoint(sandbox_checkpoint.checkpoint_id)
-                        self.store.add_run_note(
-                            run_id,
+                        self.runtime_store.set_state(
+                            self._sandbox_checkpoint_key(),
+                            sandbox_checkpoint.checkpoint_id,
+                        )
+                        self.publisher.publish_sync(
                             "note.observation",
-                            {"event": "sandbox.checkpoint", "result": asdict(sandbox_checkpoint)},
+                            {"run_id": run_id, "body": {"event": "sandbox.checkpoint", "result": asdict(sandbox_checkpoint)}},
+                            source="agent",
                         )
                     except Exception as exc:  # pragma: no cover - defensive hook
-                        self.store.add_run_note(
-                            run_id,
+                        self.publisher.publish_sync(
                             "note.observation",
-                            {"event": "sandbox.checkpoint", "error": str(exc)},
+                            {"run_id": run_id, "body": {"event": "sandbox.checkpoint", "error": str(exc)}},
+                            source="agent",
                         )
-                self.store.add_commit_request(
-                    run_id,
+                self.publisher.publish_sync(
+                    "note.request.verify",
                     {
-                        "verifier_results": [asdict(result) for result in results],
-                        "status": "ready_for_review",
+                        "run_id": run_id,
+                        "body": {
+                            "verifier_results": [asdict(result) for result in results],
+                            "status": "ready_for_review",
+                        },
                     },
+                    source="agent",
                 )
             else:
-                last_good = self.store.get_last_good_checkpoint()
+                last_good = self.projection.get_last_good_checkpoint()
+                if not last_good:
+                    last_checkpoint = self.projection.get_last_checkpoint()
+                    if last_checkpoint:
+                        last_good = last_checkpoint.get("commit_sha")
+                if not last_good:
+                    last_good = get_head_sha()
                 rollback_result = None
                 if last_good:
                     rollback_result = git_revert(last_good, dry_run=False)
-                self.store.add_run_note(
-                    run_id,
+                self.publisher.publish_sync(
                     "note.observation",
-                    {"event": "rollback", "last_good": last_good, "result": rollback_result},
+                    {"run_id": run_id, "body": {"event": "rollback", "last_good": last_good, "result": rollback_result}},
+                    source="agent",
                 )
                 last_sandbox_checkpoint = self._get_last_sandbox_checkpoint()
                 if sandbox_handle and last_sandbox_checkpoint:
@@ -228,26 +247,32 @@ class RunOrchestrator:
                             sandbox_handle,
                             last_sandbox_checkpoint,
                         )
-                        self.store.add_run_note(
-                            run_id,
+                        self.publisher.publish_sync(
                             "note.observation",
                             {
-                                "event": "sandbox.restore",
-                                "result": {"success": True, "checkpoint_id": last_sandbox_checkpoint},
+                                "run_id": run_id,
+                                "body": {
+                                    "event": "sandbox.restore",
+                                    "result": {"success": True, "checkpoint_id": last_sandbox_checkpoint},
+                                },
                             },
+                            source="agent",
                         )
                     except Exception as exc:  # pragma: no cover - defensive hook
-                        self.store.add_run_note(
-                            run_id,
+                        self.publisher.publish_sync(
                             "note.observation",
                             {
-                                "event": "sandbox.restore",
-                                "result": {"success": False, "checkpoint_id": last_sandbox_checkpoint, "error": str(exc)},
+                                "run_id": run_id,
+                                "body": {
+                                    "event": "sandbox.restore",
+                                    "result": {"success": False, "checkpoint_id": last_sandbox_checkpoint, "error": str(exc)},
+                                },
                             },
+                            source="agent",
                         )
                 self._notify_rollback(run_id)
 
-            response = {"run": self.store.get_run(run_id), "verifier_results": results}
+            response = {"run": self.projection.get_run(run_id), "verifier_results": results}
             return response
         finally:
             self._destroy_sandbox(sandbox_handle)
@@ -259,56 +284,57 @@ class RunOrchestrator:
         mode: str = "CALM",
         config_path: Optional[Path] = None,
     ) -> dict:
-        run = self.store.create_run(work_item_id=work_item_id, mode=mode, status="running")
+        run = self.projection.get_latest_run_for_work_item(work_item_id)
+        if not run:
+            raise RuntimeError(f"Run not found for work_item_id={work_item_id}")
         run_id = run["id"]
-        start_seq = self.store.get_latest_seq()
-        self._ensure_last_good_checkpoint()
+        start_seq = self.projection.get_latest_seq()
         sandbox_handle = None
         response: dict = {
-            "run": self.store.get_run(run_id),
+            "run": self.projection.get_run(run_id),
             "verifier_plan": {},
             "verifier_results": [],
         }
 
-        self.store.add_run_note(
-            run_id,
+        await self.publisher.publish(
             "note.status",
-            {"status": "running", "mode": mode, "stage": "execute"},
+            {"run_id": run_id, "body": {"status": "running", "mode": mode, "stage": "execute"}},
+            source="agent",
         )
 
         try:
             sandbox_handle, restore_result = self._create_sandbox(run_id)
             if sandbox_handle:
-                self.store.add_run_note(
-                    run_id,
+                await self.publisher.publish(
                     "note.observation",
-                    {"event": "sandbox.create", "sandbox_id": sandbox_handle.sandbox_id},
+                    {"run_id": run_id, "body": {"event": "sandbox.create", "sandbox_id": sandbox_handle.sandbox_id}},
+                    source="agent",
                 )
                 if restore_result:
-                    self.store.add_run_note(
-                        run_id,
+                    await self.publisher.publish(
                         "note.observation",
-                        {"event": "sandbox.restore", "result": restore_result},
+                        {"run_id": run_id, "body": {"event": "sandbox.restore", "result": restore_result}},
+                        source="agent",
                     )
             elif restore_result:
-                self.store.add_run_note(
-                    run_id,
+                await self.publisher.publish(
                     "note.observation",
-                    {"event": "sandbox.create", "result": restore_result},
+                    {"run_id": run_id, "body": {"event": "sandbox.create", "result": restore_result}},
+                    source="agent",
                 )
 
             try:
                 success = bool(await execute_run(run))
             except Exception as exc:
                 success = False
-                self.store.add_run_note(
-                    run_id,
+                await self.publisher.publish(
                     "note.hyperthesis",
-                    {"error": str(exc), "bound": "re-run with isolated executor"},
+                    {"run_id": run_id, "body": {"error": str(exc), "bound": "re-run with isolated executor"}},
+                    source="agent",
                 )
 
-            touched_paths = self.store.get_event_paths_since(start_seq)
-            work_item = self.store.get_work_item(work_item_id) or {}
+            touched_paths = self.projection.get_event_paths_since(start_seq)
+            work_item = self.projection.get_work_item(work_item_id) or {}
             required_verifiers = work_item.get("required_verifiers", [])
             risk_tier = work_item.get("risk_tier")
 
@@ -320,19 +346,22 @@ class RunOrchestrator:
                     from .baml_client import b
                     from .provider_factory import get_provider_factory
 
-                    factory = get_provider_factory(self.store)
+                    factory = get_provider_factory(self.projection)
                     client = factory.get_baml_client()
                     baml_assessment = await b.with_options(client=client).AssessTask(prompt=prompt)
-                    self.store.add_run_note(
-                        run_id,
+                    await self.publisher.publish(
                         "note.observation",
                         {
-                            "event": "baml.assessment",
-                            "complexity": baml_assessment.complexity,
-                            "requires_verification": baml_assessment.requires_verification,
-                            "risk_factors": baml_assessment.risk_factors,
-                            "estimated_steps": baml_assessment.estimated_steps,
+                            "run_id": run_id,
+                            "body": {
+                                "event": "baml.assessment",
+                                "complexity": baml_assessment.complexity,
+                                "requires_verification": baml_assessment.requires_verification,
+                                "risk_factors": baml_assessment.risk_factors,
+                                "estimated_steps": baml_assessment.estimated_steps,
+                            },
                         },
+                        source="agent",
                     )
                     # Override risk_tier if BAML suggests verification not needed
                     if baml_assessment.complexity == "TRIVIAL" and not baml_assessment.requires_verification:
@@ -341,10 +370,10 @@ class RunOrchestrator:
                             logger.info(f"BAML assessment: TRIVIAL task, setting risk_tier=low")
                 except Exception as exc:
                     logger.warning(f"BAML assessment failed: {exc}")
-                    self.store.add_run_note(
-                        run_id,
+                    await self.publisher.publish(
                         "note.observation",
-                        {"event": "baml.assessment", "error": str(exc)},
+                        {"run_id": run_id, "body": {"event": "baml.assessment", "error": str(exc)}},
+                        source="agent",
                     )
 
             plan = select_verifier_plan(
@@ -357,42 +386,43 @@ class RunOrchestrator:
             verifier_specs = build_verifier_specs(plan.verifier_ids, config_path=config_path)
 
             if not success:
-                self.store.update_run(run_id, {"status": "failed", "mode": "SKEPTICAL"})
-                self.store.add_run_note(
-                    run_id,
+                await self.publisher.publish(
                     "note.status",
-                    {"status": "failed", "mode": "SKEPTICAL", "stage": "verify"},
+                    {"run_id": run_id, "body": {"status": "failed", "mode": "SKEPTICAL", "stage": "verify"}},
+                    source="agent",
                 )
                 response = {
-                    "run": self.store.get_run(run_id),
+                    "run": self.projection.get_run(run_id),
                     "verifier_plan": plan.to_dict(),
                     "verifier_results": [],
                 }
                 return response
 
-            self.store.update_run(run_id, {"status": "verifying"})
-            self.store.add_run_note(
-                run_id,
+            await self.publisher.publish(
                 "note.status",
-                {"status": "verifying", "mode": mode, "stage": "verify"},
+                {"run_id": run_id, "body": {"status": "verifying", "mode": mode, "stage": "verify"}},
+                source="agent",
             )
 
             results = []
             for spec in verifier_specs:
                 result = await self.verifier_runner.run_async(spec)
                 results.append(result)
-                self.store.add_run_verification(run_id, asdict(result))
+                await self.publisher.publish(
+                    "receipt.verifier.attestations",
+                    {"run_id": run_id, "attestation": asdict(result)},
+                    source="system",
+                )
 
             all_passed = all(result.status == "pass" for result in results)
             final_status = "verified" if all_passed else "failed"
-            self.store.update_run(run_id, {"status": final_status, "mode": "SKEPTICAL"})
-            self.store.add_run_note(
-                run_id,
+            await self.publisher.publish(
                 "note.status",
-                {"status": final_status, "mode": "SKEPTICAL", "stage": "adjudicate"},
+                {"run_id": run_id, "body": {"status": final_status, "mode": "SKEPTICAL", "stage": "adjudicate"}},
+                source="agent",
             )
 
-            self.store.append(
+            await self.publisher.publish(
                 "receipt.verifier.attestations",
                 {
                     "run_id": run_id,
@@ -405,14 +435,22 @@ class RunOrchestrator:
             if all_passed:
                 checkpoint_result = checkpoint(
                     message=f"verified checkpoint: run {run_id}",
-                    store=self.store,
                 )
                 if checkpoint_result.get("success") and checkpoint_result.get("commit_sha"):
-                    self.store.set_last_good_checkpoint(checkpoint_result["commit_sha"])
-                self.store.add_run_note(
-                    run_id,
+                    await self.publisher.publish(
+                        "checkpoint",
+                        {
+                            "run_id": run_id,
+                            "commit_sha": checkpoint_result.get("commit_sha"),
+                            "message": checkpoint_result.get("message"),
+                            "mark_good": True,
+                        },
+                        source="system",
+                    )
+                await self.publisher.publish(
                     "note.observation",
-                    {"event": "checkpoint", "result": checkpoint_result},
+                    {"run_id": run_id, "body": {"event": "checkpoint", "result": checkpoint_result}},
+                    source="agent",
                 )
                 if sandbox_handle:
                     try:
@@ -420,35 +458,48 @@ class RunOrchestrator:
                             sandbox_handle,
                             label=f"run {run_id} verified",
                         )
-                        self._set_last_sandbox_checkpoint(sandbox_checkpoint.checkpoint_id)
-                        self.store.add_run_note(
-                            run_id,
+                        self.runtime_store.set_state(
+                            self._sandbox_checkpoint_key(),
+                            sandbox_checkpoint.checkpoint_id,
+                        )
+                        await self.publisher.publish(
                             "note.observation",
-                            {"event": "sandbox.checkpoint", "result": asdict(sandbox_checkpoint)},
+                            {"run_id": run_id, "body": {"event": "sandbox.checkpoint", "result": asdict(sandbox_checkpoint)}},
+                            source="agent",
                         )
                     except Exception as exc:  # pragma: no cover - defensive hook
-                        self.store.add_run_note(
-                            run_id,
+                        await self.publisher.publish(
                             "note.observation",
-                            {"event": "sandbox.checkpoint", "error": str(exc)},
+                            {"run_id": run_id, "body": {"event": "sandbox.checkpoint", "error": str(exc)}},
+                            source="agent",
                         )
-                self.store.add_commit_request(
-                    run_id,
+                await self.publisher.publish(
+                    "note.request.verify",
                     {
-                        "verifier_plan": plan.to_dict(),
-                        "verifier_results": [asdict(result) for result in results],
-                        "status": "ready_for_review",
+                        "run_id": run_id,
+                        "body": {
+                            "verifier_plan": plan.to_dict(),
+                            "verifier_results": [asdict(result) for result in results],
+                            "status": "ready_for_review",
+                        },
                     },
+                    source="agent",
                 )
             else:
-                last_good = self.store.get_last_good_checkpoint()
+                last_good = self.projection.get_last_good_checkpoint()
+                if not last_good:
+                    last_checkpoint = self.projection.get_last_checkpoint()
+                    if last_checkpoint:
+                        last_good = last_checkpoint.get("commit_sha")
+                if not last_good:
+                    last_good = get_head_sha()
                 rollback_result = None
                 if last_good:
                     rollback_result = git_revert(last_good, dry_run=False)
-                self.store.add_run_note(
-                    run_id,
+                await self.publisher.publish(
                     "note.observation",
-                    {"event": "rollback", "last_good": last_good, "result": rollback_result},
+                    {"run_id": run_id, "body": {"event": "rollback", "last_good": last_good, "result": rollback_result}},
+                    source="agent",
                 )
                 last_sandbox_checkpoint = self._get_last_sandbox_checkpoint()
                 if sandbox_handle and last_sandbox_checkpoint:
@@ -457,27 +508,33 @@ class RunOrchestrator:
                             sandbox_handle,
                             last_sandbox_checkpoint,
                         )
-                        self.store.add_run_note(
-                            run_id,
+                        await self.publisher.publish(
                             "note.observation",
                             {
-                                "event": "sandbox.restore",
-                                "result": {"success": True, "checkpoint_id": last_sandbox_checkpoint},
+                                "run_id": run_id,
+                                "body": {
+                                    "event": "sandbox.restore",
+                                    "result": {"success": True, "checkpoint_id": last_sandbox_checkpoint},
+                                },
                             },
+                            source="agent",
                         )
                     except Exception as exc:  # pragma: no cover - defensive hook
-                        self.store.add_run_note(
-                            run_id,
+                        await self.publisher.publish(
                             "note.observation",
                             {
-                                "event": "sandbox.restore",
-                                "result": {"success": False, "checkpoint_id": last_sandbox_checkpoint, "error": str(exc)},
+                                "run_id": run_id,
+                                "body": {
+                                    "event": "sandbox.restore",
+                                    "result": {"success": False, "checkpoint_id": last_sandbox_checkpoint, "error": str(exc)},
+                                },
                             },
+                            source="agent",
                         )
                 self._notify_rollback(run_id)
 
             response = {
-                "run": self.store.get_run(run_id),
+                "run": self.projection.get_run(run_id),
                 "verifier_plan": plan.to_dict(),
                 "verifier_results": results,
             }

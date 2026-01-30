@@ -42,6 +42,11 @@ Core events:
 - mode.stop
 - mode.update
 - mode.heartbeat
+- run.input
+- run.started
+- run.finished
+- provider.changed
+- provider.test
 
 Artifacts:
 - artifact.create

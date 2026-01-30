@@ -1,5 +1,21 @@
 # Changelog
 
+## [2026-01-29] - NATS Event Log + Run Observability
+
+### Added
+- Run lifecycle events: `run.input`, `run.started`, `run.finished`.
+- Run-scoped payloads for tool receipts, file writes, and artifact pointers.
+
+### Changed
+- NATS JetStream is required as the event log; SQLite is a projection store.
+- WebSocket prompts emit `run.input`; machine emits `mode.start` at execution.
+- Run orchestrator reuses the work item run_id to prevent drift.
+- Prompt bar now saves agent responses as artifacts and opens Writer on completion.
+- Fixed JetStream directive consumer config (seconds-based ack/backoff and durable name without dots) to prevent subscribe timeouts.
+- Route queued work items to the originating websocket session by storing `runner_id` and only claiming matching work.
+- Avoid websocket-close crash by returning an error when directive listener fails.
+- Expanded supervisor NATS permissions to include `$JS.>` for JetStream acks.
+
 ## [2026-01-23] - Artifact Persistence + Writer Auto-Open
 
 ### Added

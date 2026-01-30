@@ -32,6 +32,9 @@ from .agent.harness import AgentHarness
 from .nats_client import get_nats_client, close_nats_client
 from .nats_metrics import NATS_METRICS
 from .db import get_store
+from .event_publisher import get_publisher
+from .runtime_store import RuntimeStore
+from .projection_rebuild import rebuild_projection_from_nats
 from shared.auth import extract_session_token, get_auth_store
 from shared.auth_middleware import AuthMiddleware
 from .run_orchestrator import RunOrchestrator
@@ -124,6 +127,11 @@ class RunVerificationPayload(BaseModel):
 
 class RunCommitRequestPayload(BaseModel):
     payload: dict
+
+
+class ProjectionRebuildPayload(BaseModel):
+    user_id: Optional[str] = None
+    to_seq: Optional[int] = None
 
 
 class SandboxResourcesPayload(BaseModel):
@@ -234,8 +242,8 @@ def _sandbox_state_key(user_id: str) -> str:
     return f"sandbox_handle:{user_id}"
 
 
-def _load_sandbox_handle(store) -> Optional[SandboxHandle]:
-    raw = store.get_sync_state(_sandbox_state_key(store.user_id))
+def _load_sandbox_handle(runtime_store: RuntimeStore, user_id: str) -> Optional[SandboxHandle]:
+    raw = runtime_store.get_state(_sandbox_state_key(user_id))
     if not raw:
         return None
     data = json.loads(raw)
@@ -259,30 +267,29 @@ def _load_sandbox_handle(store) -> Optional[SandboxHandle]:
     return SandboxHandle(sandbox_id=sandbox_id, config=config)
 
 
-def _save_sandbox_handle(store, handle: SandboxHandle) -> None:
-    store.set_sync_state(
-        _sandbox_state_key(store.user_id),
+def _save_sandbox_handle(runtime_store: RuntimeStore, user_id: str, handle: SandboxHandle) -> None:
+    runtime_store.set_state(
+        _sandbox_state_key(user_id),
         json.dumps({"sandbox_id": handle.sandbox_id, "config": asdict(handle.config)}),
     )
 
 
-def _delete_sandbox_handle(store) -> None:
-    store.delete_sync_state(_sandbox_state_key(store.user_id))
+def _delete_sandbox_handle(runtime_store: RuntimeStore, user_id: str) -> None:
+    runtime_store.delete_state(_sandbox_state_key(user_id))
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
 
-    # Initialize NATS connection (if enabled)
-    nats_connected = False
-    if NATS_ENABLED:
-        try:
-            nats = await get_nats_client()
-            nats_connected = True
-            print("✓ NATS JetStream connected")
-        except Exception as e:
-            print(f"⚠ NATS connection failed (running without event sourcing): {e}")
+    # Initialize NATS connection (required)
+    if not NATS_ENABLED:
+        raise RuntimeError("NATS is required; set NATS_ENABLED=1 and ensure NATS is reachable.")
+    try:
+        await get_nats_client()
+        print("✓ NATS JetStream connected")
+    except Exception as e:
+        raise RuntimeError(f"NATS connection failed: {e}") from e
 
     # Initialize event store (will use NATS if connected)
     store = get_store()
@@ -311,9 +318,8 @@ async def lifespan(app: FastAPI):
             await api_process.wait()
 
     # Close NATS connection
-    if nats_connected:
-        await close_nats_client()
-        print("✓ NATS connection closed")
+    await close_nats_client()
+    print("✓ NATS connection closed")
 
 
 app = FastAPI(
@@ -341,14 +347,11 @@ app.add_middleware(
 async def health():
     """Health check endpoint."""
     store = get_store()
-    nats_status = "disabled"
-
-    if NATS_ENABLED:
-        try:
-            nats = await get_nats_client()
-            nats_status = "connected"
-        except:
-            nats_status = "disconnected"
+    try:
+        await get_nats_client()
+        nats_status = "connected"
+    except Exception:
+        nats_status = "disconnected"
 
     return {
         "status": "ok",
@@ -380,6 +383,7 @@ async def undo(count: int = 1):
 @app.post("/work_item")
 async def work_item_upsert(payload: WorkItemPayload):
     store = get_store()
+    publisher = get_publisher(store.user_id)
     data = payload.model_dump(exclude_unset=True, exclude_none=True)
     work_item_id = data.pop("id", None)
 
@@ -387,22 +391,47 @@ async def work_item_upsert(payload: WorkItemPayload):
         existing = store.get_work_item(work_item_id)
         if not existing:
             raise HTTPException(status_code=404, detail="Work item not found")
-        updated = store.update_work_item(work_item_id, data)
-        return {"work_item": updated}
+        run_id = existing.get("run_id") or str(uuid.uuid4())
+        await publisher.publish(
+            "run.input",
+            {
+                "prompt": data.get("description") or existing.get("description") or "",
+                "input_kind": "update",
+                "work_item_id": work_item_id,
+                "run_id": run_id,
+                "acceptance_criteria": data.get("acceptance_criteria"),
+                "required_verifiers": data.get("required_verifiers"),
+                "risk_tier": data.get("risk_tier"),
+                "dependencies": data.get("dependencies"),
+                "status": data.get("status"),
+                "parent_id": data.get("parent_id"),
+            },
+            source="system",
+        )
+        return {"work_item": store.get_work_item(work_item_id) or existing}
 
     if not payload.description:
         raise HTTPException(status_code=400, detail="description is required to create work item")
 
-    created = store.create_work_item(
-        description=payload.description,
-        acceptance_criteria=payload.acceptance_criteria,
-        required_verifiers=payload.required_verifiers,
-        risk_tier=payload.risk_tier,
-        dependencies=payload.dependencies,
-        status=payload.status or "pending",
-        parent_id=payload.parent_id,
+    work_item_id = str(uuid.uuid4())
+    run_id = str(uuid.uuid4())
+    await publisher.publish(
+        "run.input",
+        {
+            "prompt": payload.description,
+            "input_kind": "initial",
+            "work_item_id": work_item_id,
+            "run_id": run_id,
+            "acceptance_criteria": payload.acceptance_criteria,
+            "required_verifiers": payload.required_verifiers,
+            "risk_tier": payload.risk_tier,
+            "dependencies": payload.dependencies,
+            "status": payload.status or "pending",
+            "parent_id": payload.parent_id,
+        },
+        source="system",
     )
-    return {"work_item": created}
+    return {"work_item": {"id": work_item_id, "run_id": run_id, "status": payload.status or "pending"}}
 
 
 @app.get("/work_item/{work_item_id}")
@@ -426,12 +455,20 @@ async def create_run(payload: RunCreatePayload):
     work_item = store.get_work_item(payload.work_item_id)
     if not work_item:
         raise HTTPException(status_code=404, detail="Work item not found")
-    run = store.create_run(
-        work_item_id=payload.work_item_id,
-        mode=payload.mode,
-        status=payload.status or "created",
+    publisher = get_publisher(store.user_id)
+    run_id = str(uuid.uuid4())
+    await publisher.publish(
+        "run.input",
+        {
+            "prompt": work_item.get("description") or "",
+            "input_kind": "initial",
+            "work_item_id": payload.work_item_id,
+            "run_id": run_id,
+            "status": payload.status or "created",
+        },
+        source="system",
     )
-    return {"run": run}
+    return {"run": {"id": run_id, "work_item_id": payload.work_item_id, "status": payload.status or "created"}}
 
 
 @app.patch("/run/{run_id}")
@@ -440,8 +477,15 @@ async def update_run(run_id: str, payload: RunUpdatePayload):
     existing = store.get_run(run_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Run not found")
-    updated = store.update_run(run_id, payload.model_dump(exclude_unset=True, exclude_none=True))
-    return {"run": updated}
+    publisher = get_publisher(store.user_id)
+    body = payload.model_dump(exclude_unset=True, exclude_none=True)
+    if body:
+        await publisher.publish(
+            "note.status",
+            {"run_id": run_id, "body": body},
+            source="system",
+        )
+    return {"run": store.get_run(run_id)}
 
 
 @app.get("/run/{run_id}")
@@ -483,8 +527,13 @@ async def add_run_note(run_id: str, payload: RunNotePayload):
     store = get_store()
     if not store.get_run(run_id):
         raise HTTPException(status_code=404, detail="Run not found")
-    event_seq = store.add_run_note(run_id, payload.note_type, payload.body)
-    return {"event_seq": event_seq}
+    publisher = get_publisher(store.user_id)
+    await publisher.publish(
+        payload.note_type,
+        {"run_id": run_id, "body": payload.body},
+        source="agent",
+    )
+    return {"ok": True}
 
 
 @app.post("/run/{run_id}/verify")
@@ -492,8 +541,13 @@ async def add_run_verification(run_id: str, payload: RunVerificationPayload):
     store = get_store()
     if not store.get_run(run_id):
         raise HTTPException(status_code=404, detail="Run not found")
-    event_seq = store.add_run_verification(run_id, payload.attestation)
-    return {"event_seq": event_seq}
+    publisher = get_publisher(store.user_id)
+    await publisher.publish(
+        "receipt.verifier.attestations",
+        {"run_id": run_id, "attestation": payload.attestation},
+        source="system",
+    )
+    return {"ok": True}
 
 
 @app.post("/run/{run_id}/commit_request")
@@ -501,14 +555,32 @@ async def add_commit_request(run_id: str, payload: RunCommitRequestPayload):
     store = get_store()
     if not store.get_run(run_id):
         raise HTTPException(status_code=404, detail="Run not found")
-    event_seq = store.add_commit_request(run_id, payload.payload)
-    return {"event_seq": event_seq}
+    publisher = get_publisher(store.user_id)
+    await publisher.publish(
+        "note.request.verify",
+        {"run_id": run_id, "body": payload.payload},
+        source="agent",
+    )
+    return {"ok": True}
 
 
 @app.get("/state/ahdb")
 async def get_ahdb_state():
     store = get_store()
     return {"ahdb": store.get_ahdb_state()}
+
+
+@app.post("/projection/rebuild")
+async def projection_rebuild(payload: ProjectionRebuildPayload):
+    store = get_store(payload.user_id)
+    replayed = await rebuild_projection_from_nats(store, to_seq=payload.to_seq)
+    publisher = get_publisher(store.user_id)
+    await publisher.publish(
+        "receipt.projection.rebuild",
+        {"user_id": store.user_id, "replayed": replayed, "to_seq": payload.to_seq},
+        source="system",
+    )
+    return {"replayed": replayed}
 
 
 # =========== Git Endpoints ===========
@@ -552,8 +624,9 @@ async def git_diff(base: str, head: str = "HEAD", stat: bool = False):
 async def git_checkpoint(message: Optional[str] = None):
     """Create a git checkpoint (add all + commit)."""
     from .git_ops import checkpoint
-
-    result = checkpoint(message)
+    store = get_store()
+    publisher = get_publisher(store.user_id)
+    result = checkpoint(message, publisher=publisher)
     return result
 
 
@@ -600,8 +673,9 @@ async def git_rollback(dry_run: bool = False):
 @app.post("/sandbox/create")
 async def sandbox_create(payload: SandboxCreatePayload):
     store = get_store()
+    runtime_store = RuntimeStore(user_id=store.user_id)
     runner = get_sandbox_runner()
-    existing = _load_sandbox_handle(store)
+    existing = _load_sandbox_handle(runtime_store, store.user_id)
 
     if existing and not payload.recreate:
         return {"sandbox_id": existing.sandbox_id, "config": asdict(existing.config)}
@@ -611,7 +685,7 @@ async def sandbox_create(payload: SandboxCreatePayload):
             runner.destroy(existing)
         except Exception:
             pass
-        _delete_sandbox_handle(store)
+        _delete_sandbox_handle(runtime_store, store.user_id)
 
     workspace_id = payload.workspace_id or f"sandbox-{uuid.uuid4().hex}"
     resources = None
@@ -630,15 +704,16 @@ async def sandbox_create(payload: SandboxCreatePayload):
         resources=resources,
     )
     handle = runner.create(config)
-    _save_sandbox_handle(store, handle)
+    _save_sandbox_handle(runtime_store, store.user_id, handle)
     return {"sandbox_id": handle.sandbox_id, "config": asdict(handle.config)}
 
 
 @app.post("/sandbox/destroy")
 async def sandbox_destroy(sandbox_id: Optional[str] = None):
     store = get_store()
+    runtime_store = RuntimeStore(user_id=store.user_id)
     runner = get_sandbox_runner()
-    handle = _load_sandbox_handle(store)
+    handle = _load_sandbox_handle(runtime_store, store.user_id)
     if not handle and not sandbox_id:
         raise HTTPException(status_code=404, detail="Sandbox not found")
     if handle and sandbox_id:
@@ -648,15 +723,16 @@ async def sandbox_destroy(sandbox_id: Optional[str] = None):
     try:
         runner.destroy(handle)
     finally:
-        _delete_sandbox_handle(store)
+        _delete_sandbox_handle(runtime_store, store.user_id)
     return {"success": True}
 
 
 @app.post("/sandbox/exec")
 async def sandbox_exec(payload: SandboxExecPayload):
     store = get_store()
+    runtime_store = RuntimeStore(user_id=store.user_id)
     runner = get_sandbox_runner()
-    handle = _load_sandbox_handle(store)
+    handle = _load_sandbox_handle(runtime_store, store.user_id)
     if not handle:
         raise HTTPException(status_code=404, detail="Sandbox not found")
     if payload.sandbox_id:
@@ -686,8 +762,9 @@ async def sandbox_exec(payload: SandboxExecPayload):
 @app.post("/sandbox/process/stop")
 async def sandbox_process_stop(payload: SandboxProcessStopPayload):
     store = get_store()
+    runtime_store = RuntimeStore(user_id=store.user_id)
     runner = get_sandbox_runner()
-    handle = _load_sandbox_handle(store)
+    handle = _load_sandbox_handle(runtime_store, store.user_id)
     if not handle:
         raise HTTPException(status_code=404, detail="Sandbox not found")
     if payload.sandbox_id:
@@ -699,8 +776,9 @@ async def sandbox_process_stop(payload: SandboxProcessStopPayload):
 @app.post("/sandbox/proxy")
 async def sandbox_proxy(payload: SandboxProxyPayload):
     store = get_store()
+    runtime_store = RuntimeStore(user_id=store.user_id)
     runner = get_sandbox_runner()
-    handle = _load_sandbox_handle(store)
+    handle = _load_sandbox_handle(runtime_store, store.user_id)
     if not handle:
         raise HTTPException(status_code=404, detail="Sandbox not found")
     if payload.sandbox_id:
@@ -712,23 +790,25 @@ async def sandbox_proxy(payload: SandboxProxyPayload):
 @app.post("/sandbox/checkpoint")
 async def sandbox_checkpoint(payload: SandboxCheckpointPayload):
     store = get_store()
+    runtime_store = RuntimeStore(user_id=store.user_id)
     runner = get_sandbox_runner()
-    handle = _load_sandbox_handle(store)
+    handle = _load_sandbox_handle(runtime_store, store.user_id)
     if not handle:
         raise HTTPException(status_code=404, detail="Sandbox not found")
     if payload.sandbox_id:
         handle = SandboxHandle(sandbox_id=payload.sandbox_id, config=handle.config)
 
     checkpoint = runner.checkpoint(handle, label=payload.label)
-    store.set_sync_state(f"sandbox_checkpoint:{store.user_id}", checkpoint.checkpoint_id)
+    runtime_store.set_state(f"sandbox_checkpoint:{store.user_id}", checkpoint.checkpoint_id)
     return asdict(checkpoint)
 
 
 @app.post("/sandbox/restore")
 async def sandbox_restore(payload: SandboxRestorePayload):
     store = get_store()
+    runtime_store = RuntimeStore(user_id=store.user_id)
     runner = get_sandbox_runner()
-    handle = _load_sandbox_handle(store)
+    handle = _load_sandbox_handle(runtime_store, store.user_id)
     if not handle:
         raise HTTPException(status_code=404, detail="Sandbox not found")
     if payload.sandbox_id:
@@ -761,8 +841,14 @@ async def agent_websocket(websocket: WebSocket):
 
     await websocket.accept()
     store = get_store(session.user_id if session else None)
-    agent_harness = AgentHarness(file_history=file_history, event_store=store)
-    orchestrator = RunOrchestrator(store=store, on_rollback=_schedule_vite_restart)
+    publisher = get_publisher(store.user_id)
+    agent_harness = AgentHarness(
+        file_history=file_history,
+        projection=store,
+        publisher=publisher,
+        replay_read_only=False,
+    )
+    orchestrator = RunOrchestrator(projection=store, publisher=publisher, on_rollback=_schedule_vite_restart)
     recent_prompts = deque()
     verifier_config = PROJECT_ROOT / "config" / "verifiers.yaml"
 
@@ -788,14 +874,10 @@ async def agent_websocket(websocket: WebSocket):
 
         run = result.get("run") or {}
         status = run.get("status") or "unknown"
-        if status == "verified":
-            store.update_work_item(directive.work_item_id, {"status": "done"})
-        elif status == "failed":
-            store.update_work_item(directive.work_item_id, {"status": "failed"})
 
         run_id = run.get("id")
         if status == "verified" and run_id:
-            machine.promote_ahdb_proposals(run_id)
+            await machine.promote_ahdb_proposals(run_id)
 
         await websocket.send_json({
             "type": "verification",
@@ -819,12 +901,13 @@ async def agent_websocket(websocket: WebSocket):
         )
 
     session_id = str(uuid.uuid4())
-    machine = Machine(store=store, executor=execute_mode, session_id=session_id)
-    listener_ready = False
-    if NATS_ENABLED:
-        listener_ready = await machine.listen_for_directives()
-
-    machine.start_loop()
+    machine = Machine(projection=store, publisher=publisher, executor=execute_mode, session_id=session_id)
+    if not await machine.listen_for_inputs():
+        await websocket.send_json({
+            "type": "error",
+            "content": "NATS unavailable; cannot start directive listener.",
+        })
+        return
 
     try:
         while True:
@@ -856,17 +939,8 @@ async def agent_websocket(websocket: WebSocket):
                 continue
             recent_prompts.append(now)
 
-            work_item = store.create_work_item(description=prompt, status="queued")
-            work_item_id = work_item["id"]
-            run_id = work_item.get("run_id")
-
-            if requested_run_id:
-                store.add_run_input(requested_run_id, prompt, kind=input_kind)
-                store.update_work_item(work_item_id, {"run_id": requested_run_id})
-                store.update_run(requested_run_id, {"status": "queued"})
-                run_id = requested_run_id
-            elif run_id:
-                store.add_run_input(run_id, prompt, kind=input_kind)
+            work_item_id = str(uuid.uuid4())
+            run_id = requested_run_id or str(uuid.uuid4())
 
             await websocket.send_json(
                 {
@@ -880,23 +954,22 @@ async def agent_websocket(websocket: WebSocket):
                 }
             )
 
-            if NATS_ENABLED and listener_ready:
-                store.append(
-                    "mode.start",
-                    {
-                        "mode": "CALM",
-                        "prompt": prompt,
-                        "work_item_id": work_item_id,
-                        "run_id": run_id,
-                        "session_id": session_id,
-                    },
-                    source="system",
-                )
+            await publisher.publish(
+                "run.input",
+                {
+                    "prompt": prompt,
+                    "input_kind": input_kind,
+                    "work_item_id": work_item_id,
+                    "run_id": run_id,
+                    "session_id": session_id,
+                },
+                source="user",
+            )
 
     except WebSocketDisconnect:
         pass
     finally:
-        await machine.stop_loop()
+        await machine.stop_listening()
 
 
 @app.get("/observability/context-heatmap", response_model=ContextHeatmapResponse)

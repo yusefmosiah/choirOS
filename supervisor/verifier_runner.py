@@ -21,7 +21,7 @@ from typing import Optional, TYPE_CHECKING
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from .db import EventStore
+    from .event_publisher import EventPublisher
 
 
 @dataclass(frozen=True)
@@ -55,21 +55,21 @@ class VerifierResult:
 
 
 class ArtifactStore:
-    def __init__(self, root: Optional[Path] = None, event_store: Optional["EventStore"] = None) -> None:
+    def __init__(self, root: Optional[Path] = None, event_publisher: Optional["EventPublisher"] = None) -> None:
         if root is None:
             root = Path(".context") / "artifacts"
         self.root = root
         self.root.mkdir(parents=True, exist_ok=True)
-        self.event_store = event_store
+        self.event_publisher = event_publisher
 
-    def write_bytes(self, data: bytes, suffix: str) -> tuple[str, Path]:
+    async def write_bytes(self, data: bytes, suffix: str) -> tuple[str, Path]:
         digest = hashlib.sha256(data).hexdigest()
         path = self.root / f"{digest}{suffix}"
         existed = path.exists()
         if not existed:
             path.write_bytes(data)
-        if self.event_store and not existed:
-            self.event_store.append(
+        if self.event_publisher and not existed:
+            await self.event_publisher.publish(
                 "artifact.create",
                 {
                     "artifact_hash": digest,
@@ -81,9 +81,9 @@ class ArtifactStore:
             )
         return digest, path
 
-    def write_json(self, payload: dict, suffix: str = ".json") -> tuple[str, Path]:
+    async def write_json(self, payload: dict, suffix: str = ".json") -> tuple[str, Path]:
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-        return self.write_bytes(encoded, suffix)
+        return await self.write_bytes(encoded, suffix)
 
 
 class VerifierRunner:
@@ -95,9 +95,9 @@ class VerifierRunner:
         analyze_with_baml: bool = True,
     ) -> None:
         if store is None:
-            from .db import get_store as _get_store
+            from .event_publisher import get_publisher as _get_publisher
 
-            store = ArtifactStore(event_store=_get_store())
+            store = ArtifactStore(event_publisher=_get_publisher())
         self.store = store
         if sandbox_runner is None:
             from .sandbox_provider import get_sandbox_runner
@@ -122,13 +122,9 @@ class VerifierRunner:
             from .baml_client import b
             from .provider_factory import get_provider_factory
 
-            # Get the current provider's BAML client
-            db = self.store.event_store if self.store else None
-            if db is None:
-                from .db import get_store
-                db = get_store()
+            from .db import get_store
 
-            factory = get_provider_factory(db)
+            factory = get_provider_factory(get_store())
             client = factory.get_baml_client()
 
             result = await b.with_options(client=client).AnalyzeVerifierOutput(
@@ -145,7 +141,7 @@ class VerifierRunner:
                 "details": result.details,
                 "confidence": result.confidence,
             }
-            analysis_hash, _ = self.store.write_json(
+            analysis_hash, _ = await self.store.write_json(
                 analysis_payload, suffix=".analysis.json"
             )
 
@@ -190,7 +186,7 @@ class VerifierRunner:
         raw_output = (
             "STDOUT\n" + stdout + "\nSTDERR\n" + stderr
         ).encode()
-        artifact_hash, _ = self.store.write_bytes(raw_output, ".log")
+        artifact_hash, _ = await self.store.write_bytes(raw_output, ".log")
 
         report = {
             "verifier_id": spec.verifier_id,
@@ -200,7 +196,7 @@ class VerifierRunner:
             "started_at": start,
             "finished_at": end,
         }
-        report_hash, _ = self.store.write_json(report)
+        report_hash, _ = await self.store.write_json(report)
 
         # BAML analysis (optional)
         baml_analysis: Optional[BamlAnalysis] = None
@@ -232,7 +228,7 @@ class VerifierRunner:
             attestation["baml_analysis_hash"] = baml_analysis.analysis_hash
             attestation["baml_summary"] = baml_analysis.summary
             attestation["baml_confidence"] = baml_analysis.confidence
-        attestation_hash, _ = self.store.write_json(attestation)
+        attestation_hash, _ = await self.store.write_json(attestation)
 
         return VerifierResult(
             verifier_id=spec.verifier_id,

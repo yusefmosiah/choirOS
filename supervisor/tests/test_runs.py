@@ -1,17 +1,31 @@
+"""
+Run Persistence Tests
+
+PREDICTION: Run inputs emitted as events project into run_inputs for replay,
+and run metadata persists consistently across work items and projections.
+
+EXPERIMENT: Create work items, runs, and emit run.input events.
+
+OBSERVE: run_inputs rows materialize from events and run metadata remains consistent.
+"""
+
 import os
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 
-from supervisor.db import EventStore
+from supervisor.db import ProjectionStore
 
 
 class TestRunsAndWorkItems(unittest.TestCase):
     def setUp(self) -> None:
-        os.environ["NATS_ENABLED"] = "0"
         fd, self.db_path = tempfile.mkstemp(prefix="choiros_run_", suffix=".sqlite")
         os.close(fd)
-        self.store = EventStore(db_path=Path(self.db_path), user_id="local")
+        self.store = ProjectionStore(
+            db_path=Path(self.db_path),
+            user_id="local",
+        )
 
     def tearDown(self) -> None:
         self.store.close()
@@ -40,17 +54,25 @@ class TestRunsAndWorkItems(unittest.TestCase):
         self.assertEqual(run["work_item_id"], item["id"])
         self.assertEqual(run["mode"], "CALM")
 
-        note_seq = self.store.add_run_note(run["id"], "note.status", {"status": "started"})
-        self.assertGreater(note_seq, 0)
-
-        verification_seq = self.store.add_run_verification(run["id"], {"result": "pass"})
-        self.assertGreater(verification_seq, 0)
-
-        commit_seq = self.store.add_commit_request(run["id"], {"verifiers": ["V-03-RUN-STATE"]})
-        self.assertGreater(commit_seq, 0)
+        self.store.apply_event(
+            "note.status",
+            {"run_id": run["id"], "body": {"status": "started"}},
+            int(datetime.now().timestamp() * 1000),
+        )
+        self.store.apply_event(
+            "receipt.verifier.attestations",
+            {"run_id": run["id"], "attestation": {"result": "pass"}},
+            int(datetime.now().timestamp() * 1000),
+        )
+        self.store.apply_event(
+            "note.request.verify",
+            {"run_id": run["id"], "body": {"verifiers": ["V-03-RUN-STATE"]}},
+            int(datetime.now().timestamp() * 1000),
+        )
+        self.store.conn.commit()
 
         cursor = self.store.conn.execute("SELECT COUNT(*) FROM run_notes")
-        self.assertEqual(cursor.fetchone()[0], 1)
+        self.assertEqual(cursor.fetchone()[0], 2)
         cursor = self.store.conn.execute("SELECT COUNT(*) FROM run_verifications")
         self.assertEqual(cursor.fetchone()[0], 1)
         cursor = self.store.conn.execute("SELECT COUNT(*) FROM run_commit_requests")
@@ -59,7 +81,12 @@ class TestRunsAndWorkItems(unittest.TestCase):
     def test_projection_rebuild_populates_run_notes(self) -> None:
         item = self.store.create_work_item(description="Projection test")
         run = self.store.create_run(item["id"], mode="CURIOUS")
-        self.store.add_run_note(run["id"], "note.observation", {"body": "hello"})
+        self.store.apply_event(
+            "note.observation",
+            {"run_id": run["id"], "body": {"body": "hello"}},
+            int(datetime.now().timestamp() * 1000),
+        )
+        self.store.conn.commit()
 
         rebuilt = self.store.rebuild_projection_from_events()
         self.assertEqual(rebuilt, 1)
@@ -69,7 +96,11 @@ class TestRunsAndWorkItems(unittest.TestCase):
 
     def test_event_paths_since(self) -> None:
         start_seq = self.store.get_latest_seq()
-        self.store.log_file_write("notes/demo.txt", b"demo")
+        self.store.apply_event(
+            "file.write",
+            {"path": "notes/demo.txt", "content_hash": "demo"},
+            int(datetime.now().timestamp() * 1000),
+        )
         paths = self.store.get_event_paths_since(start_seq)
         self.assertIn("notes/demo.txt", paths)
 
@@ -77,9 +108,22 @@ class TestRunsAndWorkItems(unittest.TestCase):
         item = self.store.create_work_item(description="Timeline test")
         run = self.store.create_run(item["id"], mode="CALM")
 
-        self.store.add_run_note(run["id"], "note.status", {"status": "started"})
-        self.store.add_run_note(run["id"], "note.observation", {"body": "testing"})
-        self.store.add_run_verification(run["id"], {"result": "pass", "verifier": "V-01"})
+        self.store.apply_event(
+            "note.status",
+            {"run_id": run["id"], "body": {"status": "started"}},
+            int(datetime.now().timestamp() * 1000),
+        )
+        self.store.apply_event(
+            "note.observation",
+            {"run_id": run["id"], "body": {"body": "testing"}},
+            int(datetime.now().timestamp() * 1000),
+        )
+        self.store.apply_event(
+            "receipt.verifier.attestations",
+            {"run_id": run["id"], "attestation": {"result": "pass", "verifier": "V-01"}},
+            int(datetime.now().timestamp() * 1000),
+        )
+        self.store.conn.commit()
 
         timeline = self.store.get_run_timeline(run["id"])
         self.assertEqual(timeline["run"]["id"], run["id"])
@@ -94,6 +138,65 @@ class TestRunsAndWorkItems(unittest.TestCase):
         self.assertIsNone(timeline["run"])
         self.assertEqual(timeline["notes"], [])
         self.assertEqual(timeline["verifications"], [])
+
+    def test_run_input_event_projects_run_inputs(self) -> None:
+        """
+        PREDICTION: A run.input event projects into run_inputs for replayable inputs.
+
+        EXPERIMENT:
+        1. Emit run.input with prompt, kind, and run_id.
+        2. Query run_inputs for that run_id.
+
+        OBSERVE:
+        - One run input row exists.
+        - Prompt and kind match the event payload.
+        """
+        run_id = "run-123"
+        self.store.apply_event(
+            "run.input",
+            {
+                "prompt": "hello",
+                "input_kind": "initial",
+                "run_id": run_id,
+                "work_item_id": "work-123",
+            },
+            int(datetime.now().timestamp() * 1000),
+        )
+        self.store.conn.commit()
+        inputs = self.store.list_run_inputs(run_id)
+        self.assertEqual(len(inputs), 1)
+        self.assertEqual(inputs[0]["prompt"], "hello")
+        self.assertEqual(inputs[0]["kind"], "initial")
+
+    def test_claim_next_work_item_respects_runner_id(self) -> None:
+        """
+        PREDICTION: Work items assigned to a runner_id are only claimed by that runner.
+
+        EXPERIMENT:
+        1. Create two queued work items with distinct runner_id values.
+        2. Claim with runner-a, then attempt claim with runner-c.
+
+        OBSERVE:
+        - runner-a claims its own work item.
+        - runner-c receives no work item when none are unassigned.
+        """
+        item_a = self.store.create_work_item(
+            description="Runner A item",
+            status="queued",
+            runner_id="runner-a",
+        )
+        self.store.create_work_item(
+            description="Runner B item",
+            status="queued",
+            runner_id="runner-b",
+        )
+
+        claimed_a = self.store.claim_next_work_item("runner-a")
+        self.assertIsNotNone(claimed_a)
+        self.assertEqual(claimed_a["id"], item_a["id"])
+
+        claimed_c = self.store.claim_next_work_item("runner-c")
+        self.assertIsNone(claimed_c)
 
 
 if __name__ == "__main__":

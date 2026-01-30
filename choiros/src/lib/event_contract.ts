@@ -24,6 +24,9 @@ export const CHOIR_EVENT_TYPES_V0 = [
     'mode.stop',
     'mode.update',
     'mode.heartbeat',
+    'run.input',
+    'run.started',
+    'run.finished',
     'artifact.create',
     'artifact.pointer',
     // Notes (AHDB-typed telemetry)

@@ -1,17 +1,20 @@
 import os
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 
-from supervisor.db import EventStore
+from supervisor.db import ProjectionStore
 
 
 class TestAHDBProjection(unittest.TestCase):
     def setUp(self) -> None:
-        os.environ["NATS_ENABLED"] = "0"
         fd, self.db_path = tempfile.mkstemp(prefix="choiros_ahdb_", suffix=".sqlite")
         os.close(fd)
-        self.store = EventStore(db_path=Path(self.db_path), user_id="local")
+        self.store = ProjectionStore(
+            db_path=Path(self.db_path),
+            user_id="local",
+        )
 
     def tearDown(self) -> None:
         self.store.close()
@@ -27,8 +30,10 @@ class TestAHDBProjection(unittest.TestCase):
             "hypothesize": [{"id": "h1", "text": "Maybe flaky"}],
         }
 
-        self.store.append("receipt.ahdb.delta", {"delta": delta1}, source="system")
-        self.store.append("receipt.ahdb.delta", {"delta": delta2}, source="system")
+        now = int(datetime.now().timestamp() * 1000)
+        self.store.apply_event("receipt.ahdb.delta", {"delta": delta1}, now)
+        self.store.apply_event("receipt.ahdb.delta", {"delta": delta2}, now)
+        self.store.conn.commit()
 
         replayed = self.store.rebuild_projection_from_events()
         self.assertEqual(replayed, 2)
@@ -46,7 +51,12 @@ class TestAHDBProjection(unittest.TestCase):
         delta = {
             "believe": [{"id": "b1", "text": "Constraint"}],
         }
-        seq = self.store.log_ahdb_delta(delta, {"run_id": "run-1"})
+        seq = self.store.apply_event(
+            "receipt.ahdb.delta",
+            {"delta": delta, "run_id": "run-1"},
+            int(datetime.now().timestamp() * 1000),
+        )
+        self.store.conn.commit()
         self.assertGreater(seq, 0)
 
         state = self.store.get_ahdb_state()
@@ -59,7 +69,12 @@ class TestAHDBProjection(unittest.TestCase):
         delta = {
             "assert": [{"id": "a1", "text": "Proposed assertion"}],
         }
-        seq = self.store.log_ahdb_proposal(delta, run_id="run-2")
+        seq = self.store.apply_event(
+            "receipt.ahdb.delta",
+            {"delta": delta, "authority": "proposed", "run_id": "run-2"},
+            int(datetime.now().timestamp() * 1000),
+        )
+        self.store.conn.commit()
         self.assertGreater(seq, 0)
 
         state = self.store.get_ahdb_state()

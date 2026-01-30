@@ -39,6 +39,8 @@ pytest                                     # Run all tests
 pytest -v                                  # Verbose output
 pytest path/to/test_file.py                # Run specific file
 pytest -k "test_name"                      # Run by pattern
+# Use venv for tests that rely on supervisor deps (e.g., nats-py):
+/Users/wiz/choirOS/api/venv/bin/python -m pytest path/to/test_file.py
 ```
 
 ### Supervisor (supervisor/)
@@ -47,6 +49,8 @@ cd supervisor
 pytest                                     # All tests
 pytest tests/test_event_contract.py        # Specific test file
 SUPERVISOR_STANDALONE=1 python -m supervisor.main  # Standalone mode
+# Use api/venv python for tests that import NATS or supervisor deps:
+/Users/wiz/choirOS/api/venv/bin/python -m pytest tests/test_file.py
 ```
 
 ### Full Stack
@@ -96,6 +100,71 @@ echo "CHOIR_SANDBOX_PROVIDER=sprites" >> api/.env
 - **No TODOs**: Address issues directly or create follow-up tasks
 - **Tests**: Automated tests are required for all new features and fixes. Prefer PREDICTION → EXPERIMENT → OBSERVE framing.
 - **Secrets**: Never commit .env files or credentials; use placeholder values
+
+## PREDICTION / EXPERIMENT / OBSERVE Development Protocol
+
+All agent development work MUST follow the PREDICTION/EXPERIMENT/OBSERVE pattern. This isn't just documentation - it's AHDB.
+
+### What This Means
+
+**PREDICTION/EXPERIMENT/OBSERVE is how agents learn.** Without explicit prediction and observation, code is just movement, not learning.
+
+When you implement features:
+
+1. **PREDICTION**: State your hypothesis clearly at the top of the feature/test
+   - What will change?
+   - What behavior will emerge?
+   - What's the expected outcome?
+
+2. **EXPERIMENT**: Implement the concrete action
+   - The function, test, or change being made
+   - Include setup, execution, and cleanup
+   - Make it reproducible
+
+3. **OBSERVE**: Explicit verification method
+   - How do we KNOW the prediction was correct?
+   - Concrete assertions or metrics
+   - Edge cases covered
+
+### Why This Matters
+
+- **Machine-Actionable**: Agents can parse PREDICTION/EXPERIMENT/OBSERVE blocks
+- **Buildable**: Later work can reference earlier hypotheses
+- **Verifiable**: Every feature includes its own proof
+- **AHDB-Compatible**: Hypotheses are first-class objects in our system
+
+### Example Pattern
+
+```python
+def test_nats_dedup_prevents_duplicate_processing():
+    """
+    PREDICTION: Events delivered multiple times by NATS will be processed exactly once
+    due to event_dedupe table tracking by (consumer, event_id) primary key.
+
+    EXPERIMENT:
+    1. Create NATS consumer with explicit ACK and short AckWait
+    2. Publish 100 events
+    3. Process first delivery but do NOT ACK
+    4. Wait for AckWait timeout (triggers redelivery)
+    5. Process second delivery
+    6. Mark event done and ACK
+
+    OBSERVE:
+    - event_dedupe table shows delivery_count >= 2 for all events
+    - Each event appears exactly once in events table (seq unique)
+    - No duplicate work items created
+    """
+```
+
+### Required Elements
+
+Every test file for new features MUST include:
+- A module-level docstring explaining the hypothesis
+- Each test method with PREDICTION/EXPERIMENT/OBSERVE sections
+- Edge cases explicitly covered in OBSERVE section
+- Metrics or concrete assertions (not "should work" but "count == 1")
+
+This makes our codebase a knowledge graph, not just code.
 
 ## Key Files and Patterns
 

@@ -136,3 +136,37 @@
 - Test full stack with Docker Compose
 - Consider building tmux from source for flicker fix (mode 2026 synchronized output)
 - Clean up state.sqlite and verify data persistence
+
+# Progress (2026-01-27)
+
+## Completed
+- Added automated research runner (registry + CLI) with structured logs and per-run markdown summaries.
+- Implemented fully automated Q3 experiment (mode classification) and auto-updated AHDB research prompt.
+- Added research runner tests and verified with venv pytest.
+- Automated Q1/Q2/Q4/Q5 experiments and executed full research run with updated prompt output.
+- Replaced Q1/Q2 with JetStream-backed experiments (queue throughput + stream isolation).
+
+## Tests
+- `/Users/wiz/choirOS/api/venv/bin/python -m pytest supervisor/tests/test_research_runner.py`
+
+## Notes
+- Research run emits a runtime warning about `supervisor.research.runner` being in `sys.modules` during execution.
+- Synthetic Q1/Q2 runs were supportive; JetStream replacements are inconclusive because NATS is offline.
+- Q3/Q4 remain inconclusive pending deeper validation.
+
+# Progress (2026-01-29)
+
+## Completed
+- Started NATS via Docker Compose and re-ran the automated research suite.
+- Updated Q1/Q2 JetStream experiments to run against the existing CHOIR stream using filtered consumers.
+- Q1/Q2 now show supported outcomes with real JetStream pulls; Q5 remains supported.
+- Enhanced Q3 mode classification (risk/verification signals + capability profiles) and Q4 context ranking (avg reduction + hit-rate) and re-ran experiments to supported status.
+
+## Notes
+- JetStream consumers use `ack_policy=none` to avoid NATS permissions errors on `$js.ack.*`.
+- The research runner still emits a `runpy` warning about module import order.
+- Q3/Q4 now supported with synthetic AHDB data when state is empty; LLM performance validation still pending.
+
+## Next Steps
+- Automate remaining experiments (Q1/Q2/Q4/Q5) in `supervisor/research/experiments.py`.
+- Decide whether to silence the `runpy` warning in the research runner entrypoint.

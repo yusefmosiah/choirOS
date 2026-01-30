@@ -4,8 +4,8 @@ This document captures the current, working architecture of ChoirOS as of 2026-0
 
 ## Executive Summary
 - **Frontend (React/Vite)** provides the desktop UI and the command bar, streaming agent responses over a WebSocket.
-- **Supervisor (FastAPI)** orchestrates runs, executes tools, and records events to a local SQLite event log (`state.sqlite`).
-- **NATS JetStream** is optional today; events are published when available, but SQLite remains the local event log and projection source.
+- **Supervisor (FastAPI)** orchestrates runs, executes tools, and emits events to NATS JetStream.
+- **NATS JetStream** is the required event log (source of truth); SQLite is a projection store.
 - **API (FastAPI)** provides parsing utilities and a **file-backed artifact store** (saved under `artifacts/` with an `index.json` catalog).
 - **Auditor worker** polls SQLite for file changes and appends `auditor.critique` events.
 
@@ -18,11 +18,11 @@ graph LR
     Supervisor[Supervisor (FastAPI)]
     API[API (FastAPI)]
     SQLite[state.sqlite
-(event log + projections)]
+(projection store)]
     Artifacts[artifacts/
 index.json + files]
     NATS[NATS JetStream
-(optional)]
+(required)]
     Auditor[Auditor Worker]
     Sandbox[Sandbox Runner
 (local or Sprites)]
@@ -30,8 +30,8 @@ index.json + files]
     User -->|HTTP/WS| Frontend
     Frontend -->|WS /agent| Supervisor
     Frontend -->|HTTP /api| API
-    Supervisor -->|Events| SQLite
     Supervisor -->|Publish| NATS
+    Supervisor -->|Project| SQLite
     Supervisor -->|Exec| Sandbox
     API -->|Create/read artifacts| Artifacts
     Auditor -->|Polls| SQLite
@@ -47,15 +47,19 @@ sequenceDiagram
     participant FE as Frontend
     participant Sup as Supervisor
     participant Agent as AgentHarness
-    participant DB as EventStore (SQLite)
+    participant NATS as NATS JetStream
+    participant DB as SQLite Projection
     participant API as API /artifacts
     participant FS as artifacts/ + index.json
 
     User->>FE: Enter prompt in command bar
     FE->>Sup: WS /agent {prompt}
+    Sup->>NATS: run.input event
     Sup->>Agent: process(prompt)
     Agent-->>FE: streaming thinking/text/tool events
-    Agent->>DB: append events (SQLite)
+    Sup->>NATS: mode.start event (execution begins)
+    Agent->>NATS: tool/file/receipt events
+    NATS->>DB: project events
     FE->>API: POST /api/artifacts
     API->>FS: write file + update index.json
     FE->>FE: open Writer with artifactId
@@ -70,11 +74,13 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Agent as Agent Tools
-    participant DB as SQLite Event Log
+    participant NATS as NATS JetStream
+    participant DB as SQLite Projection
     participant Aud as Auditor Worker
     participant Sup as Supervisor
 
-    Agent->>DB: append file.write event
+    Agent->>NATS: file.write event
+    NATS->>DB: project events
     Aud->>DB: poll new events
     Aud->>Sup: run audit on changed file
     Aud->>DB: append auditor.critique event
@@ -83,7 +89,7 @@ sequenceDiagram
 **Notes:**
 - The auditor is a background loop polling SQLite. It is not NATS-driven today.
 
-### 3) Mode Directives via NATS (Optional)
+### 3) Mode Directives via NATS (Required)
 
 ```mermaid
 sequenceDiagram
@@ -97,14 +103,14 @@ sequenceDiagram
 ```
 
 **Notes:**
-- When NATS is enabled, the supervisor listens for directives and executes them through the Machine + RunOrchestrator.
+- The supervisor listens for directives and executes them through the Machine + RunOrchestrator.
 
 ## Storage Model (Current)
 
 ### Event Log
-- **Primary local store:** `state.sqlite`
-- **Event structure:** event type + JSON payload, with optional `nats_seq`.
-- **NATS status:** best-effort publish when enabled; SQLite remains canonical in local dev.
+- **Source of truth:** NATS JetStream
+- **Event structure:** event type + JSON payload, with `nats_seq` assigned by NATS
+- **SQLite:** projection store that mirrors NATS for queries and UI
 
 ### Artifacts
 - **Physical storage:** `artifacts/` directory

@@ -241,9 +241,9 @@ class NATSClient:
             config=ConsumerConfig(
                 ack_policy="explicit",
                 deliver_policy="new",
-                ack_wait=DEFAULT_ACK_WAIT_SECONDS * 1_000_000_000,
+                ack_wait=DEFAULT_ACK_WAIT_SECONDS,
                 max_deliver=DEFAULT_MAX_DELIVER,
-                backoff=[delay * 1_000_000_000 for delay in DEFAULT_BACKOFF_SECONDS],
+                backoff=DEFAULT_BACKOFF_SECONDS,
             ),
         )
 
