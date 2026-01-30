@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 PID_FILE=".dev.sh.pids"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-MODE="start"
+MODE="restart"
 SKIP_NATS=0
 KEEP_NATS=${KEEP_NATS:-0}
 DOCKER_COMPOSE=""
@@ -22,9 +22,9 @@ NATS_STARTED=0
 
 print_usage() {
     echo "Usage: ./dev.sh [start|stop|status|restart|nats-reset] [--no-nats]"
-    echo "  start      Start frontend, backend, supervisor (default)"
+    echo "  start      Start frontend, backend, supervisor"
     echo "  stop       Stop all dev processes and NATS container"
-    echo "  restart    Stop all processes and restart"
+    echo "  restart    Stop all processes, reset NATS, and restart (default)"
     echo "  status     Show status of all dev processes"
     echo "  nats-reset Stop NATS, remove JetStream data, and restart"
     echo "  --no-nats  Skip starting NATS"
@@ -124,6 +124,7 @@ load_pids() {
         BACKEND_PID=""
         SUPERVISOR_PID=""
         AUDITOR_PID=""
+        PROJECTOR_PID=""
     fi
 }
 
@@ -133,6 +134,7 @@ FRONTEND_PID="$FRONTEND_PID"
 BACKEND_PID="$BACKEND_PID"
 SUPERVISOR_PID="$SUPERVISOR_PID"
 AUDITOR_PID="$AUDITOR_PID"
+PROJECTOR_PID="$PROJECTOR_PID"
 EOF
 }
 
@@ -146,14 +148,14 @@ check_pid() {
 
 is_running() {
     load_pids
-    check_pid "$FRONTEND_PID" || check_pid "$BACKEND_PID" || check_pid "$SUPERVISOR_PID" || check_pid "$AUDITOR_PID"
+    check_pid "$FRONTEND_PID" || check_pid "$BACKEND_PID" || check_pid "$SUPERVISOR_PID" || check_pid "$AUDITOR_PID" || check_pid "$PROJECTOR_PID"
 }
 
 stop_all() {
     echo -e "${YELLOW}Stopping ChoirOS processes...${NC}"
     load_pids
 
-    for pid in $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID $AUDITOR_PID; do
+    for pid in $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID $AUDITOR_PID $PROJECTOR_PID; do
         if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
             kill "$pid" 2>/dev/null || true
             echo "  Stopped PID $pid"
@@ -203,12 +205,19 @@ show_status() {
         echo -e "  Auditor:    ${RED}stopped${NC}"
     fi
 
+    if check_pid "$PROJECTOR_PID"; then
+        echo -e "  Projector:  ${GREEN}running${NC} (PID: $PROJECTOR_PID)"
+        running=1
+    else
+        echo -e "  Projector:  ${RED}stopped${NC}"
+    fi
+
     echo ""
     show_nats_status
 
     if [ "$running" -eq 0 ]; then
         echo ""
-        echo -e "Run ${YELLOW}./dev.sh start${NC} to start all services"
+        echo -e "Run ${YELLOW}./dev.sh${NC} to restart all services"
     fi
 }
 
@@ -226,7 +235,7 @@ fi
 if [ "$MODE" = "nats-reset" ]; then
     stop_all
     reset_nats
-    echo -e "${GREEN}Run ./dev.sh start to restart services${NC}"
+    echo -e "${GREEN}Run ./dev.sh to restart services${NC}"
     exit 0
 fi
 
@@ -256,7 +265,7 @@ cleanup() {
     echo ""
     echo -e "${YELLOW}Shutting down...${NC}"
     load_pids
-    kill $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID $AUDITOR_PID 2>/dev/null
+    kill $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID $AUDITOR_PID $PROJECTOR_PID 2>/dev/null
     rm -f "$PID_FILE"
     if [ "$NATS_STARTED" -eq 1 ] && [ "$KEEP_NATS" -ne 1 ]; then
         stop_nats
@@ -301,6 +310,10 @@ echo -e "${GREEN}Starting Auditor Worker...${NC}"
 python supervisor/auditor_worker.py &
 AUDITOR_PID=$!
 
+echo -e "${GREEN}Starting Projector Worker...${NC}"
+python supervisor/projector_worker.py &
+PROJECTOR_PID=$!
+
 echo -e "${GREEN}Starting Frontend (Vite on port 5173)...${NC}"
 cd choiros
 npm run dev &
@@ -321,4 +334,4 @@ echo -e "Press ${RED}Ctrl+C${NC} to stop"
 echo ""
 
 # Wait for any process to exit
-wait $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID $AUDITOR_PID
+wait $FRONTEND_PID $BACKEND_PID $SUPERVISOR_PID $AUDITOR_PID $PROJECTOR_PID

@@ -54,6 +54,7 @@ Status: ACTIVE
 
 ## Architecture
 - docs/architecture/CONTEXT_HEATMAP_ARCH.md
+- docs/architecture/CHAT_ACTOR_LEDGER_ARCHITECTURE.md
 
 ## Handoffs and Reports (Archived)
 - All handoffs moved to `docs/archive/` — see issue tracker `docs/reviews/issues-2026-01-18.md` for current status.

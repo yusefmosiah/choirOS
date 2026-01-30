@@ -1,7 +1,13 @@
 # Collaborative Document Editing: Research & Architecture
 
-**Date**: 2026-01-29
-**Context**: Writer app pattern - prompt bar, NOT chat, human+AI co-editing with snapshot version control
+**Date**: 2026-01-30
+**Context**: Chat is the control plane; Writer and other apps are projections over the same tool-call ledger.
+
+**Update Note (2026-01-30)**: The attempt to eliminate chat and replace it with a single non-chat interface
+did not work. The new direction keeps **Chat as the go-to app**, while **deprecating the linear message list
+as the primary context model**. The system should **document all tool calls** and let other apps (Writer,
+Context Heatmap, Runmap, Audit, Mail) render those tool calls and resulting state in different views. The
+prompt bar is a shortcut into the Chat app at the center of ChoirOS.
 
 ---
 
@@ -9,27 +15,27 @@
 
 ### What You're Building
 
-**NOT a Chat App**
+**Chat as Control Plane (not removed, re-centered)**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Chat App (What We DON'T Want)           │
+│               Chat App (Hub + Tool-Call Ledger)             │
 ├─────────────────────────────────────────────────────────────┤
 │                                                               │
 │  User: Write a blog post about AI                          │
-│  AI: [Generates text...]                                   │
+│  AI: [Invokes tools: document.create, document.edit...]     │
 │  User: Make it longer                                      │
-│  AI: [Appends more text...]                                 │
+│  AI: [Invokes tools: document.edit...]                      │
 │  User: Add a section about X                                │
-│  AI: [Inserts section...]                                   │
+│  AI: [Invokes tools: document.edit...]                      │
 │                                                               │
-│  → Linear message thread                                    │
-│  → Can't edit previous messages                             │
-│  → "Chat" mental model                                       │
+│  → Tool-call ledger is the source of truth                  │
+│  → Messages are a view, not the model                        │
+│  → Chat spawns and controls other apps                       │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│                   Writer App (What We WANT)                  │
+│           Writer App (Projection of Chat + Tools)            │
 ├─────────────────────────────────────────────────────────────┤
 │                                                               │
 │  ┌─────────────────────────────────────────────────────┐    │
@@ -55,24 +61,28 @@
 │          ___submit___                                      │
 │                                                               │
 │  → Document is the focus                                   │
-│  → Prompt bar is tool, not the interface                  │
-│  → Edits happen in-place, not appended                     │
+│  → Prompt routes to Chat (tool-call source)                 │
+│  → Edits happen in-place, not appended                      │
 │  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### The Generalization
 
-This pattern **includes chat as a special case**:
+This pattern **treats chat as the hub** and all other apps as **views over the same tool-call stream**:
 
-| App Type | Primary Content | Prompt Behavior | Example |
-|-----------|-----------------|------------------|---------|
-| **Writer** | Document | Inline edit / append / rewrite | Google Docs with AI |
-| **Mail** | Messages | Append to thread | Gmail with AI compose |
-| **Terminal** | Commands | Append to history | Shell with AI suggestions |
-| **Chat** | Messages | Append to thread | ChatGPT (special case) |
+| App Type | Primary Content | Prompt Behavior | Role |
+|-----------|-----------------|------------------|------|
+| **Chat (Hub)** | Tool-call ledger + summary | Routes to tools | Orchestrator |
+| **Writer** | Document | Inline edit / rewrite | Projection |
+| **Context Heatmap** | Context graph | Highlight usage | Projection |
+| **Runmap** | Execution graph | Trace steps | Projection |
+| **Audit** | Tool-call log | Explain provenance | Projection |
+| **Mail** | Thread | Append | Projection |
+| **Terminal** | History | Append | Projection |
 
-All use the **prompt bar at bottom** pattern. The difference is what the prompt does to the content.
+All use the **prompt bar at bottom** pattern. The difference is what the prompt does to the content and
+how it maps back into the **shared tool-call ledger**.
 
 ---
 
@@ -176,6 +186,14 @@ turn.branch(user_id, parent_turn_id)  # "Try a different path"
 # Cursor/selection (for collaboration)
 cursor.move(user_id, position)
 selection.set(user_id, start, end)
+
+# Chat + tool-call ledger (source of truth)
+chat.message.create
+tool.call
+tool.result
+app.spawn
+app.focus
+app.view.sync
 ```
 
 ### The Snapshot Strategy
@@ -292,25 +310,25 @@ restore_event = {
 
 ## Part 5: The "Prompt Bar" Mental Model
 
-### What Makes It Not Chat?
+### Chat as Hub, Views as Projections
 
-**Chat App:**
+**Chat App (Hub view):**
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Chat with AI                                                 │
 │                                                              │
 │  User: Write a blog post                                    │
-│  AI: Here's a blog post...                                  │
+│  AI: [Calls document.create + document.edit]                │
 │  User: Make it longer                                       │
-│  AI: [Appends to previous message]                          │
+│  AI: [Calls document.edit]                                  │
 │                                                              │
 │  [prompt]                                    [Send button]      │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
-Mental model: "I'm talking to the AI, messages appear below"
+Mental model: "I'm issuing requests; tools run and update views"
 ```
 
-**Writer App:**
+**Writer App (Projection view):**
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  My Blog Post                                            [v5 ▼]       │
@@ -334,19 +352,19 @@ Mental model: "I'm talking to the AI, messages appear below"
 │  └────────────────────────────────────────────────────┘   │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
-Mental model: "I'm editing a document, the prompt bar is my tool palette"
+Mental model: "I'm editing a document; the prompt bar routes to Chat"
 ```
 
 ### The Key Distinctions
 
-| Aspect | Chat App | Writer App |
+| Aspect | Chat Hub | Writer View |
 |--------|----------|------------|
-| **Primary focus** | Message thread | Document |
-| **Prompt result** | New message | Document change |
-| **History** | Scroll up in chat | Turn snapshots |
-| **Mental model** | Conversation | Co-editing |
-| **AI role** | Chat partner | Collaborator |
-| **User control** | Limited (edit messages?) | Full control (edit anywhere) |
+| **Primary focus** | Tool-call ledger + summary | Document |
+| **Prompt result** | Tool calls + results | Document change |
+| **History** | Tool-call timeline | Turn snapshots |
+| **Mental model** | Orchestration | Co-editing |
+| **AI role** | Operator | Collaborator |
+| **User control** | Command routing | Full control (edit anywhere) |
 
 ### Prompt Bar Operations
 
@@ -368,23 +386,27 @@ Mental model: "I'm editing a document, the prompt bar is my tool palette"
 - "Generate an outline based on this"
 - "Find citations for [claim]"
 
-**The key**: All of these are TOOLS, not chat. The prompt bar is the interface to AI-powered tools.
+**The key**: All of these are TOOLS. The prompt bar routes to Chat, which documents the tool calls and
+fans results out to other app views.
 
 ---
 
 ## Part 6: Architecture Proposal
 
-### Event-Sourced Document System
+### Event-Sourced System with Chat Hub
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      FRONTEND (React)                         │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │  WriterComponent                                      │    │
-│  │    - Yjs/Y.Text for real-time collaboration         │    │
-│  │    - Prompt bar at bottom                           │    │
-│  │    - Version slider (turn history)                   │    │
-│  │    - Diff viewer for AI suggestions                │    │
+│  │  ChatApp (Hub)                                       │    │
+│  │    - Tool-call ledger timeline                      │    │
+│  │    - Prompt bar routes to tools                     │    │
+│  │    - Spawns/controls other apps                     │    │
+│  │                                                     │    │
+│  │  Writer / Heatmap / Runmap / Audit (Views)          │    │
+│  │    - Subscribe to tool-call ledger                  │    │
+│  │    - Render domain-specific projections             │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                         ↕ WebSocket (NATS)                     │
 └─────────────────────────────────────────────────────────────┘
@@ -393,8 +415,13 @@ Mental model: "I'm editing a document, the prompt bar is my tool palette"
 ┌─────────────────────────────────────────────────────────────┐
 │                    BACKEND (FastAPI)                          │
 │  ┌─────────────────────────────────────────────────────┐    │
+│  │  Chat + Tool Ledger Service                           │    │
+│  │    - POST /chat/messages                              │    │
+│  │    - POST /tools/call                                 │    │
+│  │    - GET /ledger/{session_id}                         │    │
+│  │                                                       │    │
 │  │  Document Service                                     │    │
-│  │    - POST /documents/{id}/edit                       │    │
+│  │    - POST /documents/{id}/edit                        │    │
 │  │    - POST /documents/{id}/prompt                      │    │
 │  │    - GET /documents/{id}/versions                     │    │
 │  │    - POST /documents/{id}/restore/{version_id}        │    │
@@ -405,15 +432,15 @@ Mental model: "I'm editing a document, the prompt bar is my tool palette"
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    MACHINE (Burr State Machine)               │
+│                 ORCHESTRATOR (Run Orchestrator)               │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │  State: document_state, user_request                 │    │
+│  │  State: session_state, tool_calls, view_context      │    │
 │  │                                                       │    │
 │  │  Actions:                                             │    │
 │  │    - parse_prompt: Understand user intent             │    │
-│  │    - select_operation: edit/expand/rewrite/...       │    │
-│  │    - execute_edit: Generate new content               │    │
-│  │    - create_snapshot: Save version                     │    │
+│  │    - select_operation: tool routing                   │    │
+│  │    - execute_tool: Generate edits / calls             │    │
+│  │    - create_snapshot: Save version                    │    │
 │  │                                                       │    │
 │  │  Transitions:                                         │    │
 │  │    - idle → processing → done → idle                  │    │
@@ -425,18 +452,22 @@ Mental model: "I'm editing a document, the prompt bar is my tool palette"
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    EVENT LOG (NATS JetStream)                 │
+│  - chat.message.create                                    │
+│  - tool.call                                              │
+│  - tool.result                                            │
+│  - app.spawn                                              │
+│  - app.focus                                              │
 │  - document.{id}.create                                   │
 │  - document.{id}.edit.{seq}                               │
 │  - document.{id}.snapshot.{version_id}                    │
 │  - document.{id}.restore.{version_id}                     │
-│  - document.{id}.ai.suggestion.{id}                        │
-│  - document.{id}.turn.{turn_number}                        │
 └──────────────────────────┬──────────────────────────────────┘
                           │ Projector reads
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    PROJECTION (libsql)                        │
 │  Tables:                                                    │
+│  - tool_calls (id, session_id, tool, args, result, ts)      │
 │  - documents (id, current_content, current_version)        │
 │  - document_snapshots (id, version_id, content, metadata)   │
 │  - document_edits (id, edit_seq, operation, diff)           │
@@ -517,20 +548,20 @@ provider.on('ai-edit', (edit) => {
 - Final state consistent across clients
 - Event log shows both edits
 
-### Phase 4: Prompt Bar as Tool Interface
+### Phase 4: Prompt Bar as Chat Routing
 
-**PREDICTION**: Prompt bar maps to operations, not chat.
+**PREDICTION**: Prompt bar routes to Chat, which logs tool calls and updates document views.
 
 **EXPERIMENT**:
 1. User types: "Revise conclusion"
-2. System emits `document.prompt` event
-3. Machine routes to Burr action
-4. Burr state machine: `parse_prompt` → `select_operation` → `execute_edit`
-5. Result: Document changed, NOT message appended
+2. System emits `chat.message.create`
+3. Orchestrator emits `tool.call` and `tool.result`
+4. Document changes via `document.edit`
+5. Writer view updates from the ledger
 
 **OBSERVE**:
 - Document content changed
-- No message in a thread
+- Tool-call ledger shows the edit and result
 - Prompt bar clears
 
 ### Phase 5: Version History UI
@@ -577,13 +608,14 @@ All apps use the same pattern:
 
 | App | Content | Prompt Operations | Edit Behavior |
 |-----|---------|-------------------|---------------|
+| **Chat (Hub)** | Tool-call ledger | Route + summarize | Tool calls |
 | **Writer** | Document | Revise, expand, rewrite | Inline edits |
 | **Mail** | Thread | Reply, forward, summarize | Append |
 | **Terminal** | History | Command, explain | Append |
 | **Files** | Browser | Search, filter | None (read-only) |
 
 **The universal interface:**
-- Prompt bar at bottom
+- Prompt bar at bottom (routes to Chat)
 - Context-aware (knows what's selected)
 - AI edits appear inline
 - Version/snapshot control
@@ -594,9 +626,9 @@ All apps use the same pattern:
 
 ### Questions for Further Investigation
 
-1. **CRDT vs Pure Event Sourcing**
-   - Can we get away with just events (no CRDT)?
-   - Or is CRDT essential for human+AI concurrent edits?
+1. **Tool-Call Ledger as Source of Truth**
+   - What is the minimal schema for tool.call + tool.result?
+   - How should other apps subscribe and reconcile?
 
 2. **Snapshot Granularity**
    - Snapshot every turn? Every N operations?
@@ -615,28 +647,28 @@ All apps use the same pattern:
 5. **Real-Time Collaboration**
    - Multiple humans + AI editing together
    - Yjs handles this well
-   - How does event sourcing fit?
+   - How does the tool-call ledger reflect CRDT ops?
 
 ### What to Prototype First
 
-1. **Single-user writer app** (no collaboration yet)
+1. **Chat hub + tool-call ledger**
+   - Chat is the default app
+   - Tool calls are logged and queryable
+   - Other apps subscribe to tool-call events
+
+2. **Writer as projection**
    - Document stored as events
    - Snapshots per turn
-   - Prompt bar → AI edits
+   - Prompt bar routes to Chat, edits emitted as tools
    - Version navigation
-
-2. **Add Burr for orchestration**
-   - Machine state machine for prompt processing
-   - Routes to different operations (expand, rewrite, etc.)
-   - Emits events for each action
 
 3. **Add real-time sync**
    - Yjs for collaborative editing
    - Websocket provider to NATS
-   - Test concurrent edits
+   - Tool-call ledger records CRDT ops
 
 4. **Multi-app generalization**
-   - Apply pattern to Mail, Terminal, Files
+   - Apply pattern to Mail, Terminal, Files, Heatmap, Runmap, Audit
    - Each app defines its content model and operations
    - Shared prompt bar component
 
