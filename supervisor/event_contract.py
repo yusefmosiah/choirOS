@@ -35,6 +35,14 @@ CHOIR_EVENT_TYPES_V0 = (
     "run.finished",
     "artifact.create",
     "artifact.pointer",
+    # Document events
+    "document.create",
+    "document.edit",
+    "document.snapshot",
+    "document.restore",
+    "ai.suggestion",
+    "ai.suggestion.accept",
+    "ai.suggestion.reject",
     # Notes (AHDB-typed telemetry)
     "note.observation",
     "note.hypothesis",
